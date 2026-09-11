@@ -82,13 +82,15 @@
           </div>
           <div class="field half">
             <label>현장 레퍼런스 유형 <span class="en">SITE REFERENCE</span></label>
-            <select name="siteReferenceType">
-              <option value="Real Site Photo">실사 현장 사진</option>
-              <option value="Architectural Rendering">건축 렌더링</option>
-              <option value="Aerial / Bird's-eye View">항공 / 조감 뷰</option>
-              <option value="Site Plan">배치도</option>
-              <option value="Mixed">혼합</option>
+            <select name="siteReferenceType" id="siteReferenceType">
+              <option value="Real Site Photo">실제 현장 사진</option>
+              <option value="Architectural Rendering">건축 투시도 / 조경 렌더</option>
+              <option value="Aerial / Bird's-eye View">조감도</option>
+              <option value="Site Plan">배치도 / Site Plan</option>
+              <option value="Mixed">Mixed Reference</option>
             </select>
+            <span id="site-certainty-badge" class="certainty-badge">SITE CERTAINTY: MEDIUM</span>
+            <p id="site-certainty-hint" class="field-hint" hidden>선택하신 레퍼런스로는 공간의 위치 관계만 확인할 수 있습니다. 건축 입면과 조경 디테일은 실제 설계와 다를 수 있으므로 AI가 보수적으로 추론하도록 프롬프트가 생성됩니다.</p>
           </div>
           <div class="field half">
             <label>시간대 <span class="en">TIME OF DAY</span></label>

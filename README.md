@@ -22,6 +22,8 @@ Instead of writing each camera-angle prompt from scratch (and risking the AI sil
 - **Automatic lock language** — STRICT / STANDARD / FLEXIBLE artwork lock levels insert progressively stronger preservation instructions; individual preserve checkboxes (형태/비율/컬러/재료/구성요소 수/방향/기단/내부 디테일) add targeted clauses.
 - **Site lock language** — 건축물 / 조경 / 바닥·포장 / 동선 유지 checkboxes automatically protect massing, paving, planting, and circulation paths in every generated prompt.
 - **Reference-insufficiency warnings** — Rear, Left/Right 3/4, and all technical (orthographic/elevation) shots automatically display a Korean caution that AI-generated results should be treated as presentation-only, not fabrication drawings.
+- **Site Reference Certainty (v1.2)** — 현장 레퍼런스 유형(실제 현장 사진/건축 투시도·조경 렌더/조감도/배치도/Mixed)에 따라 SITE CERTAINTY(HIGH/MEDIUM/LOW/MIXED)가 자동 표시되고, 각 등급에 맞춰 SITE LOCK 문장 자체가 달라집니다. 배치도·조감도(LOW)처럼 입면/외장재 정보가 없는 레퍼런스에서는 "façade를 정확히 유지하라"는 모순된 문구 대신 부지 경계·건물 위치·동선 등 확인 가능한 요소만 고정하고, 나머지는 중립적/일반적으로 처리하도록 지시합니다. 미착공(unbuilt) + LOW 인증 조합에서는 럭셔리 마케팅 렌더링을 막는 강화된 억제 문구(0–3인 인물, 35–50mm 자연스러운 시점, 조형물/분수/현수막 임의 추가 금지 등)가 추가로 삽입됩니다.
+- **기단(base) 없음 자동 처리** — 기단 여부를 "없음"으로 설정하면 받침대/수반/플랫폼을 임의로 만들지 말라는 문구가 자동으로 삽입됩니다.
 - **Numbered output cards** (00, 01, 02…) each with a short Korean description, the full English prompt in a dark code block, and its own COPY button — plus **COPY ALL** at the top of the results column.
 - **Export** the full prompt package as `.txt` or `.json`.
 - **Local history** (browser `localStorage`, last 20 generations) — reload or delete past generations without re-typing the form.

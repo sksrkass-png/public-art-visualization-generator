@@ -231,6 +231,23 @@ input:focus, select:focus, textarea:focus {
   margin: 6px 2px 0;
 }
 
+.certainty-badge {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: var(--soft);
+  color: #3f3f3f;
+  border: 1px solid var(--line);
+}
+
+.certainty-badge--high { background: var(--green); color: var(--green-ink); border-color: var(--green); }
+.certainty-badge--low { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-border); }
+.certainty-badge--mixed { background: #fff; color: var(--ink); border-style: dashed; }
+
 .shot-quick { display: flex; gap: 12px; margin-bottom: 10px; }
 
 .link-jump {

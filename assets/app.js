@@ -65,12 +65,63 @@
     preserveInnerDetail: "retain inner surface details, seams, and textures as specified"
   };
 
-  var SITE_PRESERVE_CLAUSES = {
-    buildingPreserve: "building massing and façade",
-    landscapePreserve: "existing planting and landscape features",
-    pavingPreserve: "paving and ground surface treatment",
-    circulationPreserve: "pedestrian circulation paths"
+  var SITE_REFERENCE_CERTAINTY = {
+    "Real Site Photo": "HIGH",
+    "Architectural Rendering": "MEDIUM",
+    "Aerial / Bird's-eye View": "LOW",
+    "Site Plan": "LOW",
+    "Mixed": "MIXED"
   };
+
+  var SITE_CERTAINTY_LABEL_KO = {
+    HIGH: "HIGH · 실제 현장사진",
+    MEDIUM: "MEDIUM · 건축/조경 렌더",
+    LOW: "LOW · 배치도 기반",
+    MIXED: "MIXED · 복수 레퍼런스"
+  };
+
+  function siteCertaintyFor(siteReferenceType) {
+    return SITE_REFERENCE_CERTAINTY[siteReferenceType] || "MEDIUM";
+  }
+
+  // Preservation phrasing for each SITE LOCK checkbox, tuned to what each
+  // reference type can actually verify — a site plan cannot confirm a façade,
+  // so LOW must never claim to preserve it "exactly".
+  var SITE_PRESERVE_CLAUSES_BY_CERTAINTY = {
+    HIGH: {
+      buildingPreserve: "the existing architecture and building exteriors exactly as shown",
+      landscapePreserve: "existing planting and landscape features exactly as shown",
+      pavingPreserve: "paving and ground surface materials exactly as shown",
+      circulationPreserve: "pedestrian circulation paths exactly as shown"
+    },
+    MEDIUM: {
+      buildingPreserve: "the façade proportions and visible exterior materials shown in the reference",
+      landscapePreserve: "visible planting masses and landscape structures shown in the reference",
+      pavingPreserve: "visible paving patterns and materials shown in the reference",
+      circulationPreserve: "pedestrian circulation paths visible in the reference"
+    },
+    LOW: {
+      buildingPreserve: "the building footprints, positions, and orientation shown in the plan (the façade design itself is not specified)",
+      landscapePreserve: "the landscape / open-space zone boundaries shown in the plan (specific planting species and landscape design are not specified)",
+      pavingPreserve: "the paved and circulation surface areas shown in the plan (the specific paving material is not specified)",
+      circulationPreserve: "the pedestrian circulation routes shown in the plan"
+    },
+    MIXED: {
+      buildingPreserve: "the building footprints, positions, and orientation defined by the site plan, refined by any visible architecture shown in accompanying renderings or photos",
+      landscapePreserve: "the landscape zones defined by the site plan, refined by any visible planting or landscape features shown in accompanying renderings or photos",
+      pavingPreserve: "the paved surface areas defined by the site plan, refined by any visible paving shown in accompanying renderings or photos",
+      circulationPreserve: "the pedestrian circulation defined by the site plan, refined by any visible circulation shown in accompanying renderings or photos"
+    }
+  };
+
+  var SITE_CERTAINTY_BLOCK = {
+    HIGH: "This is an actual site photograph. Preserve the existing architecture, paving, trees, landscape, furniture, signage, and spatial proportions exactly as shown. Do not redesign the site beyond the minimal compositing needed to insert the artwork.",
+    MEDIUM: "Preserve visible architecture and landscape features shown in the reference. Areas not visible in the reference, such as the rear or unseen sides of the site, must not be arbitrarily expanded or over-designed — keep them neutral and consistent with the visible portions.",
+    LOW: "The site plan defines spatial relationships, not verified architectural appearance. Preserve the building footprints, positions, orientation, circulation, landscape zones, and relative spatial relationships shown in the plan. Architectural façades and landscape details that are not specified in the reference must remain neutral, generic, and visually restrained. Do not treat inferred façade or landscape details as verified design information.",
+    MIXED: "Multiple site references are provided (site plan, renderings, and/or photos). When references conflict, prioritize the higher-certainty visual reference — actual site photo, then architectural/landscape rendering, then aerial rendering, then site plan — while preserving the spatial layout defined by the site plan."
+  };
+
+  var AI_MARKETING_SUPPRESSION_CLAUSE = "Avoid: luxury real-estate advertising style, golden-hour marketing renders, cinematic bloom, excessive flowering plants, resort-like landscaping, invented fountains, invented podiums or platforms, invented Korean signage or slogans, invented building numbers, branded signage, exaggerated material reflections, and overly perfect lifestyle scenes. People: include 0-3 ordinary pedestrians only. Camera: natural eye-level perspective equivalent to a 35-50mm architectural photography lens, neutral contrast, natural saturation, no heroic framing, no cinematic depth-of-field.";
 
   var HUMAN_SCALE_TEXT = {
     "None": "Do not include any human figures in the scene.",
@@ -137,23 +188,34 @@
     return parts.length ? parts.join(" x ") : "dimensions not specified";
   }
 
+  var SITE_LOCK_INTRO_BY_CERTAINTY = {
+    HIGH: "Site lock: keep the existing site exactly as referenced.",
+    MEDIUM: "Site lock: keep the existing site consistent with the reference.",
+    LOW: "Site lock: keep the existing site consistent with the spatial layout defined by the plan.",
+    MIXED: "Site lock: keep the existing site consistent with the combined references."
+  };
+
   function siteLockText(state) {
+    var certainty = siteCertaintyFor(state.siteReferenceType);
+    var clauseMap = SITE_PRESERVE_CLAUSES_BY_CERTAINTY[certainty];
     var lines = [];
     lines.push("Site: a " + (state.siteType || "public") + " setting" +
       (state.installationPosition ? ", with the artwork installed at " + state.installationPosition : "") + ".");
-    lines.push("Site reference type: " + (state.siteReferenceType || "Mixed") + ". Time of day: " + (state.timeOfDay || "Day") + ".");
+    lines.push("Site reference type: " + (state.siteReferenceType || "Mixed") + " (SITE CERTAINTY: " + certainty +
+      "). Time of day: " + (state.timeOfDay || "Day") + ".");
 
     var protect = [];
-    Object.keys(SITE_PRESERVE_CLAUSES).forEach(function (key) {
-      if (state[key]) protect.push(SITE_PRESERVE_CLAUSES[key]);
+    Object.keys(clauseMap).forEach(function (key) {
+      if (state[key]) protect.push(clauseMap[key]);
     });
 
     if (protect.length) {
-      lines.push("Site lock: keep the existing site exactly as referenced. Do not alter, redesign, or omit the " +
+      lines.push(SITE_LOCK_INTRO_BY_CERTAINTY[certainty] + " Do not alter, redesign, or omit " +
         protect.join("; ") + ". Only the artwork and camera angle may change between shots.");
     } else {
       lines.push("Site lock: keep the existing site consistent across all generated views.");
     }
+    lines.push(SITE_CERTAINTY_BLOCK[certainty]);
     if (state.unbuiltSite) lines.push(UNBUILT_SITE_CLAUSE);
     return lines.join(" ");
   }
@@ -202,6 +264,9 @@
     lines.push(HUMAN_SCALE_TEXT[state.humanScale] || HUMAN_SCALE_TEXT.None);
     lines.push("Output aspect ratio: " + (state.outputRatio || "4:3") + ".");
     if (state.unbuiltSite) lines.push(UNBUILT_TONE_CLAUSE);
+    if (state.unbuiltSite && siteCertaintyFor(state.siteReferenceType) === "LOW") {
+      lines.push(AI_MARKETING_SUPPRESSION_CLAUSE);
+    }
     return lines.join(" ");
   }
 
@@ -287,9 +352,11 @@
       index: pad(idx++), title: "MASTER PROMPT", descKo: "전체 프로젝트를 설명하는 기준 프롬프트입니다. 작품, 공간, 고정 규칙, 톤을 총괄합니다.",
       body: buildMasterPrompt(state), type: "master"
     });
+    var masterCertainty = siteCertaintyFor(state.siteReferenceType);
     currentOutputs.push({
       index: pad(idx++), title: "MASTER VIEW", descKo: "가장 먼저 생성해야 하는 대표 이미지 프롬프트입니다. 이 이미지가 이후 모든 각도의 기준이 됩니다.",
-      body: buildMasterViewPrompt(state), type: "master-view", step: "STEP 01"
+      body: buildMasterViewPrompt(state), type: "master-view", step: "STEP 01",
+      warning: masterCertainty === "LOW" ? "LOW SITE CERTAINTY · 배치도 기반 시뮬레이션 — 건축 입면/조경 디테일은 실제 설계와 다를 수 있습니다." : null
     });
     currentOutputs.push({
       index: pad(idx++), title: "MASTER LOCK", descKo: "승인된 MASTER 이미지를 기준으로 재해석을 막고 카메라만 바꾸도록 지시하는 잠금 문구입니다.",
@@ -581,6 +648,16 @@
     shotEls.forEach(function (el) {
       el.checked = (state.shots || []).indexOf(el.value) !== -1;
     });
+    updateSiteCertaintyUI();
+  }
+
+  function updateSiteCertaintyUI() {
+    var certainty = siteCertaintyFor(form.elements["siteReferenceType"].value);
+    var badge = document.getElementById("site-certainty-badge");
+    var hint = document.getElementById("site-certainty-hint");
+    badge.textContent = "SITE CERTAINTY: " + SITE_CERTAINTY_LABEL_KO[certainty];
+    badge.className = "certainty-badge certainty-badge--" + certainty.toLowerCase();
+    hint.hidden = certainty !== "LOW";
   }
 
   var SAMPLE_STATE = {
@@ -658,6 +735,7 @@
     ["btn-copy-all", "btn-export-txt", "btn-export-json"].forEach(function (id) {
       document.getElementById(id).disabled = true;
     });
+    updateSiteCertaintyUI();
     showToast("초기화되었습니다.");
   }
 
@@ -709,5 +787,8 @@
     });
   });
 
+  form.elements["siteReferenceType"].addEventListener("change", updateSiteCertaintyUI);
+
+  updateSiteCertaintyUI();
   renderHistory();
 })();
