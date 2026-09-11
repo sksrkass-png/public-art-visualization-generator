@@ -16,32 +16,38 @@ Instead of writing each camera-angle prompt from scratch (and risking the AI sil
 
 ## Feature Overview
 
-- **Korean-first input form** across four sections (A–D): 프로젝트/설치 공간, 작품 정보, 작품/공간 고정 규칙, 시안 출력. Field labels lead in Korean with the English term as a small secondary caption.
-- **Always-on Master Workflow** — every generation produces a MASTER PROMPT (project brief), MASTER VIEW (first approved image prompt, highlighted with a green border and STEP 01 badge), and MASTER LOCK (STEP 02 anchor instruction), followed by numbered shot prompts (STEP 03).
-- **Shot-by-shot prompts** for up to 12 camera angles: Main Perspective, Eye Level, Left 3/4, Right 3/4, Rear, Aerial, Long Shot, Close-up, plus optional technical views (Front/Rear Orthographic, Left/Right Elevation) — all 8 base shots checked by default.
-- **Automatic lock language** — STRICT / STANDARD / FLEXIBLE artwork lock levels insert progressively stronger preservation instructions; individual preserve checkboxes (형태/비율/컬러/재료/구성요소 수/방향/기단/내부 디테일) add targeted clauses.
-- **Site lock language** — 건축물 / 조경 / 바닥·포장 / 동선 유지 checkboxes automatically protect massing, paving, planting, and circulation paths in every generated prompt.
+### UX (v1.3 — guided wizard redesign)
+
+- **4-step guided wizard** — ① 프로젝트 & 작품 → ② 설치 공간 → ③ 스타일 → ④ Prompt 생성. Only one step is shown at a time in 간편 모드 (Simple Mode), with a clickable progress stepper at the top so users always know where they are.
+- **간편 모드 / 전문가 모드 (Simple / Expert Mode)** toggle in the header (persisted in `localStorage`). Simple Mode shows only what's needed to get a good result; Expert Mode reveals every individual lock checkbox, the technical shot views, and the image-ratio field, and unlocks all 4 steps on one scrollable page for power users.
+- **공간 보존 수준 프리셋 (최소 / 보통 / 최대)** — replaces two dozen individual lock checkboxes with three plain-language presets. The underlying checkboxes are still there (and still drive the prompt engine unchanged) — Expert Mode's "개별 고정 항목 직접 설정" panel exposes them for fine-tuning.
+- **AI 추천 (site-type recommendations)** — picking a 공간 유형 (e.g. 아파트 중정) surfaces a recommendation banner with suggested camera shots, human-scale, and preservation level; one **추천 적용** click applies all of them at once.
+- **ⓘ tooltips** on every field, explaining in one line why it matters and how it affects the output.
+- **Collapsible result cards** — every generated prompt starts collapsed ("프롬프트 생성 완료 ▾ 펼치기"); the COPY button stays reachable without expanding.
+- **Example preview instead of a blank result area** — before you generate anything, the results panel shows the 4-part output structure (기준 프롬프트 → 기준 시점 → 기준 고정 지침 → 카메라 구도별 프롬프트) with a sample excerpt, so the empty state teaches the workflow instead of just being empty.
+- Reduced Korean/English UI mixing — field labels are Korean-first with no English caption unless the term is technical/precise (e.g. `mm`, `STRICT`); everything else is explained via the ⓘ tooltip instead of a bilingual label.
+
+### Prompt engine (unchanged in this redesign — see `assets/app.js` top half)
+
+- **Always-on Master Workflow** — every generation produces a 기준 프롬프트 (project brief), 기준 시점/Master View (first approved image prompt, highlighted with a green border and STEP 01 badge), and 기준 고정 지침/Master Lock (STEP 02 anchor instruction), followed by numbered shot prompts (STEP 03).
+- **Shot-by-shot prompts** for up to 12 camera angles: Main Perspective, Eye Level, Left 3/4, Right 3/4, Rear, Aerial, Long Shot, Close-up, plus optional technical views (Front/Rear Orthographic, Left/Right Elevation).
+- **Automatic lock language** — STRICT / STANDARD / FLEXIBLE artwork lock levels insert progressively stronger preservation instructions.
 - **Reference-insufficiency warnings** — Rear, Left/Right 3/4, and all technical (orthographic/elevation) shots automatically display a Korean caution that AI-generated results should be treated as presentation-only, not fabrication drawings.
-- **Site Reference Certainty (v1.2)** — 현장 레퍼런스 유형(실제 현장 사진/건축 투시도·조경 렌더/조감도/배치도/Mixed)에 따라 SITE CERTAINTY(HIGH/MEDIUM/LOW/MIXED)가 자동 표시되고, 각 등급에 맞춰 SITE LOCK 문장 자체가 달라집니다. 배치도·조감도(LOW)처럼 입면/외장재 정보가 없는 레퍼런스에서는 "façade를 정확히 유지하라"는 모순된 문구 대신 부지 경계·건물 위치·동선 등 확인 가능한 요소만 고정하고, 나머지는 중립적/일반적으로 처리하도록 지시합니다. 미착공(unbuilt) + LOW 인증 조합에서는 럭셔리 마케팅 렌더링을 막는 강화된 억제 문구(0–3인 인물, 35–50mm 자연스러운 시점, 조형물/분수/현수막 임의 추가 금지 등)가 추가로 삽입됩니다.
+- **Site Reference Certainty** — 현장 레퍼런스 유형(실제 현장 사진/건축 투시도·조경 렌더/조감도/배치도/Mixed)에 따라 SITE CERTAINTY(HIGH/MEDIUM/LOW/MIXED)가 자동 표시되고, 각 등급에 맞춰 SITE LOCK 문장 자체가 달라집니다. 배치도·조감도(LOW)처럼 입면/외장재 정보가 없는 레퍼런스에서는 "façade를 정확히 유지하라"는 모순된 문구 대신 부지 경계·건물 위치·동선 등 확인 가능한 요소만 고정합니다. 배치도와 조감도는 서로 다른 문구를 사용합니다(조감도를 "site plan"이라고 부르지 않습니다). 미착공(unbuilt) + LOW 인증 조합에서는 럭셔리 마케팅 렌더링을 막는 강화된 억제 문구가 추가로 삽입됩니다.
 - **기단(base) 없음 자동 처리** — 기단 여부를 "없음"으로 설정하면 받침대/수반/플랫폼을 임의로 만들지 말라는 문구가 자동으로 삽입됩니다.
-- **Numbered output cards** (00, 01, 02…) each with a short Korean description, the full English prompt in a dark code block, and its own COPY button — plus **COPY ALL** at the top of the results column.
-- **Export** the full prompt package as `.txt` or `.json`.
-- **Local history** (browser `localStorage`, last 20 generations) — reload or delete past generations without re-typing the form.
-- **샘플 불러오기** (sample data) link for instant demoing/QA.
-- **초기화** (reset) clears the form and output back to a blank slate.
+- **Export** the full prompt package as `.txt` or `.json`; **local history** (browser `localStorage`, last 20 generations).
 
 Everything runs client-side. Nothing is uploaded anywhere; history and drafts live only in your browser's local storage.
 
 ## How to Use
 
-1. **A. 프로젝트 / 설치 공간** — 프로젝트명, 공모명, 작가명, 작품명, 공간 유형, 설치 위치, 현장 레퍼런스 유형, 시간대를 입력합니다.
-2. **B. 작품 정보** — 가로(W) × 깊이(D) × 높이(H, mm), 재료, 주요 컬러, 기단 여부, 작품 설명, 설치 의도를 입력합니다.
-3. **C. 작품 / 공간 고정 규칙** — ARTWORK LOCK LEVEL(STRICT/STANDARD/FLEXIBLE)을 정하고, 작품 고정 항목과 공간 고정(SITE LOCK) 항목을 체크합니다.
-4. **D. 시안 출력** — 이미지 비율, 리얼리즘, 인물 스케일을 정하고 촬영 각도(SHOT SELECT)를 선택합니다.
-5. **💭 시안 프롬프트 생성**을 누릅니다.
-6. **E. 생성 결과**에서 `00 MASTER PROMPT`를 먼저 이미지 생성 도구에 붙여 넣어 전체 컨셉을 검토합니다.
-7. `01 MASTER VIEW` 프롬프트로 대표 이미지를 생성하고 승인합니다.
-8. 승인된 MASTER 이미지를 첨부한 채로 `02 MASTER LOCK` 지침과 각 `03 SHOT` 프롬프트를 함께 사용해 각도별 이미지를 생성합니다.
+1. **① 프로젝트 & 작품** — 프로젝트명, 작품명(필수) + 작가명, 공모명, 작품 규격(W·D·H·재료·컬러·기단)을 입력합니다. 설명/의도는 선택 사항입니다.
+2. **② 설치 공간** — 공간 유형과 설치 위치를 정하면 추천 배너가 나타납니다. 원하면 **추천 적용**을 눌러 카메라 구도·보존 수준·인물 스케일을 한 번에 채웁니다. 현장 레퍼런스 유형과 시간대, 미착공 현장 여부를 정합니다.
+3. **③ 스타일** — **공간 보존 수준**(최소/보통/최대)을 고르고, 리얼리즘과 인물 스케일을 정합니다. 전문가 모드에서는 개별 고정 항목을 직접 조정할 수 있습니다.
+4. **④ Prompt 생성** — 촬영 구도를 선택하고 **💭 프롬프트 생성**을 누릅니다.
+5. 결과에서 `00 기준 프롬프트`를 먼저 이미지 생성 도구에 붙여 넣어 전체 컨셉을 검토합니다.
+6. `01 기준 시점(Master View)` 프롬프트로 대표 이미지를 생성하고 승인합니다.
+7. 승인된 이미지를 첨부한 채로 `02 기준 고정 지침`과 각 `03 카메라 구도` 프롬프트를 함께 사용해 각도별 이미지를 생성합니다.
 
 ### Suggested workflow with ChatGPT / image tools
 
@@ -54,10 +60,10 @@ Everything runs client-side. Nothing is uploaded anywhere; history and drafts li
 
 ```
 /
-├── index.html          # Page structure: hero + sticky sidebar form + output panel
+├── index.html          # 4-step wizard markup: topbar/mode toggle, stepper, step panels, result section
 ├── assets/
-│   ├── style.css        # Design tokens + components (cream/white/lime-green system)
-│   └── app.js            # Form state, prompt-building logic, output rendering, history
+│   ├── style.css        # Design tokens + components (cream/white/lime-green system, wizard/preset/tooltip UI)
+│   └── app.js            # Prompt engine (unchanged) + wizard/mode/preset/recommendation UI layer
 └── README.md
 ```
 

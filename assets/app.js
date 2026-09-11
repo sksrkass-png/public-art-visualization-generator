@@ -194,6 +194,78 @@
   var UNBUILT_TONE_CLAUSE = "This is a conservative, proposal-stage competition submission — prioritize accuracy over beauty. Avoid a luxury apartment advertisement look: no cinematic lighting, no excessive golden-hour mood, no dramatic lens flare, no hyper-polished CGI, no exaggerated reflections, and no overly lush landscaping. Use soft, neutral daytime lighting and realistic but restrained material reflectivity so the result feels like a believable installation simulation, not a marketing rendering.";
 
   // ---------------------------------------------------------------------
+  // Preservation-level presets (UI convenience layer over the existing
+  // preserve* checkboxes + lockLevel — the engine above is untouched;
+  // this just batch-sets the same fields it already reads).
+  // ---------------------------------------------------------------------
+
+  var PRESERVE_LEVEL_PRESETS = {
+    "최소": {
+      lockLevel: "FLEXIBLE",
+      preserveGeometry: true, preserveProportion: true, preserveColor: false, preserveMaterial: false,
+      preserveComponentCount: false, preserveOrientation: false, preserveBase: false, preserveInnerDetail: false,
+      buildingPreserve: false, landscapePreserve: false, pavingPreserve: false, circulationPreserve: true
+    },
+    "보통": {
+      lockLevel: "STANDARD",
+      preserveGeometry: true, preserveProportion: true, preserveColor: true, preserveMaterial: true,
+      preserveComponentCount: true, preserveOrientation: true, preserveBase: false, preserveInnerDetail: false,
+      buildingPreserve: true, landscapePreserve: true, pavingPreserve: true, circulationPreserve: true
+    },
+    "최대": {
+      lockLevel: "STRICT",
+      preserveGeometry: true, preserveProportion: true, preserveColor: true, preserveMaterial: true,
+      preserveComponentCount: true, preserveOrientation: true, preserveBase: true, preserveInnerDetail: true,
+      buildingPreserve: true, landscapePreserve: true, pavingPreserve: true, circulationPreserve: true
+    }
+  };
+
+  var PRESERVE_LEVEL_FIELD_NAMES = Object.keys(PRESERVE_LEVEL_PRESETS["보통"]);
+
+  // ---------------------------------------------------------------------
+  // Site-type recommendations — one-click "추천 적용" that patches
+  // multiple existing fields at once. Purely a UI convenience layer.
+  // ---------------------------------------------------------------------
+
+  var RECOMMENDATIONS = {
+    "Apartment Courtyard": {
+      chips: ["Long Shot", "Eye Level", "중립 주간광", "건축물 유지", "조경 유지"],
+      preserveLevel: "보통", humanScale: "Natural", realismLevel: "Architectural Visualization", timeOfDay: "Day",
+      shots: ["Main Perspective", "Eye Level", "Long Shot"]
+    },
+    "Plaza": {
+      chips: ["Aerial", "Long Shot", "커뮤니티 활성", "동선 유지"],
+      preserveLevel: "보통", humanScale: "Active Community", realismLevel: "Architectural Visualization", timeOfDay: "Day",
+      shots: ["Main Perspective", "Eye Level", "Aerial", "Long Shot"]
+    },
+    "Park": {
+      chips: ["Long Shot", "Aerial", "자연스러운 인물", "조경 유지"],
+      preserveLevel: "보통", humanScale: "Natural", realismLevel: "Photoreal", timeOfDay: "Day",
+      shots: ["Main Perspective", "Long Shot", "Aerial"]
+    },
+    "Building Entrance": {
+      chips: ["Eye Level", "Close-up", "건축물 유지", "최소 인물"],
+      preserveLevel: "최대", humanScale: "Minimal", realismLevel: "Architectural Visualization", timeOfDay: "Day",
+      shots: ["Main Perspective", "Eye Level", "Close-up"]
+    },
+    "Indoor Lobby": {
+      chips: ["Eye Level", "Close-up", "포토리얼", "최소 인물"],
+      preserveLevel: "최대", humanScale: "Minimal", realismLevel: "Photoreal", timeOfDay: "Day",
+      shots: ["Main Perspective", "Eye Level", "Close-up"]
+    },
+    "Pedestrian Street": {
+      chips: ["Long Shot", "Eye Level", "동선 유지", "자연스러운 인물"],
+      preserveLevel: "보통", humanScale: "Natural", realismLevel: "Architectural Visualization", timeOfDay: "Day",
+      shots: ["Main Perspective", "Eye Level", "Long Shot"]
+    },
+    "Other": {
+      chips: ["Main Perspective", "Eye Level", "표준 보존"],
+      preserveLevel: "보통", humanScale: "Natural", realismLevel: "Architectural Visualization", timeOfDay: "Day",
+      shots: ["Main Perspective", "Eye Level", "Long Shot"]
+    }
+  };
+
+  // ---------------------------------------------------------------------
   // Form state
   // ---------------------------------------------------------------------
 
@@ -495,37 +567,55 @@
       head.appendChild(badge);
     }
 
+    var toggleBtn = document.createElement("button");
+    toggleBtn.type = "button";
+    toggleBtn.className = "out-toggle";
+    toggleBtn.innerHTML = "프롬프트 생성 완료 <span class=\"out-toggle__arrow\">▾</span> 펼치기";
+    toggleBtn.addEventListener("click", function () {
+      var open = card.classList.toggle("is-open");
+      toggleBtn.innerHTML = "프롬프트 생성 완료 <span class=\"out-toggle__arrow\">▾</span> " + (open ? "접기" : "펼치기");
+    });
+    head.appendChild(toggleBtn);
+
     var desc = document.createElement("p");
     desc.className = "out-desc";
     desc.textContent = item.descKo;
-
-    var pre = document.createElement("pre");
-    pre.className = "out-body";
-    pre.textContent = item.body;
-
-    card.appendChild(head);
-    if (item.descKo) card.appendChild(desc);
-    card.appendChild(pre);
-
-    if (item.warning) {
-      var warn = document.createElement("div");
-      warn.className = "out-warning";
-      warn.textContent = item.warning;
-      card.appendChild(warn);
-    }
 
     var actions = document.createElement("div");
     actions.className = "out-card-actions";
     var copyBtn = document.createElement("button");
     copyBtn.type = "button";
-    copyBtn.className = "btn btn-secondary";
-    copyBtn.textContent = "COPY";
+    copyBtn.className = "btn btn-outline btn-small";
+    copyBtn.textContent = "복사하기";
     copyBtn.addEventListener("click", function () {
       copyText(item.body);
       showToast(item.title + " 복사 완료");
     });
     actions.appendChild(copyBtn);
+
+    var collapsible = document.createElement("div");
+    collapsible.className = "out-collapsible";
+    var collapsibleInner = document.createElement("div");
+    collapsibleInner.className = "out-collapsible-inner";
+
+    var pre = document.createElement("pre");
+    pre.className = "out-body";
+    pre.textContent = item.body;
+    collapsibleInner.appendChild(pre);
+
+    if (item.warning) {
+      var warn = document.createElement("div");
+      warn.className = "out-warning";
+      warn.textContent = item.warning;
+      collapsibleInner.appendChild(warn);
+    }
+
+    collapsible.appendChild(collapsibleInner);
+
+    card.appendChild(head);
+    if (item.descKo) card.appendChild(desc);
     card.appendChild(actions);
+    card.appendChild(collapsible);
 
     return card;
   }
@@ -708,6 +798,76 @@
       el.checked = (state.shots || []).indexOf(el.value) !== -1;
     });
     updateSiteCertaintyUI();
+    syncPresetRadioToState();
+    renderRecommendationBanner();
+    goToStep(1);
+  }
+
+  // ---------------------------------------------------------------------
+  // Preservation-level preset UI
+  // ---------------------------------------------------------------------
+
+  function applyPreserveLevel(level) {
+    var preset = PRESERVE_LEVEL_PRESETS[level];
+    if (!preset) return;
+    Object.keys(preset).forEach(function (key) {
+      var el = form.elements[key];
+      if (!el) return;
+      if (el.type === "checkbox") el.checked = preset[key];
+      else el.value = preset[key];
+    });
+  }
+
+  function syncPresetRadioToState() {
+    var state = getFormState();
+    var matchedLevel = null;
+    Object.keys(PRESERVE_LEVEL_PRESETS).forEach(function (level) {
+      var preset = PRESERVE_LEVEL_PRESETS[level];
+      var matches = PRESERVE_LEVEL_FIELD_NAMES.every(function (key) {
+        return key === "lockLevel" ? state[key] === preset[key] : !!state[key] === !!preset[key];
+      });
+      if (matches) matchedLevel = level;
+    });
+    var radios = form.querySelectorAll('input[name="preserveLevelPreset"]');
+    radios.forEach(function (el) { el.checked = el.value === matchedLevel; });
+  }
+
+  // ---------------------------------------------------------------------
+  // AI 추천 (site-type recommendation banner)
+  // ---------------------------------------------------------------------
+
+  var dismissedRecommendationFor = null;
+
+  function renderRecommendationBanner() {
+    var siteType = form.elements["siteType"].value;
+    var banner = document.getElementById("recommend-banner");
+    var rec = RECOMMENDATIONS[siteType];
+    if (!rec || dismissedRecommendationFor === siteType) {
+      banner.hidden = true;
+      return;
+    }
+    var chipsEl = document.getElementById("recommend-chips");
+    chipsEl.innerHTML = "";
+    rec.chips.forEach(function (label) {
+      var span = document.createElement("span");
+      span.textContent = "✓ " + label;
+      chipsEl.appendChild(span);
+    });
+    banner.hidden = false;
+  }
+
+  function applyCurrentRecommendation() {
+    var siteType = form.elements["siteType"].value;
+    var rec = RECOMMENDATIONS[siteType];
+    if (!rec) return;
+    applyPreserveLevel(rec.preserveLevel);
+    form.elements["humanScale"].value = rec.humanScale;
+    form.elements["realismLevel"].value = rec.realismLevel;
+    form.elements["timeOfDay"].value = rec.timeOfDay;
+    var shotEls = form.querySelectorAll('input[name="shot"]');
+    shotEls.forEach(function (el) { el.checked = rec.shots.indexOf(el.value) !== -1; });
+    syncPresetRadioToState();
+    showToast("추천 설정이 적용되었습니다.");
   }
 
   var LOW_HINT_KO = {
@@ -802,7 +962,50 @@
       document.getElementById(id).disabled = true;
     });
     updateSiteCertaintyUI();
+    dismissedRecommendationFor = null;
+    renderRecommendationBanner();
+    goToStep(1);
     showToast("초기화되었습니다.");
+  }
+
+  // ---------------------------------------------------------------------
+  // Wizard (step navigation) + Simple/Expert mode
+  // ---------------------------------------------------------------------
+
+  var currentStep = 1;
+  var TOTAL_STEPS = 4;
+
+  function isExpertMode() { return document.body.classList.contains("mode-expert"); }
+
+  function goToStep(n) {
+    currentStep = Math.min(Math.max(n, 1), TOTAL_STEPS);
+    updateWizardUI();
+    if (!isExpertMode()) window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function updateWizardUI() {
+    var expert = isExpertMode();
+    document.querySelectorAll(".step-panel").forEach(function (panel) {
+      var step = Number(panel.getAttribute("data-step"));
+      panel.hidden = expert ? false : step !== currentStep;
+      panel.classList.toggle("is-active", step === currentStep);
+    });
+    document.querySelectorAll(".stepper__step").forEach(function (btn) {
+      var step = Number(btn.getAttribute("data-step"));
+      btn.classList.toggle("is-active", step === currentStep);
+      btn.classList.toggle("is-done", step < currentStep);
+    });
+  }
+
+  function setMode(mode) {
+    var expert = mode === "expert";
+    document.body.classList.toggle("mode-expert", expert);
+    document.getElementById("btn-mode-simple").classList.toggle("is-active", !expert);
+    document.getElementById("btn-mode-simple").setAttribute("aria-pressed", String(!expert));
+    document.getElementById("btn-mode-expert").classList.toggle("is-active", expert);
+    document.getElementById("btn-mode-expert").setAttribute("aria-pressed", String(expert));
+    try { localStorage.setItem("pavpg.mode", mode); } catch (e) { /* ignore */ }
+    updateWizardUI();
   }
 
   // ---------------------------------------------------------------------
@@ -834,6 +1037,8 @@
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     generate();
+    var resultTitle = document.getElementById("result-title");
+    if (resultTitle) resultTitle.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   document.getElementById("btn-reset").addEventListener("click", resetForm);
@@ -854,7 +1059,44 @@
   });
 
   form.elements["siteReferenceType"].addEventListener("change", updateSiteCertaintyUI);
+  form.elements["siteType"].addEventListener("change", function () {
+    dismissedRecommendationFor = null;
+    renderRecommendationBanner();
+  });
 
+  // Mode toggle (Simple / Expert)
+  document.getElementById("btn-mode-simple").addEventListener("click", function () { setMode("simple"); });
+  document.getElementById("btn-mode-expert").addEventListener("click", function () { setMode("expert"); });
+
+  // Wizard: stepper clicks + in-panel 다음/이전 buttons
+  document.querySelectorAll(".stepper__step").forEach(function (btn) {
+    btn.addEventListener("click", function () { goToStep(Number(btn.getAttribute("data-step"))); });
+  });
+  document.querySelectorAll("[data-goto]").forEach(function (btn) {
+    btn.addEventListener("click", function () { goToStep(Number(btn.getAttribute("data-goto"))); });
+  });
+
+  // 공간 보존 수준 프리셋
+  document.querySelectorAll('input[name="preserveLevelPreset"]').forEach(function (radio) {
+    radio.addEventListener("change", function () {
+      if (radio.checked) applyPreserveLevel(radio.value);
+    });
+  });
+
+  // AI 추천 배너
+  document.getElementById("btn-apply-recommend").addEventListener("click", applyCurrentRecommendation);
+  document.getElementById("btn-dismiss-recommend").addEventListener("click", function () {
+    dismissedRecommendationFor = form.elements["siteType"].value;
+    renderRecommendationBanner();
+  });
+
+  // ---- init ----
+  var savedMode = null;
+  try { savedMode = localStorage.getItem("pavpg.mode"); } catch (e) { /* ignore */ }
+  setMode(savedMode === "expert" ? "expert" : "simple");
+  goToStep(1);
   updateSiteCertaintyUI();
+  syncPresetRadioToState();
+  renderRecommendationBanner();
   renderHistory();
 })();
