@@ -37,6 +37,8 @@ Instead of writing each camera-angle prompt from scratch (and risking the AI sil
 - **Reference-insufficiency warnings** — Rear, Left/Right 3/4, and all technical (orthographic/elevation) shots automatically display a Korean caution that AI-generated results should be treated as presentation-only, not fabrication drawings.
 - **Site Reference Certainty** — 현장 레퍼런스 유형(실제 현장 사진/건축 투시도·조경 렌더/조감도/배치도/Mixed)에 따라 SITE CERTAINTY(HIGH/MEDIUM/LOW/MIXED)가 자동 표시되고, 각 등급에 맞춰 SITE LOCK 문장 자체가 달라집니다. 배치도·조감도(LOW)처럼 입면/외장재 정보가 없는 레퍼런스에서는 "façade를 정확히 유지하라"는 모순된 문구 대신 부지 경계·건물 위치·동선 등 확인 가능한 요소만 고정합니다. 배치도와 조감도는 서로 다른 문구를 사용합니다(조감도를 "site plan"이라고 부르지 않습니다). 미착공(unbuilt) + LOW 인증 조합에서는 럭셔리 마케팅 렌더링을 막는 강화된 억제 문구가 추가로 삽입됩니다.
 - **기단(base) 없음 자동 처리** — 기단 여부를 "없음"으로 설정하면 받침대/수반/플랫폼을 임의로 만들지 말라는 문구가 자동으로 삽입됩니다.
+- **수치 기반 Scale Lock** — 작품 높이(H)를 입력하면 평균 성인 키(1700mm) 대비 배율을 자동 계산해 "The artwork height is exactly 3000 mm... about 1.76 times the height of a person" 형태의 문장을 삽입합니다. "과장 확대 금지", "모든 뷰에서 동일 비율 유지", 사람이 없는 컷에서도 건축물·벤치·보행로·식재 등 주변 요소 대비 실제 크기로 보여야 한다는 문구가 함께 추가됩니다. 높이를 입력하지 않으면 기존의 일반 scale lock 문장만 사용됩니다.
+- **Site Hardscape Lock** — 미착공(unbuilt) + SITE CERTAINTY LOW 조합에서만 자동 적용되는 억제 규칙입니다. 원형 광장, 방사형 포장, 전용 조형광장, 수경/분수, 특수 받침대·플랫폼, 장식 옹벽, 게이트, 기념비형 기단, 특수 조경 조명 등을 배치도에 없는 한 임의로 만들지 않도록 제한하고, "작품이 계획된 부지에 맞춰야 하며 부지가 작품을 위해 재설계되어서는 안 된다"는 핵심 원칙을 명시합니다. MASTER VIEW에는 이 관계가 이후 모든 샷의 기준이 된다는 강조 문장이, MASTER LOCK에는 "스케일 관계 유지"·"이후 컷에서 새 하드스케이프 도입 금지" 항목이 추가로 포함됩니다.
 - **Export** the full prompt package as `.txt` or `.json`; **local history** (browser `localStorage`, last 20 generations).
 
 Everything runs client-side. Nothing is uploaded anywhere; history and drafts live only in your browser's local storage.

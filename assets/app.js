@@ -193,6 +193,13 @@
 
   var UNBUILT_TONE_CLAUSE = "This is a conservative, proposal-stage competition submission — prioritize accuracy over beauty. Avoid a luxury apartment advertisement look: no cinematic lighting, no excessive golden-hour mood, no dramatic lens flare, no hyper-polished CGI, no exaggerated reflections, and no overly lush landscaping. Use soft, neutral daytime lighting and realistic but restrained material reflectivity so the result feels like a believable installation simulation, not a marketing rendering.";
 
+  var ADULT_HEIGHT_MM = 1700;
+
+  // Applied when the site is unbuilt AND the only reference is LOW certainty
+  // (site plan / aerial) — without it, the AI tends to invent an impressive
+  // plaza/hardscape around the artwork instead of adapting to the plan.
+  var HARDSCAPE_LOCK_CLAUSE = "SITE HARDSCAPE LOCK: Do not invent a circular plaza, radial paving pattern, dedicated sculpture court, reflecting pool, fountain, water basin, special podium or platform, decorative retaining wall, gateway, monument base, custom sculpture paving, or special lighting installation unless clearly visible in the site reference. Do not redesign the surrounding site to make the artwork look more impressive. The artwork must adapt to the planned site; the site must not be redesigned around the artwork. Do not create a dedicated sculpture plaza or special hardscape unless explicitly visible in the site reference. If ground treatment is uncertain, use simple, neutral, continuous landscape or paving consistent with the reference.";
+
   // ---------------------------------------------------------------------
   // Preservation-level presets (UI convenience layer over the existing
   // preserve* checkboxes + lockLevel — the engine above is untouched;
@@ -344,6 +351,7 @@
     }
     lines.push(siteCertaintyBlockFor(state.siteReferenceType));
     if (state.unbuiltSite) lines.push(UNBUILT_SITE_CLAUSE);
+    if (state.unbuiltSite && certainty === "LOW") lines.push(HARDSCAPE_LOCK_CLAUSE);
     return lines.join(" ");
   }
 
@@ -401,6 +409,14 @@
       lines.push("NEGATIVE (avoid): " + forbiddenForms.concat(GENERIC_IDENTITY_NEGATIVES).join(", ") + ".");
     }
 
+    var heightMm = parseFloat(state.artworkHeight);
+    if (heightMm > 0) {
+      var ratio = (heightMm / ADULT_HEIGHT_MM).toFixed(2);
+      lines.push("The artwork height is exactly " + state.artworkHeight + " mm. Relative to an average adult height of approximately " +
+        ADULT_HEIGHT_MM + " mm, the sculpture should appear about " + ratio + " times the height of a person.");
+      lines.push("Do not visually enlarge the artwork for dramatic effect. Keep this human-to-artwork scale relationship consistent across all views.");
+      lines.push("Even in views with no people present, the artwork's scale must still read as accurate relative to surrounding elements such as buildings, benches, walkways, and planting.");
+    }
     lines.push("Scale lock: the artwork must always read at its true specified scale (" + dimsText(state) +
       ") relative to the site and any human figures present. Do not enlarge, shrink, or otherwise misrepresent scale between shots.");
     return lines.join(" ");
@@ -454,6 +470,7 @@
     lines.push("STYLE: " + visualizationText(state));
     lines.push("");
     lines.push("This image will be reviewed and approved as the reference anchor. Prioritize correctness of site layout, artwork geometry, and scale over stylistic flourish.");
+    lines.push("This master view establishes the definitive human-to-artwork scale relationship and site hardscape footprint — every later shot must match both exactly, with no new landscape or paving features introduced afterward.");
     return lines.join("\n");
   }
 
@@ -472,6 +489,8 @@
     lines.push("3. Keep the installation position and orientation fixed exactly as shown in the master view.");
     lines.push("4. Keep the site, landscape, and building context consistent with the master view.");
     lines.push("5. Only the camera angle, distance, and framing may change between shots. All other elements must remain locked.");
+    lines.push("6. Keep the approved master-view scale relationship unchanged.");
+    lines.push("7. Do not introduce new hardscape or landscape features in later camera views.");
     return lines.join("\n");
   }
 
@@ -916,7 +935,13 @@
     badge.textContent = "SITE CERTAINTY: " + siteCertaintyLabelFor(refType);
     badge.className = "certainty-badge certainty-badge--" + certainty.toLowerCase();
     hint.hidden = certainty !== "LOW";
-    if (certainty === "LOW") hint.textContent = LOW_HINT_KO[lowVariantFor(refType)];
+    if (certainty === "LOW") {
+      var text = LOW_HINT_KO[lowVariantFor(refType)];
+      if (form.elements["unbuiltSite"].checked) {
+        text += " 미착공·LOW 레퍼런스에서는 AI가 작품 전용 광장·수경·포장 등을 임의 생성하지 않도록 자동 제한됩니다.";
+      }
+      hint.textContent = text;
+    }
   }
 
   var SAMPLE_STATE = {
@@ -1092,6 +1117,7 @@
   });
 
   form.elements["siteReferenceType"].addEventListener("change", updateSiteCertaintyUI);
+  form.elements["unbuiltSite"].addEventListener("change", updateSiteCertaintyUI);
   form.elements["siteType"].addEventListener("change", function () {
     dismissedRecommendationFor = null;
     renderRecommendationBanner();
