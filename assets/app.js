@@ -6,11 +6,17 @@
 (function () {
   "use strict";
 
-  var STORAGE_KEY_HISTORY = "pavpg.history.v1";
+  var STORAGE_KEY_HISTORY = "pavpg.history.v2";
   var MAX_HISTORY = 20;
 
   var TECHNICAL_SHOTS = ["Front Orthographic", "Rear Orthographic", "Left Elevation", "Right Elevation"];
   var LIMITED_REFERENCE_SHOTS = ["Rear", "Left 3/4", "Right 3/4"].concat(TECHNICAL_SHOTS);
+
+  var ALL_SHOTS = [
+    "Main Perspective", "Eye Level", "Left 3/4", "Right 3/4", "Rear", "Aerial", "Long Shot", "Close-up",
+    "Front Orthographic", "Rear Orthographic", "Left Elevation", "Right Elevation"
+  ];
+  var STANDARD_SHOT_SET = ["Main Perspective", "Eye Level", "Left 3/4", "Right 3/4", "Rear", "Aerial", "Long Shot", "Close-up"];
 
   var CAMERA_DIRECTIVES = {
     "Main Perspective": "Primary three-quarter perspective view showing the artwork within its full site context. This view should match the framing and composition of the approved master view.",
@@ -27,8 +33,20 @@
     "Right Elevation": "Flat orthographic right-side elevation. No perspective distortion, no vanishing points. Technical presentation style, elevation drawing composition."
   };
 
-  var STANDARD_SHOT_SET = ["Main Perspective", "Eye Level", "Left 3/4", "Right 3/4", "Long Shot", "Close-up"];
-  var ALL_SHOTS = Object.keys(CAMERA_DIRECTIVES);
+  var SHOT_DESC_KO = {
+    "Main Perspective": "마스터 뷰와 동일한 구도로, 작품과 공간을 함께 보여주는 대표 퍼스펙티브 샷입니다.",
+    "Eye Level": "보행자의 눈높이(약 1.6m)에서 바라본 시점 샷입니다.",
+    "Left 3/4": "작품 왼쪽 45도 방향에서 바라본 샷입니다.",
+    "Right 3/4": "작품 오른쪽 45도 방향에서 바라본 샷입니다.",
+    "Rear": "작품 정면의 반대편, 후면에서 바라본 샷입니다.",
+    "Aerial": "위에서 내려다보는 조감(버드아이) 샷으로 전체 배치를 보여줍니다.",
+    "Long Shot": "주변 맥락과 함께 작품을 멀리서 보여주는 롱샷입니다.",
+    "Close-up": "작품 표면, 재질, 디테일을 강조하는 클로즈업 샷입니다.",
+    "Front Orthographic": "정면 정투상(입면) 프레젠테이션용 샷입니다. 원근 왜곡이 없습니다.",
+    "Rear Orthographic": "후면 정투상(입면) 프레젠테이션용 샷입니다.",
+    "Left Elevation": "좌측 입면 프레젠테이션용 샷입니다.",
+    "Right Elevation": "우측 입면 프레젠테이션용 샷입니다."
+  };
 
   var LOCK_LEVEL_TEXT = {
     STRICT: "Lock level: STRICT. Do not redesign, simplify, reinterpret, add, remove, or recolor any part of the artwork. Treat the artwork's form, material, and color exactly as specified and as shown in reference images.",
@@ -47,6 +65,13 @@
     preserveInnerDetail: "retain inner surface details, seams, and textures as specified"
   };
 
+  var SITE_PRESERVE_CLAUSES = {
+    buildingPreserve: "building massing and façade",
+    landscapePreserve: "existing planting and landscape features",
+    pavingPreserve: "paving and ground surface treatment",
+    circulationPreserve: "pedestrian circulation paths"
+  };
+
   var HUMAN_SCALE_TEXT = {
     "None": "Do not include any human figures in the scene.",
     "Minimal": "Include only a small number of subtle human figures placed for scale reference; they should not be the focus of the composition.",
@@ -60,21 +85,13 @@
     "Photoreal": "Photorealistic rendering style: indistinguishable from a real photograph, accurate physical lighting, lens characteristics, and material response."
   };
 
-  var DOMINANCE_TEXT = {
-    "Context": "The artwork should read as part of the site composition, with the surrounding context (landscape, architecture, people) given comparable visual weight.",
-    "Balanced": "Balance the visual weight of the artwork and its site context so neither dominates the frame.",
-    "Hero": "The artwork should be the clear visual hero of the composition, prominently framed and emphasized over the surrounding context."
+  var LIGHTING_BY_TIME = {
+    "Day": "Warm daylight lighting, soft golden-hour warmth without full sunset color.",
+    "Night": "Night lighting scenario with artificial site and artwork lighting, accent lighting on the artwork, and ambient dusk/night sky.",
+    "Sunset": "Dramatic sunset lighting with strong warm color temperature and long shadows."
   };
 
-  var LIGHTING_TEXT = {
-    "Neutral": "Neutral, even lighting with minimal dramatic shadow.",
-    "Warm Daylight": "Warm daylight lighting, soft golden-hour warmth without full sunset color.",
-    "Soft Overcast": "Soft, diffused overcast daylight with minimal hard shadows.",
-    "Dramatic Sunset": "Dramatic sunset lighting with strong warm color temperature and long shadows.",
-    "Night Lighting": "Night lighting scenario with artificial site and artwork lighting, accent lighting on the artwork, and ambient dusk/night sky."
-  };
-
-  var SITE_TYPE_LABEL = {}; // pass-through, values are already display-ready
+  var DOMINANCE_TEXT = "Balance the visual weight of the artwork and its site context so neither dominates the frame.";
 
   // ---------------------------------------------------------------------
   // Form state
@@ -82,18 +99,20 @@
 
   var form = document.getElementById("prompt-form");
 
+  var CHECKBOX_FIELDS = [
+    "preserveGeometry", "preserveProportion", "preserveColor", "preserveMaterial",
+    "preserveComponentCount", "preserveOrientation", "preserveBase", "preserveInnerDetail",
+    "buildingPreserve", "landscapePreserve", "pavingPreserve", "circulationPreserve"
+  ];
+
   function getFormState() {
     var fd = new FormData(form);
     var state = {};
     fd.forEach(function (value, key) {
-      if (key === "shot") return; // handled separately (multi-value)
+      if (key === "shot") return;
       state[key] = value;
     });
-    // checkboxes not present in FormData when unchecked — normalize booleans
-    ["sitePreserve", "landscapePreserve", "buildingPreserve", "useMasterWorkflow",
-      "preserveGeometry", "preserveProportion", "preserveColor", "preserveMaterial",
-      "preserveComponentCount", "preserveOrientation", "preserveBase", "preserveInnerDetail"
-    ].forEach(function (name) {
+    CHECKBOX_FIELDS.forEach(function (name) {
       var el = form.elements[name];
       state[name] = !!(el && el.checked);
     });
@@ -120,9 +139,9 @@
     lines.push("Site reference type: " + (state.siteReferenceType || "Mixed") + ". Time of day: " + (state.timeOfDay || "Day") + ".");
 
     var protect = [];
-    if (state.buildingPreserve) protect.push("building massing and façade");
-    if (state.landscapePreserve) protect.push("planting, paving, and fountain/water features");
-    if (state.sitePreserve) protect.push("circulation paths and overall spatial structure");
+    Object.keys(SITE_PRESERVE_CLAUSES).forEach(function (key) {
+      if (state[key]) protect.push(SITE_PRESERVE_CLAUSES[key]);
+    });
 
     if (protect.length) {
       lines.push("Site lock: keep the existing site exactly as referenced. Do not alter, redesign, or omit the " +
@@ -145,6 +164,8 @@
     return lines.join(" ");
   }
 
+  function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
   function artworkLockText(state) {
     var lines = [];
     lines.push(LOCK_LEVEL_TEXT[state.lockLevel] || LOCK_LEVEL_TEXT.STANDARD);
@@ -163,15 +184,11 @@
   function visualizationText(state) {
     var lines = [];
     lines.push(REALISM_TEXT[state.realismLevel] || REALISM_TEXT["Architectural Visualization"]);
-    lines.push(DOMINANCE_TEXT[state.sculptureDominance] || DOMINANCE_TEXT.Balanced);
-    lines.push(LIGHTING_TEXT[state.lightingStyle] || LIGHTING_TEXT.Neutral);
+    lines.push(DOMINANCE_TEXT);
+    lines.push(LIGHTING_BY_TIME[state.timeOfDay] || LIGHTING_BY_TIME.Day);
     lines.push(HUMAN_SCALE_TEXT[state.humanScale] || HUMAN_SCALE_TEXT.None);
     lines.push("Output aspect ratio: " + (state.outputRatio || "4:3") + ".");
     return lines.join(" ");
-  }
-
-  function capitalize(s) {
-    return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
   function buildMasterPrompt(state) {
@@ -225,10 +242,8 @@
     lines.push("");
     lines.push(CAMERA_DIRECTIVES[shotName] || "Camera direction not defined for this shot.");
     lines.push("");
-    if (state.useMasterWorkflow) {
-      lines.push("Use the approved master view image as the anchor. Do not redesign the artwork or move its installation position — change only the camera angle as described above.");
-      lines.push("");
-    }
+    lines.push("Use the approved master view image as the anchor. Do not redesign the artwork or move its installation position — change only the camera angle as described above.");
+    lines.push("");
     lines.push("SITE LOCK: " + siteLockText(state));
     lines.push("ARTWORK LOCK: " + artworkLockText(state));
     lines.push("VISUALIZATION STYLE: " + visualizationText(state));
@@ -238,116 +253,149 @@
   function shotWarning(shotName) {
     if (LIMITED_REFERENCE_SHOTS.indexOf(shotName) === -1) return null;
     if (TECHNICAL_SHOTS.indexOf(shotName) !== -1) {
-      return "Warning: side/rear reference is insufficient. AI-generated technical views should be treated as presentation-only, not fabrication drawings.";
+      return "⚠ 후면/측면 참고 자료가 부족합니다. AI가 생성한 기술 도면(입면)은 프레젠테이션용으로만 사용하고, 실제 제작 도면으로 사용하지 마세요.";
     }
-    return "Warning: side/rear reference is insufficient. Treat this view as a presentation estimate rather than a verified accurate depiction.";
+    return "⚠ 후면/측면 참고 자료가 부족합니다. 이 샷은 검증된 정확한 묘사가 아닌 프레젠테이션용 추정 이미지로 취급하세요.";
   }
 
   // ---------------------------------------------------------------------
   // Output rendering
   // ---------------------------------------------------------------------
 
-  var currentOutputs = []; // [{ id, title, body, warning }]
+  var currentOutputs = []; // [{ id, index, title, descKo, body, warning, master, step, type }]
 
   function generate() {
     var state = getFormState();
     currentOutputs = [];
+    var idx = 0;
 
-    if (state.useMasterWorkflow) {
-      currentOutputs.push({ id: "master", title: "Master Prompt", body: buildMasterPrompt(state) });
-      currentOutputs.push({ id: "master-view", title: "Master View Prompt", body: buildMasterViewPrompt(state) });
-      currentOutputs.push({ id: "master-lock", title: "Master Lock Instruction", body: buildMasterLockInstruction(state) });
-    }
+    currentOutputs.push({
+      index: pad(idx++), title: "MASTER PROMPT", descKo: "전체 프로젝트를 설명하는 기준 프롬프트입니다. 작품, 공간, 고정 규칙, 톤을 총괄합니다.",
+      body: buildMasterPrompt(state), type: "master"
+    });
+    currentOutputs.push({
+      index: pad(idx++), title: "MASTER VIEW", descKo: "가장 먼저 생성해야 하는 대표 이미지 프롬프트입니다. 이 이미지가 이후 모든 각도의 기준이 됩니다.",
+      body: buildMasterViewPrompt(state), type: "master-view", step: "STEP 01"
+    });
+    currentOutputs.push({
+      index: pad(idx++), title: "MASTER LOCK", descKo: "승인된 MASTER 이미지를 기준으로 재해석을 막고 카메라만 바꾸도록 지시하는 잠금 문구입니다.",
+      body: buildMasterLockInstruction(state), type: "master-lock", step: "STEP 02"
+    });
 
-    var shots = state.shots.length ? state.shots : [];
-    shots.forEach(function (shot, i) {
+    var shots = ALL_SHOTS.filter(function (s) { return state.shots.indexOf(s) !== -1; });
+    shots.forEach(function (shot) {
       currentOutputs.push({
-        id: "shot-" + i,
-        title: "Shot: " + shot,
-        body: buildShotPrompt(state, shot),
-        warning: shotWarning(shot)
+        index: pad(idx++), title: shot.toUpperCase(), descKo: SHOT_DESC_KO[shot] || "",
+        body: buildShotPrompt(state, shot), warning: shotWarning(shot), type: "shot", step: "STEP 03"
       });
     });
 
-    if (!currentOutputs.length) {
-      showToast("Select at least one output shot, or enable Master View Workflow.");
-      return;
+    if (!shots.length) {
+      showToast("촬영 각도를 하나 이상 선택해주세요.");
     }
 
     renderOutputs();
     saveToHistory(state, currentOutputs);
-    showToast("Prompts generated.");
+    showToast("프롬프트가 생성되었습니다.");
   }
 
+  function pad(n) { return String(n).padStart(2, "0"); }
+
   function renderOutputs() {
-    var list = document.getElementById("output-list");
-    var empty = document.getElementById("output-empty");
-    list.innerHTML = "";
+    var outputs = document.getElementById("outputs");
+    var empty = document.getElementById("empty");
+    outputs.innerHTML = "";
 
-    currentOutputs.forEach(function (item) {
-      var card = document.createElement("div");
-      card.className = "output-card";
+    var masterItems = currentOutputs.filter(function (o) { return o.type !== "shot"; });
+    var shotItems = currentOutputs.filter(function (o) { return o.type === "shot"; });
 
-      var header = document.createElement("div");
-      header.className = "output-card__header";
-
-      var title = document.createElement("span");
-      title.className = "output-card__title";
-      title.textContent = item.title;
-
-      var copyBtn = document.createElement("button");
-      copyBtn.type = "button";
-      copyBtn.className = "btn btn--ghost btn--small";
-      copyBtn.textContent = "Copy";
-      copyBtn.addEventListener("click", function () {
-        copyText(item.body);
-        showToast(item.title + " copied.");
-      });
-
-      header.appendChild(title);
-      header.appendChild(copyBtn);
-
-      var body = document.createElement("div");
-      body.className = "output-card__body";
-      body.textContent = item.body;
-
-      card.appendChild(header);
-      card.appendChild(body);
-
-      if (item.warning) {
-        var warn = document.createElement("div");
-        warn.className = "output-card__warning";
-        warn.textContent = item.warning;
-        card.appendChild(warn);
-      }
-
-      list.appendChild(card);
+    masterItems.forEach(function (item) {
+      outputs.appendChild(buildCard(item));
     });
 
-    empty.hidden = true;
-    list.hidden = false;
+    if (shotItems.length) {
+      var grid = document.createElement("div");
+      grid.className = "shots-grid";
+      shotItems.forEach(function (item) {
+        grid.appendChild(buildCard(item));
+      });
+      outputs.appendChild(grid);
+    }
 
-    ["btn-copy-all", "btn-export-txt", "btn-export-json", "btn-clear-output"].forEach(function (id) {
+    empty.hidden = true;
+    outputs.hidden = false;
+
+    ["btn-copy-all", "btn-export-txt", "btn-export-json"].forEach(function (id) {
       document.getElementById(id).disabled = false;
     });
   }
 
-  function clearOutput() {
-    currentOutputs = [];
-    document.getElementById("output-list").innerHTML = "";
-    document.getElementById("output-list").hidden = true;
-    document.getElementById("output-empty").hidden = false;
-    ["btn-copy-all", "btn-export-txt", "btn-export-json", "btn-clear-output"].forEach(function (id) {
-      document.getElementById(id).disabled = true;
+  function buildCard(item) {
+    var card = document.createElement("article");
+    card.className = "out-card" + (item.type === "master-view" ? " master-view" : "");
+
+    var head = document.createElement("div");
+    head.className = "out-card-head";
+
+    var indexSpan = document.createElement("span");
+    indexSpan.className = "out-index";
+    indexSpan.textContent = item.index;
+
+    var titleSpan = document.createElement("span");
+    titleSpan.className = "out-title";
+    titleSpan.textContent = item.title;
+
+    head.appendChild(indexSpan);
+    head.appendChild(titleSpan);
+
+    if (item.step) {
+      var badge = document.createElement("span");
+      badge.className = "step-badge";
+      badge.textContent = item.step;
+      head.appendChild(badge);
+    }
+
+    var desc = document.createElement("p");
+    desc.className = "out-desc";
+    desc.textContent = item.descKo;
+
+    var pre = document.createElement("pre");
+    pre.className = "out-body";
+    pre.textContent = item.body;
+
+    card.appendChild(head);
+    if (item.descKo) card.appendChild(desc);
+    card.appendChild(pre);
+
+    if (item.warning) {
+      var warn = document.createElement("div");
+      warn.className = "out-warning";
+      warn.textContent = item.warning;
+      card.appendChild(warn);
+    }
+
+    var actions = document.createElement("div");
+    actions.className = "out-card-actions";
+    var copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "btn btn-secondary";
+    copyBtn.textContent = "COPY";
+    copyBtn.addEventListener("click", function () {
+      copyText(item.body);
+      showToast(item.title + " 복사 완료");
     });
+    actions.appendChild(copyBtn);
+    card.appendChild(actions);
+
+    return card;
   }
 
   function copyAll() {
     var text = currentOutputs.map(function (o) {
-      return "=== " + o.title + " ===\n" + o.body + (o.warning ? "\n\n[" + o.warning + "]" : "");
+      return "=== [" + o.index + "] " + o.title + " ===\n" + o.body + (o.warning ? "\n\n[" + o.warning + "]" : "");
     }).join("\n\n");
     copyText(text);
-    showToast("All prompts copied.");
+    showToast("전체 프롬프트가 복사되었습니다.");
   }
 
   function copyText(text) {
@@ -383,7 +431,7 @@
 
   function exportTxt() {
     var text = currentOutputs.map(function (o) {
-      return "=== " + o.title + " ===\n" + o.body + (o.warning ? "\n\n[" + o.warning + "]" : "");
+      return "=== [" + o.index + "] " + o.title + " ===\n" + o.body + (o.warning ? "\n\n[" + o.warning + "]" : "");
     }).join("\n\n");
     triggerDownload(exportFilename() + ".txt", text, "text/plain");
   }
@@ -400,7 +448,7 @@
   function exportFilename() {
     var state = getFormState();
     var base = (state.projectName || state.artworkName || "public-art-prompts")
-      .toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+      .toLowerCase().trim().replace(/[^a-z0-9가-힣]+/gi, "-").replace(/(^-|-$)/g, "");
     return (base || "public-art-prompts") + "-" + Date.now();
   }
 
@@ -422,7 +470,7 @@
     history.unshift({
       id: "h-" + Date.now(),
       time: new Date().toISOString(),
-      title: state.projectName || state.artworkName || "Untitled",
+      title: state.projectName || state.artworkName || "제목 없음",
       formState: state,
       outputs: outputs
     });
@@ -439,16 +487,16 @@
     list.innerHTML = "";
 
     if (!history.length) {
-      var li = document.createElement("li");
-      li.className = "history-empty";
-      li.textContent = "No saved generations yet.";
-      list.appendChild(li);
+      var p = document.createElement("p");
+      p.className = "muted";
+      p.textContent = "저장된 기록이 없습니다.";
+      list.appendChild(p);
       return;
     }
 
     history.forEach(function (entry) {
-      var li = document.createElement("li");
-      li.className = "history-item";
+      var row = document.createElement("div");
+      row.className = "history-item";
 
       var meta = document.createElement("div");
       meta.className = "history-item__meta";
@@ -457,7 +505,7 @@
       title.textContent = entry.title;
       var time = document.createElement("span");
       time.className = "history-item__time";
-      time.textContent = new Date(entry.time).toLocaleString();
+      time.textContent = new Date(entry.time).toLocaleString("ko-KR");
       meta.appendChild(title);
       meta.appendChild(time);
 
@@ -466,19 +514,20 @@
 
       var loadBtn = document.createElement("button");
       loadBtn.type = "button";
-      loadBtn.className = "btn btn--ghost btn--small";
-      loadBtn.textContent = "Load";
+      loadBtn.className = "mini-link";
+      loadBtn.textContent = "불러오기";
       loadBtn.addEventListener("click", function () {
         applyFormState(entry.formState);
         currentOutputs = entry.outputs;
         renderOutputs();
-        showToast("Loaded from history.");
+        showToast("기록을 불러왔습니다.");
+        window.scrollTo({ top: 0, behavior: "smooth" });
       });
 
       var delBtn = document.createElement("button");
       delBtn.type = "button";
-      delBtn.className = "btn btn--ghost btn--small";
-      delBtn.textContent = "Delete";
+      delBtn.className = "mini-link";
+      delBtn.textContent = "삭제";
       delBtn.addEventListener("click", function () {
         var updated = loadHistory().filter(function (h) { return h.id !== entry.id; });
         localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(updated));
@@ -488,9 +537,9 @@
       actions.appendChild(loadBtn);
       actions.appendChild(delBtn);
 
-      li.appendChild(meta);
-      li.appendChild(actions);
-      list.appendChild(li);
+      row.appendChild(meta);
+      row.appendChild(actions);
+      list.appendChild(row);
     });
   }
 
@@ -521,52 +570,47 @@
   }
 
   var SAMPLE_STATE = {
-    projectName: "Hangang Cinepolis Waterfront Plaza",
-    competitionName: "2026 Public Art Design Competition",
-    artistName: "Jane Doe",
-    artworkName: "Rising Wave",
+    projectName: "한강 시네폴리스 워터프론트 광장",
+    competitionName: "2026 공공미술 설계공모",
+    artistName: "홍길동",
+    artworkName: "떠오르는 파도",
     siteType: "Plaza",
-    installationPosition: "central plaza axis, facing the main pedestrian entrance",
+    installationPosition: "중앙 광장 축, 보행 정문 정면",
     siteReferenceType: "Architectural Rendering",
     timeOfDay: "Day",
-    sitePreserve: true,
-    landscapePreserve: true,
-    buildingPreserve: true,
     artworkWidth: "3000",
     artworkDepth: "2000",
     artworkHeight: "4500",
     material: "Mirror Stainless",
-    mainColors: "polished mirror silver with subtle blue reflection",
+    mainColors: "폴리시드 미러 실버, 은은한 블루 반사",
     basePedestal: "Yes",
-    artworkDescription: "A dynamic sweeping wave form rising from a low circular base, with a continuous twisting ribbon-like surface.",
-    installationMessage: "Symbolizes the flow of the river and the energy of the community gathering along the waterfront.",
+    artworkDescription: "낮은 원형 기단에서 솟아오르는 역동적인 파도 형상으로, 연속적으로 비틀리는 리본 형태의 표면을 가진다.",
+    installationMessage: "강의 흐름과 워터프론트에 모이는 커뮤니티의 에너지를 상징한다.",
     lockLevel: "STANDARD",
-    preserveGeometry: true,
-    preserveProportion: true,
-    preserveColor: true,
-    preserveMaterial: true,
-    preserveComponentCount: true,
-    preserveOrientation: true,
-    preserveBase: false,
-    preserveInnerDetail: false,
+    preserveGeometry: true, preserveProportion: true, preserveColor: true, preserveMaterial: true,
+    preserveComponentCount: true, preserveOrientation: true, preserveBase: false, preserveInnerDetail: false,
+    buildingPreserve: true, landscapePreserve: true, pavingPreserve: true, circulationPreserve: true,
     outputRatio: "16:9",
     humanScale: "Natural",
     realismLevel: "Architectural Visualization",
-    sculptureDominance: "Balanced",
-    lightingStyle: "Warm Daylight",
-    useMasterWorkflow: true,
-    shots: ["Main Perspective", "Eye Level", "Left 3/4", "Right 3/4", "Long Shot", "Close-up"]
+    shots: ["Main Perspective", "Eye Level", "Left 3/4", "Right 3/4", "Rear", "Aerial", "Long Shot", "Close-up"]
   };
 
   function loadSample() {
     applyFormState(SAMPLE_STATE);
-    showToast("Sample data loaded.");
+    showToast("샘플 데이터를 불러왔습니다.");
   }
 
   function resetForm() {
     form.reset();
-    clearOutput();
-    showToast("Form reset.");
+    currentOutputs = [];
+    document.getElementById("outputs").innerHTML = "";
+    document.getElementById("outputs").hidden = true;
+    document.getElementById("empty").hidden = false;
+    ["btn-copy-all", "btn-export-txt", "btn-export-json"].forEach(function (id) {
+      document.getElementById(id).disabled = true;
+    });
+    showToast("초기화되었습니다.");
   }
 
   // ---------------------------------------------------------------------
@@ -577,9 +621,9 @@
   function showToast(message) {
     var toast = document.getElementById("toast");
     toast.textContent = message;
-    toast.hidden = false;
+    toast.style.display = "block";
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toast.hidden = true; }, 2200);
+    toastTimer = setTimeout(function () { toast.style.display = "none"; }, 2200);
   }
 
   function selectShots(mode) {
@@ -601,12 +645,14 @@
   });
 
   document.getElementById("btn-reset").addEventListener("click", resetForm);
-  document.getElementById("btn-load-sample").addEventListener("click", loadSample);
+  document.getElementById("btn-sample").addEventListener("click", loadSample);
   document.getElementById("btn-copy-all").addEventListener("click", copyAll);
   document.getElementById("btn-export-txt").addEventListener("click", exportTxt);
   document.getElementById("btn-export-json").addEventListener("click", exportJson);
-  document.getElementById("btn-clear-output").addEventListener("click", clearOutput);
   document.getElementById("btn-clear-history").addEventListener("click", clearHistory);
+  document.getElementById("btn-jump-history").addEventListener("click", function () {
+    document.getElementById("history-section").scrollIntoView({ behavior: "smooth", block: "center" });
+  });
 
   document.querySelectorAll("[data-select-shots]").forEach(function (btn) {
     btn.addEventListener("click", function () {

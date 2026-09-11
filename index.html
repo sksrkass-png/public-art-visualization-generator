@@ -1,308 +1,270 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Public Art Visualization — Prompt Generator</title>
-<meta name="description" content="Generate structured image-generation prompts for public art competition visualizations: master prompt, master view, lock instruction, and shot-by-shot camera prompts.">
+<title>PUBLIC ART VISUALIZATION — Prompt Generator</title>
+<meta name="description" content="건축물 미술작품 공모를 위한 작품 × 설치 공간 시안 생성 프롬프트 도구">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-<header class="app-header">
-  <div class="app-header__title">
-    <h1>PUBLIC ART VISUALIZATION</h1>
-    <p class="app-header__subtitle">Prompt Generator for Competition Visualization Images</p>
-  </div>
-  <div class="app-header__actions">
-    <button type="button" id="btn-load-sample" class="btn btn--ghost">Load Sample</button>
-    <button type="button" id="btn-reset" class="btn btn--ghost">Reset</button>
-  </div>
-</header>
+<div class="wrap">
 
-<main class="layout">
-  <!-- ===================== FORM COLUMN ===================== -->
-  <section class="form-column" aria-label="Input form">
-    <form id="prompt-form">
+  <!-- ===================== HERO ===================== -->
+  <section class="hero">
+    <div class="card hero-main">
+      <h1>PUBLIC ART<br>VISUALIZATION<br>PROMPT GENERATOR</h1>
+      <p class="hero-desc">건축물 미술작품 공모를 위한<br>작품 × 설치 공간 시안 생성 프롬프트 도구</p>
+      <div class="badges">
+        <span class="badge">Artwork Lock</span>
+        <span class="badge">Site Lock</span>
+        <span class="badge">Camera Set</span>
+        <span class="badge badge--accent">Master Reference</span>
+      </div>
+    </div>
+    <div class="card hero-guide">
+      <h2>사용 방식</h2>
+      <ol>
+        <li><span class="step-num">1</span><span>작품 정보와 설치 공간 정보를 입력합니다.</span></li>
+        <li><span class="step-num">2</span><span>작품 / 공간 고정 규칙을 설정합니다.</span></li>
+        <li><span class="step-num">3</span><span><b class="green-text">MASTER VIEW</b>를 먼저 생성합니다.</span></li>
+        <li><span class="step-num">4</span><span>승인된 MASTER를 기준으로 각도별 Prompt를 사용합니다.</span></li>
+      </ol>
+      <div class="copyright">ⓒ AXOO CORP.</div>
+    </div>
+  </section>
 
-      <!-- A. PROJECT / SITE -->
-      <fieldset class="card">
-        <legend>A. Project / Site</legend>
+  <!-- ===================== MAIN LAYOUT ===================== -->
+  <main class="layout">
+    <aside class="card side" id="sidebar">
+      <form id="prompt-form">
 
-        <div class="field-grid">
-          <label class="field">
-            <span>Project Name</span>
-            <input type="text" name="projectName" placeholder="e.g. Hangang Cinepolis Public Art">
-          </label>
-          <label class="field">
-            <span>Competition Name</span>
-            <input type="text" name="competitionName" placeholder="e.g. 2026 Public Art Design Competition">
-          </label>
-          <label class="field">
-            <span>Artist Name</span>
-            <input type="text" name="artistName" placeholder="e.g. Jane Doe">
-          </label>
-          <label class="field">
-            <span>Artwork Name</span>
-            <input type="text" name="artworkName" placeholder="e.g. Rising Wave">
-          </label>
-
-          <label class="field">
-            <span>Site Type</span>
+        <h3 class="group-title">A. 🏢 프로젝트 / 설치 공간 <button type="button" id="btn-sample" class="link-jump">샘플 불러오기</button></h3>
+        <div class="grid">
+          <div class="field half">
+            <label>프로젝트명 <span class="en">PROJECT NAME</span></label>
+            <input type="text" name="projectName" placeholder="예: 한강 시네폴리스 미술작품">
+          </div>
+          <div class="field half">
+            <label>공모명 <span class="en">COMPETITION</span></label>
+            <input type="text" name="competitionName" placeholder="예: 2026 공공미술 설계공모">
+          </div>
+          <div class="field half">
+            <label>작가명 <span class="en">ARTIST NAME</span></label>
+            <input type="text" name="artistName" placeholder="예: 홍길동">
+          </div>
+          <div class="field half">
+            <label>작품명 <span class="en">ARTWORK NAME</span></label>
+            <input type="text" name="artworkName" placeholder="예: 떠오르는 파도">
+          </div>
+          <div class="field half">
+            <label>공간 유형 <span class="en">SITE TYPE</span></label>
             <select name="siteType">
-              <option>Apartment Courtyard</option>
-              <option>Plaza</option>
-              <option>Park</option>
-              <option>Building Entrance</option>
-              <option>Indoor Lobby</option>
-              <option>Pedestrian Street</option>
-              <option>Other</option>
+              <option value="Apartment Courtyard">아파트 중정</option>
+              <option value="Plaza">광장</option>
+              <option value="Park">공원</option>
+              <option value="Building Entrance">건물 출입구</option>
+              <option value="Indoor Lobby">실내 로비</option>
+              <option value="Pedestrian Street">보행로</option>
+              <option value="Other">기타</option>
             </select>
-          </label>
-          <label class="field">
-            <span>Installation Position</span>
-            <input type="text" name="installationPosition" placeholder="e.g. central plaza axis, facing main entrance">
-          </label>
-          <label class="field">
-            <span>Site Reference Type</span>
+          </div>
+          <div class="field half">
+            <label>설치 위치 <span class="en">POSITION</span></label>
+            <input type="text" name="installationPosition" placeholder="예: 중앙 광장 축, 정문 파사드 정면">
+          </div>
+          <div class="field half">
+            <label>현장 레퍼런스 유형 <span class="en">SITE REFERENCE</span></label>
             <select name="siteReferenceType">
-              <option>Real Site Photo</option>
-              <option>Architectural Rendering</option>
-              <option>Aerial / Bird's-eye View</option>
-              <option>Site Plan</option>
-              <option>Mixed</option>
+              <option value="Real Site Photo">실사 현장 사진</option>
+              <option value="Architectural Rendering">건축 렌더링</option>
+              <option value="Aerial / Bird's-eye View">항공 / 조감 뷰</option>
+              <option value="Site Plan">배치도</option>
+              <option value="Mixed">혼합</option>
             </select>
-          </label>
-          <label class="field">
-            <span>Time of Day</span>
+          </div>
+          <div class="field half">
+            <label>시간대 <span class="en">TIME OF DAY</span></label>
             <select name="timeOfDay">
-              <option>Day</option>
-              <option>Night</option>
-              <option>Sunset</option>
+              <option value="Day">주간</option>
+              <option value="Night">야간</option>
+              <option value="Sunset">노을</option>
             </select>
-          </label>
+          </div>
         </div>
 
-        <div class="toggle-row">
-          <label class="toggle"><input type="checkbox" name="sitePreserve" checked><span>Site Preserve</span></label>
-          <label class="toggle"><input type="checkbox" name="landscapePreserve" checked><span>Landscape Preserve</span></label>
-          <label class="toggle"><input type="checkbox" name="buildingPreserve" checked><span>Building Preserve</span></label>
-        </div>
-      </fieldset>
-
-      <!-- B. ARTWORK -->
-      <fieldset class="card">
-        <legend>B. Artwork</legend>
-
-        <div class="field-grid field-grid--dims">
-          <label class="field">
-            <span>Width (W, mm)</span>
-            <input type="number" name="artworkWidth" min="0" placeholder="e.g. 3000">
-          </label>
-          <label class="field">
-            <span>Depth (D, mm)</span>
-            <input type="number" name="artworkDepth" min="0" placeholder="e.g. 2000">
-          </label>
-          <label class="field">
-            <span>Height (H, mm)</span>
-            <input type="number" name="artworkHeight" min="0" placeholder="e.g. 4500">
-          </label>
-        </div>
-
-        <div class="field-grid">
-          <label class="field">
-            <span>Material</span>
-            <select name="material">
-              <option>Stainless Steel</option>
-              <option>Mirror Stainless</option>
-              <option>Urethane Paint</option>
-              <option>Bronze</option>
-              <option>Stone</option>
-              <option>FRP</option>
-              <option>Aluminum</option>
-              <option>Mixed</option>
-              <option>Other</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Main Colors</span>
-            <input type="text" name="mainColors" placeholder="e.g. matte white with brushed silver accents">
-          </label>
-          <label class="field">
-            <span>Base / Pedestal</span>
+        <h3 class="group-title">B. 🗿 작품 정보</h3>
+        <div class="grid">
+          <div class="field half">
+            <label>가로 W <span class="en">WIDTH (mm)</span></label>
+            <input type="number" name="artworkWidth" min="0" placeholder="예: 3000">
+          </div>
+          <div class="field half">
+            <label>깊이 D <span class="en">DEPTH (mm)</span></label>
+            <input type="number" name="artworkDepth" min="0" placeholder="예: 2000">
+          </div>
+          <div class="field half">
+            <label>높이 H <span class="en">HEIGHT (mm)</span></label>
+            <input type="number" name="artworkHeight" min="0" placeholder="예: 4500">
+          </div>
+          <div class="field half">
+            <label>기단 여부 <span class="en">BASE</span></label>
             <select name="basePedestal">
-              <option>Yes</option>
-              <option>No</option>
-              <option>Unknown</option>
+              <option value="Yes">있음</option>
+              <option value="No">없음</option>
+              <option value="Unknown">미정</option>
             </select>
-          </label>
+          </div>
+          <div class="field half">
+            <label>재료 <span class="en">MATERIAL</span></label>
+            <select name="material">
+              <option value="Stainless Steel">스테인리스 스틸</option>
+              <option value="Mirror Stainless">미러 스테인리스</option>
+              <option value="Urethane Paint">우레탄 도장</option>
+              <option value="Bronze">브론즈</option>
+              <option value="Stone">석재</option>
+              <option value="FRP">FRP</option>
+              <option value="Aluminum">알루미늄</option>
+              <option value="Mixed">혼합</option>
+              <option value="Other">기타</option>
+            </select>
+          </div>
+          <div class="field half">
+            <label>주요 컬러 <span class="en">MAIN COLORS</span></label>
+            <input type="text" name="mainColors" placeholder="예: 무광 화이트 + 실버 브러시드">
+          </div>
+          <div class="field">
+            <label>작품 설명 <span class="en">DESCRIPTION</span></label>
+            <textarea name="artworkDescription" rows="3" placeholder="형태, 구성, 주요 시각 요소를 설명하세요"></textarea>
+          </div>
+          <div class="field">
+            <label>설치 의도 <span class="en">INSTALLATION MESSAGE</span></label>
+            <textarea name="installationMessage" rows="2" placeholder="작품이 전달하고자 하는 메시지"></textarea>
+          </div>
         </div>
 
-        <label class="field field--full">
-          <span>Artwork Description</span>
-          <textarea name="artworkDescription" rows="3" placeholder="Describe form, composition, key visual elements..."></textarea>
-        </label>
-        <label class="field field--full">
-          <span>Installation Message / Intent</span>
-          <textarea name="installationMessage" rows="2" placeholder="What the artwork communicates or symbolizes..."></textarea>
-        </label>
-      </fieldset>
-
-      <!-- C. ARTWORK LOCK -->
-      <fieldset class="card">
-        <legend>C. Artwork Lock</legend>
-
-        <label class="field">
-          <span>Lock Level</span>
-          <select name="lockLevel">
-            <option>STRICT</option>
-            <option selected>STANDARD</option>
-            <option>FLEXIBLE</option>
-          </select>
-        </label>
-
-        <div class="toggle-grid">
-          <label class="toggle"><input type="checkbox" name="preserveGeometry" checked><span>Preserve Geometry</span></label>
-          <label class="toggle"><input type="checkbox" name="preserveProportion" checked><span>Preserve Proportion</span></label>
-          <label class="toggle"><input type="checkbox" name="preserveColor" checked><span>Preserve Color</span></label>
-          <label class="toggle"><input type="checkbox" name="preserveMaterial" checked><span>Preserve Material</span></label>
-          <label class="toggle"><input type="checkbox" name="preserveComponentCount" checked><span>Preserve Component Count</span></label>
-          <label class="toggle"><input type="checkbox" name="preserveOrientation" checked><span>Preserve Orientation</span></label>
-          <label class="toggle"><input type="checkbox" name="preserveBase"><span>Preserve Base</span></label>
-          <label class="toggle"><input type="checkbox" name="preserveInnerDetail"><span>Preserve Inner Detail</span></label>
+        <h3 class="group-title">C. 🔒 작품 / 공간 고정 규칙</h3>
+        <div class="grid">
+          <div class="field">
+            <label>ARTWORK LOCK LEVEL <span class="en">잠금 강도</span></label>
+            <select name="lockLevel">
+              <option value="STRICT">STRICT (엄격)</option>
+              <option value="STANDARD" selected>STANDARD (표준)</option>
+              <option value="FLEXIBLE">FLEXIBLE (유연)</option>
+            </select>
+          </div>
         </div>
-      </fieldset>
+        <p class="subgroup-label">작품 고정 · ARTWORK LOCK</p>
+        <div class="check-grid">
+          <label class="check"><input type="checkbox" name="preserveGeometry" checked><span>형태 유지</span></label>
+          <label class="check"><input type="checkbox" name="preserveProportion" checked><span>비율 유지</span></label>
+          <label class="check"><input type="checkbox" name="preserveColor" checked><span>컬러 유지</span></label>
+          <label class="check"><input type="checkbox" name="preserveMaterial" checked><span>재료 유지</span></label>
+          <label class="check"><input type="checkbox" name="preserveComponentCount" checked><span>구성 요소 수 유지</span></label>
+          <label class="check"><input type="checkbox" name="preserveOrientation" checked><span>방향 유지</span></label>
+          <label class="check"><input type="checkbox" name="preserveBase"><span>기단 유지</span></label>
+          <label class="check"><input type="checkbox" name="preserveInnerDetail"><span>내부 디테일 유지</span></label>
+        </div>
+        <p class="subgroup-label">공간 고정 · SITE LOCK</p>
+        <div class="check-grid">
+          <label class="check"><input type="checkbox" name="buildingPreserve" checked><span>건축물 유지</span></label>
+          <label class="check"><input type="checkbox" name="landscapePreserve" checked><span>조경 유지</span></label>
+          <label class="check"><input type="checkbox" name="pavingPreserve" checked><span>바닥 / 포장 유지</span></label>
+          <label class="check"><input type="checkbox" name="circulationPreserve" checked><span>동선 유지</span></label>
+        </div>
 
-      <!-- D. VISUALIZATION -->
-      <fieldset class="card">
-        <legend>D. Visualization</legend>
-
-        <div class="field-grid">
-          <label class="field">
-            <span>Output Ratio</span>
+        <h3 class="group-title">D. 📷 시안 출력</h3>
+        <div class="grid">
+          <div class="field half">
+            <label>이미지 비율 <span class="en">RATIO</span></label>
             <select name="outputRatio">
-              <option>4:3</option>
-              <option>16:9</option>
-              <option>1:1</option>
-              <option>A4-like</option>
+              <option value="4:3">4:3</option>
+              <option value="16:9">16:9</option>
+              <option value="1:1">1:1</option>
+              <option value="A4">A4</option>
             </select>
-          </label>
-          <label class="field">
-            <span>Human Scale Figures</span>
-            <select name="humanScale">
-              <option>None</option>
-              <option>Minimal</option>
-              <option selected>Natural</option>
-              <option>Active Community</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Realism Level</span>
+          </div>
+          <div class="field half">
+            <label>리얼리즘 <span class="en">REALISM</span></label>
             <select name="realismLevel">
-              <option>Conceptual</option>
-              <option selected>Architectural Visualization</option>
-              <option>Photoreal</option>
+              <option value="Architectural Visualization" selected>건축 시각화</option>
+              <option value="Photoreal">포토리얼</option>
+              <option value="Conceptual">컨셉 렌더</option>
             </select>
-          </label>
-          <label class="field">
-            <span>Sculpture Dominance</span>
-            <select name="sculptureDominance">
-              <option>Context</option>
-              <option selected>Balanced</option>
-              <option>Hero</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Lighting Style</span>
-            <select name="lightingStyle">
-              <option>Neutral</option>
-              <option selected>Warm Daylight</option>
-              <option>Soft Overcast</option>
-              <option>Dramatic Sunset</option>
-              <option>Night Lighting</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="shot-block">
-          <div class="shot-block__header">
-            <span>Output Shots</span>
-            <div class="shot-block__quick">
-              <button type="button" class="link-btn" data-select-shots="standard">Standard Set</button>
-              <button type="button" class="link-btn" data-select-shots="all">All</button>
-              <button type="button" class="link-btn" data-select-shots="none">None</button>
-            </div>
           </div>
-          <div class="toggle-grid">
-            <label class="toggle"><input type="checkbox" name="shot" value="Main Perspective" checked><span>Main Perspective</span></label>
-            <label class="toggle"><input type="checkbox" name="shot" value="Eye Level" checked><span>Eye Level</span></label>
-            <label class="toggle"><input type="checkbox" name="shot" value="Left 3/4" checked><span>Left 3/4</span></label>
-            <label class="toggle"><input type="checkbox" name="shot" value="Right 3/4" checked><span>Right 3/4</span></label>
-            <label class="toggle"><input type="checkbox" name="shot" value="Rear"><span>Rear</span></label>
-            <label class="toggle"><input type="checkbox" name="shot" value="Aerial"><span>Aerial</span></label>
-            <label class="toggle"><input type="checkbox" name="shot" value="Long Shot" checked><span>Long Shot</span></label>
-            <label class="toggle"><input type="checkbox" name="shot" value="Close-up" checked><span>Close-up</span></label>
-          </div>
-          <p class="shot-block__note">Optional technical views (presentation-only, not fabrication drawings):</p>
-          <div class="toggle-grid">
-            <label class="toggle"><input type="checkbox" name="shot" value="Front Orthographic"><span>Front Orthographic</span></label>
-            <label class="toggle"><input type="checkbox" name="shot" value="Rear Orthographic"><span>Rear Orthographic</span></label>
-            <label class="toggle"><input type="checkbox" name="shot" value="Left Elevation"><span>Left Elevation</span></label>
-            <label class="toggle"><input type="checkbox" name="shot" value="Right Elevation"><span>Right Elevation</span></label>
+          <div class="field">
+            <label>인물 스케일 <span class="en">HUMAN SCALE</span></label>
+            <select name="humanScale">
+              <option value="None">없음</option>
+              <option value="Minimal">최소</option>
+              <option value="Natural" selected>자연스럽게</option>
+              <option value="Active Community">커뮤니티 활성</option>
+            </select>
           </div>
         </div>
-      </fieldset>
 
-      <!-- E. MASTER REFERENCE MODE -->
-      <fieldset class="card card--accent">
-        <legend>E. Master Reference Mode</legend>
-        <label class="toggle toggle--large">
-          <input type="checkbox" name="useMasterWorkflow" checked>
-          <span>Use Master View Workflow (Master → Master Lock → Shot Prompts)</span>
-        </label>
-        <p class="hint">When enabled, the generator outputs a Master Prompt, a Master View Prompt, and a Master Lock Instruction in addition to the shot prompts below. Disable this to generate standalone shot prompts only.</p>
-      </fieldset>
+        <p class="subgroup-label">SHOT SELECT · 촬영 각도 선택</p>
+        <div class="shot-quick">
+          <button type="button" class="link-jump" data-select-shots="standard">기본 8종</button>
+          <button type="button" class="link-jump" data-select-shots="all">전체 선택</button>
+          <button type="button" class="link-jump" data-select-shots="none">전체 해제</button>
+        </div>
+        <div class="check-grid">
+          <label class="check"><input type="checkbox" name="shot" value="Main Perspective" checked><span>Main Perspective</span></label>
+          <label class="check"><input type="checkbox" name="shot" value="Eye Level" checked><span>Eye Level</span></label>
+          <label class="check"><input type="checkbox" name="shot" value="Left 3/4" checked><span>Left 3/4</span></label>
+          <label class="check"><input type="checkbox" name="shot" value="Right 3/4" checked><span>Right 3/4</span></label>
+          <label class="check"><input type="checkbox" name="shot" value="Rear" checked><span>Rear</span></label>
+          <label class="check"><input type="checkbox" name="shot" value="Aerial" checked><span>Aerial</span></label>
+          <label class="check"><input type="checkbox" name="shot" value="Long Shot" checked><span>Long Shot</span></label>
+          <label class="check"><input type="checkbox" name="shot" value="Close-up" checked><span>Close-up</span></label>
+        </div>
+        <p class="subgroup-label subgroup-label--muted">추가 · 기술 도면용 (프레젠테이션 전용)</p>
+        <div class="check-grid">
+          <label class="check"><input type="checkbox" name="shot" value="Front Orthographic"><span>Front Orthographic</span></label>
+          <label class="check"><input type="checkbox" name="shot" value="Rear Orthographic"><span>Rear Orthographic</span></label>
+          <label class="check"><input type="checkbox" name="shot" value="Left Elevation"><span>Left Elevation</span></label>
+          <label class="check"><input type="checkbox" name="shot" value="Right Elevation"><span>Right Elevation</span></label>
+        </div>
 
-      <div class="generate-row">
-        <button type="submit" id="btn-generate" class="btn btn--primary">Generate Prompts</button>
+        <button type="submit" class="btn btn-primary">💭 시안 프롬프트 생성</button>
+        <div class="action-row">
+          <button type="button" id="btn-reset" class="btn btn-secondary">♻ 초기화</button>
+          <button type="button" id="btn-jump-history" class="btn btn-secondary">🗂 저장된 기록</button>
+        </div>
+        <div class="action-row">
+          <button type="button" id="btn-export-txt" class="btn btn-secondary" disabled>📄 TXT 내보내기</button>
+          <button type="button" id="btn-export-json" class="btn btn-secondary" disabled>🗄 JSON 내보내기</button>
+        </div>
+      </form>
+
+      <div class="history-section" id="history-section">
+        <div class="history-title"><span>저장된 기록 · SAVED HISTORY</span><button type="button" id="btn-clear-history" class="link-jump">전체 삭제</button></div>
+        <div id="history-list" class="history-list">
+          <p class="muted">저장된 기록이 없습니다.</p>
+        </div>
       </div>
-    </form>
-  </section>
+    </aside>
 
-  <!-- ===================== OUTPUT COLUMN ===================== -->
-  <section class="output-column" aria-label="Generated prompts">
-    <div class="output-header">
-      <h2>Output</h2>
-      <div class="output-header__actions">
-        <button type="button" id="btn-copy-all" class="btn btn--ghost" disabled>Copy All</button>
-        <button type="button" id="btn-export-txt" class="btn btn--ghost" disabled>Export .txt</button>
-        <button type="button" id="btn-export-json" class="btn btn--ghost" disabled>Export .json</button>
-        <button type="button" id="btn-clear-output" class="btn btn--ghost" disabled>Clear Output</button>
+    <!-- ===================== OUTPUT COLUMN ===================== -->
+    <section class="output-col">
+      <div class="output-toolbar">
+        <h2>E. 📤 생성 결과</h2>
+        <button type="button" id="btn-copy-all" class="btn btn-secondary" disabled>COPY ALL</button>
       </div>
-    </div>
 
-    <div id="output-empty" class="output-empty">
-      <p>Fill in the form and click <strong>Generate Prompts</strong> to build your prompt package.</p>
-    </div>
-
-    <div id="output-list" class="output-list" hidden></div>
-
-    <div class="history-block">
-      <div class="history-block__header">
-        <h2>History</h2>
-        <button type="button" id="btn-clear-history" class="link-btn">Clear History</button>
+      <div id="empty" class="empty-state">
+        <p>왼쪽 항목을 입력하고 <b>💭 시안 프롬프트 생성</b> 버튼을 눌러주세요.</p>
       </div>
-      <ul id="history-list" class="history-list">
-        <li class="history-empty">No saved generations yet.</li>
-      </ul>
-    </div>
-  </section>
-</main>
 
-<footer class="app-footer">
-  <p>Static tool — runs entirely in your browser. No data leaves your machine.</p>
-</footer>
+      <div id="outputs" class="outputs" hidden></div>
+    </section>
+  </main>
+</div>
 
-<div id="toast" class="toast" hidden></div>
+<div id="toast" class="toast"></div>
 
 <script src="assets/app.js"></script>
 </body>
