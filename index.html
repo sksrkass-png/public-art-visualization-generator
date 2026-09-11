@@ -14,12 +14,12 @@
 <!-- ===================== TOP BAR ===================== -->
 <header class="topbar">
   <div class="topbar__brand">
-    <span class="topbar__title">PUBLIC ART VISUALIZATION</span>
-    <span class="topbar__subtitle">공공미술 설치 시안 프롬프트 생성기</span>
+    <span class="topbar__mark">AXOO</span>
+    <span class="topbar__title">Public Art Visualization</span>
   </div>
   <div class="mode-toggle" role="group" aria-label="사용 모드 선택">
-    <button type="button" id="btn-mode-simple" class="mode-toggle__btn is-active" aria-pressed="true">간편 모드</button>
-    <button type="button" id="btn-mode-expert" class="mode-toggle__btn" aria-pressed="false">전문가 모드</button>
+    <button type="button" id="btn-mode-simple" class="mode-toggle__btn is-active" aria-pressed="true">Simple</button>
+    <button type="button" id="btn-mode-expert" class="mode-toggle__btn" aria-pressed="false">Expert</button>
   </div>
 </header>
 
@@ -28,19 +28,16 @@
   <!-- ===================== PROGRESS STEPPER ===================== -->
   <nav class="stepper" id="stepper" aria-label="진행 단계">
     <button type="button" class="stepper__step is-active" data-step="1">
-      <span class="stepper__num">1</span><span class="stepper__label">프로젝트</span>
+      <span class="stepper__num">01</span><span class="stepper__label">Project</span>
     </button>
-    <div class="stepper__line"></div>
     <button type="button" class="stepper__step" data-step="2">
-      <span class="stepper__num">2</span><span class="stepper__label">설치공간</span>
+      <span class="stepper__num">02</span><span class="stepper__label">Site</span>
     </button>
-    <div class="stepper__line"></div>
     <button type="button" class="stepper__step" data-step="3">
-      <span class="stepper__num">3</span><span class="stepper__label">스타일</span>
+      <span class="stepper__num">03</span><span class="stepper__label">Visual Direction</span>
     </button>
-    <div class="stepper__line"></div>
     <button type="button" class="stepper__step" data-step="4">
-      <span class="stepper__num">4</span><span class="stepper__label">Prompt 생성</span>
+      <span class="stepper__num">04</span><span class="stepper__label">Generate</span>
     </button>
   </nav>
 
@@ -48,10 +45,12 @@
 
     <!-- ============ STEP 1 : 프로젝트 & 작품 ============ -->
     <section class="step-panel is-active" data-step="1" aria-labelledby="step1-title">
-      <div class="card step-card">
-        <h2 id="step1-title" class="step-card__title">① 프로젝트 &amp; 작품</h2>
+      <div class="step-card">
+        <p class="step-kicker">Stage 01</p>
+        <h2 id="step1-title" class="step-headline">Project</h2>
+        <p class="step-subtitle">프로젝트 &amp; 작품</p>
         <p class="step-card__desc">공모전 제출을 위한 기본 정보를 입력하세요. 언제든 나중에 수정할 수 있습니다.</p>
-        <button type="button" id="btn-sample" class="link-jump step-card__sample">✨ 샘플로 미리보기</button>
+        <button type="button" id="btn-sample" class="link-jump step-card__sample">샘플로 미리보기</button>
 
         <div class="field-grid">
           <div class="field">
@@ -153,8 +152,10 @@
 
     <!-- ============ STEP 2 : 설치 공간 ============ -->
     <section class="step-panel" data-step="2" aria-labelledby="step2-title">
-      <div class="card step-card">
-        <h2 id="step2-title" class="step-card__title">② 설치 공간</h2>
+      <div class="step-card">
+        <p class="step-kicker">Stage 02</p>
+        <h2 id="step2-title" class="step-headline">Site</h2>
+        <p class="step-subtitle">설치 공간</p>
         <p class="step-card__desc">작품이 놓일 공간을 알려주시면, 어울리는 설정을 자동으로 추천해드립니다.</p>
 
         <div class="field-grid">
@@ -183,13 +184,13 @@
         <!-- AI 추천 배너 -->
         <div id="recommend-banner" class="recommend-banner" hidden>
           <div class="recommend-banner__head">
-            <span class="recommend-banner__icon">💡</span>
+            <span class="recommend-banner__icon">AI</span>
             <span class="recommend-banner__title">이 공간에 어울리는 설정을 추천합니다</span>
           </div>
           <div id="recommend-chips" class="recommend-banner__chips"></div>
           <div class="recommend-banner__actions">
             <button type="button" id="btn-apply-recommend" class="btn btn-primary btn-small">추천 적용</button>
-            <button type="button" id="btn-dismiss-recommend" class="link-jump">닫기</button>
+            <button type="button" id="btn-dismiss-recommend" class="text-action">닫기</button>
           </div>
         </div>
 
@@ -236,8 +237,10 @@
 
     <!-- ============ STEP 3 : 스타일 ============ -->
     <section class="step-panel" data-step="3" aria-labelledby="step3-title">
-      <div class="card step-card">
-        <h2 id="step3-title" class="step-card__title">③ 스타일</h2>
+      <div class="step-card">
+        <p class="step-kicker">Stage 03</p>
+        <h2 id="step3-title" class="step-headline">Visual Direction</h2>
+        <p class="step-subtitle">스타일</p>
         <p class="step-card__desc">공간을 얼마나 엄격히 유지할지, 어떤 톤으로 표현할지 정합니다.</p>
 
         <h3 class="step-card__subheading">공간 보존 수준
@@ -341,8 +344,10 @@
 
     <!-- ============ STEP 4 : Prompt 생성 ============ -->
     <section class="step-panel" data-step="4" aria-labelledby="step4-title">
-      <div class="card step-card">
-        <h2 id="step4-title" class="step-card__title">④ Prompt 생성</h2>
+      <div class="step-card">
+        <p class="step-kicker">Stage 04</p>
+        <h2 id="step4-title" class="step-headline">Generate</h2>
+        <p class="step-subtitle">Prompt 생성</p>
         <p class="step-card__desc">완성된 이미지에서 보여줄 카메라 구도를 선택하고 프롬프트를 생성하세요.</p>
 
         <h3 class="step-card__subheading">카메라 구도 선택
@@ -375,27 +380,30 @@
 
         <div class="step-nav">
           <button type="button" class="btn btn-outline" data-goto="3">← 이전</button>
-          <button type="submit" class="btn btn-primary btn-large">💭 프롬프트 생성</button>
+          <button type="submit" class="btn btn-primary btn-large">프롬프트 생성</button>
         </div>
       </div>
     </section>
 
     <!-- global utility row (always visible) -->
     <div class="util-row">
-      <button type="button" id="btn-reset" class="btn btn-outline btn-small">♻ 초기화</button>
-      <button type="button" id="btn-sample-unbuilt" class="btn btn-outline btn-small">🏗 미착공 현장 샘플</button>
-      <button type="button" id="btn-jump-history" class="btn btn-outline btn-small">🗂 저장된 기록</button>
+      <button type="button" id="btn-reset" class="text-action">초기화</button>
+      <button type="button" id="btn-sample-unbuilt" class="text-action">미착공 현장 샘플</button>
+      <button type="button" id="btn-jump-history" class="text-action">저장된 기록</button>
     </div>
   </form>
 
   <!-- ===================== 결과 영역 ===================== -->
   <section class="result-section" aria-labelledby="result-title">
     <div class="result-toolbar">
-      <h2 id="result-title">생성 결과</h2>
+      <div>
+        <p class="step-kicker">Output</p>
+        <h2 id="result-title" class="step-headline step-headline--sm">생성 결과</h2>
+      </div>
       <div class="result-toolbar__actions">
-        <button type="button" id="btn-copy-all" class="btn btn-outline btn-small" disabled>전체 복사하기</button>
-        <button type="button" id="btn-export-txt" class="btn btn-outline btn-small" disabled>TXT 내보내기</button>
-        <button type="button" id="btn-export-json" class="btn btn-outline btn-small" disabled>JSON 내보내기</button>
+        <button type="button" id="btn-copy-all" class="text-action" disabled>전체 복사하기</button>
+        <button type="button" id="btn-export-txt" class="text-action" disabled>TXT 내보내기</button>
+        <button type="button" id="btn-export-json" class="text-action" disabled>JSON 내보내기</button>
       </div>
     </div>
 

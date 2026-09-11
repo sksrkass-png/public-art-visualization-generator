@@ -4,7 +4,7 @@
 
 A lightweight, static, Korean-first web tool that generates structured, copy-paste-ready image-generation prompts for **public art competition visualizations**. Built for curators, planners, and public-art proposal teams who need consistent, locked-down prompt packages for ChatGPT / image generation workflows.
 
-No backend, no build step, no API keys — pure HTML/CSS/JavaScript, deployable directly to GitHub Pages. Design system shared with [Artist Visual Extension Prompt Generator](https://sksrkass-png.github.io/sksrkass.github.io/) (ⓒ AXOO CORP.) — cream background, white 26px-radius cards, lime-green (`#38D430`) accent, Pretendard typography.
+No backend, no build step, no API keys — pure HTML/CSS/JavaScript, deployable directly to GitHub Pages. ⓒ AXOO CORP. — designed as an extension of the AXOO creative portfolio: black-and-white editorial palette, large display typography, sharp (unrounded) grid, generous whitespace, Pretendard typeface. Hierarchy comes from type scale and spacing, not color — the interface is meant to read as a premium creative studio tool, not a configuration dashboard.
 
 ## Purpose
 
@@ -16,16 +16,17 @@ Instead of writing each camera-angle prompt from scratch (and risking the AI sil
 
 ## Feature Overview
 
-### UX (v1.3 — guided wizard redesign)
+### UX & visual identity (v1.4 — editorial studio redesign)
 
-- **4-step guided wizard** — ① 프로젝트 & 작품 → ② 설치 공간 → ③ 스타일 → ④ Prompt 생성. Only one step is shown at a time in 간편 모드 (Simple Mode), with a clickable progress stepper at the top so users always know where they are.
-- **간편 모드 / 전문가 모드 (Simple / Expert Mode)** toggle in the header (persisted in `localStorage`). Simple Mode shows only what's needed to get a good result; Expert Mode reveals every individual lock checkbox, the technical shot views, and the image-ratio field, and unlocks all 4 steps on one scrollable page for power users.
-- **공간 보존 수준 프리셋 (최소 / 보통 / 최대)** — replaces two dozen individual lock checkboxes with three plain-language presets. The underlying checkboxes are still there (and still drive the prompt engine unchanged) — Expert Mode's "개별 고정 항목 직접 설정" panel exposes them for fine-tuning.
-- **AI 추천 (site-type recommendations)** — picking a 공간 유형 (e.g. 아파트 중정) surfaces a recommendation banner with suggested camera shots, human-scale, and preservation level; one **추천 적용** click applies all of them at once.
-- **ⓘ tooltips** on every field, explaining in one line why it matters and how it affects the output.
-- **Collapsible result cards** — every generated prompt starts collapsed ("프롬프트 생성 완료 ▾ 펼치기"); the COPY button stays reachable without expanding.
-- **Example preview instead of a blank result area** — before you generate anything, the results panel shows the 4-part output structure (기준 프롬프트 → 기준 시점 → 기준 고정 지침 → 카메라 구도별 프롬프트) with a sample excerpt, so the empty state teaches the workflow instead of just being empty.
-- Reduced Korean/English UI mixing — field labels are Korean-first with no English caption unless the term is technical/precise (e.g. `mm`, `STRICT`); everything else is explained via the ⓘ tooltip instead of a bilingual label.
+- **Black-and-white editorial visual system** — pure white ground, near-black ink, one neutral gray for secondary text, hairline dividers instead of cards/shadows, sharp (0-radius) corners throughout. No accent color is used for hierarchy or meaning; large type scale, weight, and whitespace do that job instead (recommendation/certainty/selected states are all communicated in black/white — filled vs. outlined vs. bordered).
+- **4-stage creative flow** — large editorial stage headlines (**Project → Site → Visual Direction → Generate**, Stage 01–04) with a Korean subtitle underneath each. Only one stage shown at a time in Simple Mode, with a minimal text-based stepper (not a dashboard progress bar) at the top.
+- **간편 모드 / 전문가 모드 (Simple / Expert)** toggle in the header (persisted in `localStorage`), styled as plain underlined text tabs. Simple Mode shows only what's needed; Expert Mode reveals every individual lock checkbox, technical shot views, and the ratio field, and unlocks all 4 stages on one scrollable page for power users.
+- **공간 보존 수준 프리셋 (최소 / 보통 / 최대)** — a three-way selector (selection shown by inverting to solid black, not a color highlight) replaces two dozen individual lock checkboxes. The checkboxes still exist underneath and still drive the prompt engine unchanged — Expert Mode's "개별 고정 항목 직접 설정" panel exposes them for fine-tuning.
+- **AI 추천 (site-type recommendations)** — picking a 공간 유형 (e.g. 아파트 중정) surfaces a bordered, confident recommendation panel (a small solid "AI" mark, no colored alert box) with suggested camera shots, human-scale, and preservation level; one **추천 적용** click applies all of them at once.
+- **ⓘ tooltips** on every field (hover or tap/focus), explaining in one line why it matters — this is what lets the form stay visually quiet instead of pairing every label with an English caption.
+- **Collapsible result cards** — every generated prompt starts collapsed ("프롬프트 생성 완료 ▾ 펼치기"); the copy action stays reachable without expanding.
+- **Example preview instead of a blank result area** — before you generate anything, the results panel shows the 4-part output structure (00 기준 프롬프트 → 01 기준 시점 → 02 기준 고정 지침 → 03 카메라 구도별 프롬프트) with a sample excerpt, so the empty state teaches the workflow instead of just being empty.
+- One filled black primary action per screen; every other control is either outlined or a plain underlined text link — no competing buttons.
 
 ### Prompt engine (unchanged in this redesign — see `assets/app.js` top half)
 
