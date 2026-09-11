@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Public Art Visualization — Prompt Generator</title>
+<meta name="description" content="Generate structured image-generation prompts for public art competition visualizations: master prompt, master view, lock instruction, and shot-by-shot camera prompts.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="app-header">
+  <div class="app-header__title">
+    <h1>PUBLIC ART VISUALIZATION</h1>
+    <p class="app-header__subtitle">Prompt Generator for Competition Visualization Images</p>
+  </div>
+  <div class="app-header__actions">
+    <button type="button" id="btn-load-sample" class="btn btn--ghost">Load Sample</button>
+    <button type="button" id="btn-reset" class="btn btn--ghost">Reset</button>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- ===================== FORM COLUMN ===================== -->
+  <section class="form-column" aria-label="Input form">
+    <form id="prompt-form">
+
+      <!-- A. PROJECT / SITE -->
+      <fieldset class="card">
+        <legend>A. Project / Site</legend>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Project Name</span>
+            <input type="text" name="projectName" placeholder="e.g. Hangang Cinepolis Public Art">
+          </label>
+          <label class="field">
+            <span>Competition Name</span>
+            <input type="text" name="competitionName" placeholder="e.g. 2026 Public Art Design Competition">
+          </label>
+          <label class="field">
+            <span>Artist Name</span>
+            <input type="text" name="artistName" placeholder="e.g. Jane Doe">
+          </label>
+          <label class="field">
+            <span>Artwork Name</span>
+            <input type="text" name="artworkName" placeholder="e.g. Rising Wave">
+          </label>
+
+          <label class="field">
+            <span>Site Type</span>
+            <select name="siteType">
+              <option>Apartment Courtyard</option>
+              <option>Plaza</option>
+              <option>Park</option>
+              <option>Building Entrance</option>
+              <option>Indoor Lobby</option>
+              <option>Pedestrian Street</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Installation Position</span>
+            <input type="text" name="installationPosition" placeholder="e.g. central plaza axis, facing main entrance">
+          </label>
+          <label class="field">
+            <span>Site Reference Type</span>
+            <select name="siteReferenceType">
+              <option>Real Site Photo</option>
+              <option>Architectural Rendering</option>
+              <option>Aerial / Bird's-eye View</option>
+              <option>Site Plan</option>
+              <option>Mixed</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Time of Day</span>
+            <select name="timeOfDay">
+              <option>Day</option>
+              <option>Night</option>
+              <option>Sunset</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle"><input type="checkbox" name="sitePreserve" checked><span>Site Preserve</span></label>
+          <label class="toggle"><input type="checkbox" name="landscapePreserve" checked><span>Landscape Preserve</span></label>
+          <label class="toggle"><input type="checkbox" name="buildingPreserve" checked><span>Building Preserve</span></label>
+        </div>
+      </fieldset>
+
+      <!-- B. ARTWORK -->
+      <fieldset class="card">
+        <legend>B. Artwork</legend>
+
+        <div class="field-grid field-grid--dims">
+          <label class="field">
+            <span>Width (W, mm)</span>
+            <input type="number" name="artworkWidth" min="0" placeholder="e.g. 3000">
+          </label>
+          <label class="field">
+            <span>Depth (D, mm)</span>
+            <input type="number" name="artworkDepth" min="0" placeholder="e.g. 2000">
+          </label>
+          <label class="field">
+            <span>Height (H, mm)</span>
+            <input type="number" name="artworkHeight" min="0" placeholder="e.g. 4500">
+          </label>
+        </div>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Material</span>
+            <select name="material">
+              <option>Stainless Steel</option>
+              <option>Mirror Stainless</option>
+              <option>Urethane Paint</option>
+              <option>Bronze</option>
+              <option>Stone</option>
+              <option>FRP</option>
+              <option>Aluminum</option>
+              <option>Mixed</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Main Colors</span>
+            <input type="text" name="mainColors" placeholder="e.g. matte white with brushed silver accents">
+          </label>
+          <label class="field">
+            <span>Base / Pedestal</span>
+            <select name="basePedestal">
+              <option>Yes</option>
+              <option>No</option>
+              <option>Unknown</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field field--full">
+          <span>Artwork Description</span>
+          <textarea name="artworkDescription" rows="3" placeholder="Describe form, composition, key visual elements..."></textarea>
+        </label>
+        <label class="field field--full">
+          <span>Installation Message / Intent</span>
+          <textarea name="installationMessage" rows="2" placeholder="What the artwork communicates or symbolizes..."></textarea>
+        </label>
+      </fieldset>
+
+      <!-- C. ARTWORK LOCK -->
+      <fieldset class="card">
+        <legend>C. Artwork Lock</legend>
+
+        <label class="field">
+          <span>Lock Level</span>
+          <select name="lockLevel">
+            <option>STRICT</option>
+            <option selected>STANDARD</option>
+            <option>FLEXIBLE</option>
+          </select>
+        </label>
+
+        <div class="toggle-grid">
+          <label class="toggle"><input type="checkbox" name="preserveGeometry" checked><span>Preserve Geometry</span></label>
+          <label class="toggle"><input type="checkbox" name="preserveProportion" checked><span>Preserve Proportion</span></label>
+          <label class="toggle"><input type="checkbox" name="preserveColor" checked><span>Preserve Color</span></label>
+          <label class="toggle"><input type="checkbox" name="preserveMaterial" checked><span>Preserve Material</span></label>
+          <label class="toggle"><input type="checkbox" name="preserveComponentCount" checked><span>Preserve Component Count</span></label>
+          <label class="toggle"><input type="checkbox" name="preserveOrientation" checked><span>Preserve Orientation</span></label>
+          <label class="toggle"><input type="checkbox" name="preserveBase"><span>Preserve Base</span></label>
+          <label class="toggle"><input type="checkbox" name="preserveInnerDetail"><span>Preserve Inner Detail</span></label>
+        </div>
+      </fieldset>
+
+      <!-- D. VISUALIZATION -->
+      <fieldset class="card">
+        <legend>D. Visualization</legend>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Output Ratio</span>
+            <select name="outputRatio">
+              <option>4:3</option>
+              <option>16:9</option>
+              <option>1:1</option>
+              <option>A4-like</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Human Scale Figures</span>
+            <select name="humanScale">
+              <option>None</option>
+              <option>Minimal</option>
+              <option selected>Natural</option>
+              <option>Active Community</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Realism Level</span>
+            <select name="realismLevel">
+              <option>Conceptual</option>
+              <option selected>Architectural Visualization</option>
+              <option>Photoreal</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Sculpture Dominance</span>
+            <select name="sculptureDominance">
+              <option>Context</option>
+              <option selected>Balanced</option>
+              <option>Hero</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Lighting Style</span>
+            <select name="lightingStyle">
+              <option>Neutral</option>
+              <option selected>Warm Daylight</option>
+              <option>Soft Overcast</option>
+              <option>Dramatic Sunset</option>
+              <option>Night Lighting</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="shot-block">
+          <div class="shot-block__header">
+            <span>Output Shots</span>
+            <div class="shot-block__quick">
+              <button type="button" class="link-btn" data-select-shots="standard">Standard Set</button>
+              <button type="button" class="link-btn" data-select-shots="all">All</button>
+              <button type="button" class="link-btn" data-select-shots="none">None</button>
+            </div>
+          </div>
+          <div class="toggle-grid">
+            <label class="toggle"><input type="checkbox" name="shot" value="Main Perspective" checked><span>Main Perspective</span></label>
+            <label class="toggle"><input type="checkbox" name="shot" value="Eye Level" checked><span>Eye Level</span></label>
+            <label class="toggle"><input type="checkbox" name="shot" value="Left 3/4" checked><span>Left 3/4</span></label>
+            <label class="toggle"><input type="checkbox" name="shot" value="Right 3/4" checked><span>Right 3/4</span></label>
+            <label class="toggle"><input type="checkbox" name="shot" value="Rear"><span>Rear</span></label>
+            <label class="toggle"><input type="checkbox" name="shot" value="Aerial"><span>Aerial</span></label>
+            <label class="toggle"><input type="checkbox" name="shot" value="Long Shot" checked><span>Long Shot</span></label>
+            <label class="toggle"><input type="checkbox" name="shot" value="Close-up" checked><span>Close-up</span></label>
+          </div>
+          <p class="shot-block__note">Optional technical views (presentation-only, not fabrication drawings):</p>
+          <div class="toggle-grid">
+            <label class="toggle"><input type="checkbox" name="shot" value="Front Orthographic"><span>Front Orthographic</span></label>
+            <label class="toggle"><input type="checkbox" name="shot" value="Rear Orthographic"><span>Rear Orthographic</span></label>
+            <label class="toggle"><input type="checkbox" name="shot" value="Left Elevation"><span>Left Elevation</span></label>
+            <label class="toggle"><input type="checkbox" name="shot" value="Right Elevation"><span>Right Elevation</span></label>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- E. MASTER REFERENCE MODE -->
+      <fieldset class="card card--accent">
+        <legend>E. Master Reference Mode</legend>
+        <label class="toggle toggle--large">
+          <input type="checkbox" name="useMasterWorkflow" checked>
+          <span>Use Master View Workflow (Master → Master Lock → Shot Prompts)</span>
+        </label>
+        <p class="hint">When enabled, the generator outputs a Master Prompt, a Master View Prompt, and a Master Lock Instruction in addition to the shot prompts below. Disable this to generate standalone shot prompts only.</p>
+      </fieldset>
+
+      <div class="generate-row">
+        <button type="submit" id="btn-generate" class="btn btn--primary">Generate Prompts</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ===================== OUTPUT COLUMN ===================== -->
+  <section class="output-column" aria-label="Generated prompts">
+    <div class="output-header">
+      <h2>Output</h2>
+      <div class="output-header__actions">
+        <button type="button" id="btn-copy-all" class="btn btn--ghost" disabled>Copy All</button>
+        <button type="button" id="btn-export-txt" class="btn btn--ghost" disabled>Export .txt</button>
+        <button type="button" id="btn-export-json" class="btn btn--ghost" disabled>Export .json</button>
+        <button type="button" id="btn-clear-output" class="btn btn--ghost" disabled>Clear Output</button>
+      </div>
+    </div>
+
+    <div id="output-empty" class="output-empty">
+      <p>Fill in the form and click <strong>Generate Prompts</strong> to build your prompt package.</p>
+    </div>
+
+    <div id="output-list" class="output-list" hidden></div>
+
+    <div class="history-block">
+      <div class="history-block__header">
+        <h2>History</h2>
+        <button type="button" id="btn-clear-history" class="link-btn">Clear History</button>
+      </div>
+      <ul id="history-list" class="history-list">
+        <li class="history-empty">No saved generations yet.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer class="app-footer">
+  <p>Static tool — runs entirely in your browser. No data leaves your machine.</p>
+</footer>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="assets/app.js"></script>
+</body>
+</html>
