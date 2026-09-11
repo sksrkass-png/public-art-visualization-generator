@@ -93,6 +93,10 @@
 
   var DOMINANCE_TEXT = "Balance the visual weight of the artwork and its site context so neither dominates the frame.";
 
+  var UNBUILT_SITE_CLAUSE = "SITE CONTEXT (UNBUILT / PLANNING STAGE): This apartment complex has not been built yet — it is still at the planning / pre-construction stage. Treat the provided site plan, diagram, or guide map as the primary spatial reference, not a fully verified built environment. Preserve the overall site geometry, building arrangement, circulation, landscape zones, road edges, entrances, and the relative positions of key outdoor spaces exactly as shown in that reference, and keep the designated installation zone consistent with it. Do not invent new plazas, fountains, retaining walls, gateways, signage, sculptural landscape elements, or luxury amenities unless clearly indicated in the reference. Do not add wall slogans, building numbers, branded text, or decorative environmental graphics unless explicitly required. Do not alter the external building massing or invent different architecture, and do not relocate the installation into a different, unrelated courtyard-like space. Where exact built details are unknown, use a neutral, generic apartment landscape interpretation rather than inventing a different type of space — follow the planning layout first and keep all unknown details conservative and generic.";
+
+  var UNBUILT_TONE_CLAUSE = "This is a conservative, proposal-stage competition submission — prioritize accuracy over beauty. Avoid a luxury apartment advertisement look: no cinematic lighting, no excessive golden-hour mood, no dramatic lens flare, no hyper-polished CGI, no exaggerated reflections, and no overly lush landscaping. Use soft, neutral daytime lighting and realistic but restrained material reflectivity so the result feels like a believable installation simulation, not a marketing rendering.";
+
   // ---------------------------------------------------------------------
   // Form state
   // ---------------------------------------------------------------------
@@ -102,7 +106,8 @@
   var CHECKBOX_FIELDS = [
     "preserveGeometry", "preserveProportion", "preserveColor", "preserveMaterial",
     "preserveComponentCount", "preserveOrientation", "preserveBase", "preserveInnerDetail",
-    "buildingPreserve", "landscapePreserve", "pavingPreserve", "circulationPreserve"
+    "buildingPreserve", "landscapePreserve", "pavingPreserve", "circulationPreserve",
+    "unbuiltSite"
   ];
 
   function getFormState() {
@@ -149,6 +154,7 @@
     } else {
       lines.push("Site lock: keep the existing site consistent across all generated views.");
     }
+    if (state.unbuiltSite) lines.push(UNBUILT_SITE_CLAUSE);
     return lines.join(" ");
   }
 
@@ -176,6 +182,9 @@
     if (clauses.length) {
       lines.push("Additionally: " + capitalize(clauses.join("; ")) + ".");
     }
+    if (state.basePedestal === "No") {
+      lines.push("Do not add a pedestal, water basin, circular reflecting pool, or special platform since none is specified for this artwork.");
+    }
     lines.push("Scale lock: the artwork must always read at its true specified scale (" + dimsText(state) +
       ") relative to the site and any human figures present. Do not enlarge, shrink, or otherwise misrepresent scale between shots.");
     return lines.join(" ");
@@ -185,9 +194,14 @@
     var lines = [];
     lines.push(REALISM_TEXT[state.realismLevel] || REALISM_TEXT["Architectural Visualization"]);
     lines.push(DOMINANCE_TEXT);
-    lines.push(LIGHTING_BY_TIME[state.timeOfDay] || LIGHTING_BY_TIME.Day);
+    if (state.unbuiltSite && state.timeOfDay === "Day") {
+      lines.push("Soft neutral daytime lighting, no golden-hour warmth.");
+    } else {
+      lines.push(LIGHTING_BY_TIME[state.timeOfDay] || LIGHTING_BY_TIME.Day);
+    }
     lines.push(HUMAN_SCALE_TEXT[state.humanScale] || HUMAN_SCALE_TEXT.None);
     lines.push("Output aspect ratio: " + (state.outputRatio || "4:3") + ".");
+    if (state.unbuiltSite) lines.push(UNBUILT_TONE_CLAUSE);
     return lines.join(" ");
   }
 
@@ -578,6 +592,7 @@
     installationPosition: "중앙 광장 축, 보행 정문 정면",
     siteReferenceType: "Architectural Rendering",
     timeOfDay: "Day",
+    unbuiltSite: false,
     artworkWidth: "3000",
     artworkDepth: "2000",
     artworkHeight: "4500",
@@ -595,6 +610,39 @@
     realismLevel: "Architectural Visualization",
     shots: ["Main Perspective", "Eye Level", "Left 3/4", "Right 3/4", "Rear", "Aerial", "Long Shot", "Close-up"]
   };
+
+  var UNBUILT_SAMPLE_STATE = {
+    projectName: "OO아파트 조경존 미술장식품 설치",
+    competitionName: "2026 건축물 미술작품 설계공모",
+    artistName: "홍길동",
+    artworkName: "제안 조형물",
+    siteType: "Apartment Courtyard",
+    installationPosition: "배치도 상 지정된 조경존 (계획 단계)",
+    siteReferenceType: "Site Plan",
+    timeOfDay: "Day",
+    unbuiltSite: true,
+    artworkWidth: "2300",
+    artworkDepth: "600",
+    artworkHeight: "3000",
+    material: "Stainless Steel",
+    mainColors: "무광 화이트, 실버 브러시드 포인트",
+    basePedestal: "No",
+    artworkDescription: "수직으로 뻗은 절제된 형태의 조형물로, 과도한 장식 없이 단순한 매스와 표면으로 구성된다.",
+    installationMessage: "단지 진입부 조경존에서 주민들의 시선을 자연스럽게 안내하는 절제된 랜드마크 역할을 한다.",
+    lockLevel: "STRICT",
+    preserveGeometry: true, preserveProportion: true, preserveColor: true, preserveMaterial: true,
+    preserveComponentCount: true, preserveOrientation: true, preserveBase: false, preserveInnerDetail: true,
+    buildingPreserve: true, landscapePreserve: true, pavingPreserve: true, circulationPreserve: true,
+    outputRatio: "4:3",
+    humanScale: "Minimal",
+    realismLevel: "Architectural Visualization",
+    shots: ["Main Perspective", "Eye Level", "Long Shot"]
+  };
+
+  function loadUnbuiltSample() {
+    applyFormState(UNBUILT_SAMPLE_STATE);
+    showToast("미착공 현장 샘플을 불러왔습니다.");
+  }
 
   function loadSample() {
     applyFormState(SAMPLE_STATE);
@@ -646,6 +694,7 @@
 
   document.getElementById("btn-reset").addEventListener("click", resetForm);
   document.getElementById("btn-sample").addEventListener("click", loadSample);
+  document.getElementById("btn-sample-unbuilt").addEventListener("click", loadUnbuiltSample);
   document.getElementById("btn-copy-all").addEventListener("click", copyAll);
   document.getElementById("btn-export-txt").addEventListener("click", exportTxt);
   document.getElementById("btn-export-json").addEventListener("click", exportJson);

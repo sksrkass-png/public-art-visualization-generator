@@ -145,6 +145,8 @@ h1 {
 
 .group-title:first-child { margin-top: 0; padding-top: 0; border-top: none; }
 
+.group-title__links { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; }
+
 .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
 
 .field { grid-column: 1 / -1; }
@@ -212,6 +214,22 @@ input:focus, select:focus, textarea:focus {
 }
 
 .check input { width: 16px; height: 16px; accent-color: #111; flex-shrink: 0; }
+
+.check--field {
+  width: 100%;
+  margin-top: 4px;
+  background: var(--soft);
+  border-color: var(--line);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.field-hint {
+  font-size: 11.5px;
+  color: var(--sub);
+  line-height: 1.5;
+  margin: 6px 2px 0;
+}
 
 .shot-quick { display: flex; gap: 12px; margin-bottom: 10px; }
 

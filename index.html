@@ -41,7 +41,12 @@
     <aside class="card side" id="sidebar">
       <form id="prompt-form">
 
-        <h3 class="group-title">A. 🏢 프로젝트 / 설치 공간 <button type="button" id="btn-sample" class="link-jump">샘플 불러오기</button></h3>
+        <h3 class="group-title">A. 🏢 프로젝트 / 설치 공간
+          <span class="group-title__links">
+            <button type="button" id="btn-sample" class="link-jump">샘플 불러오기</button>
+            <button type="button" id="btn-sample-unbuilt" class="link-jump">미착공 현장 샘플</button>
+          </span>
+        </h3>
         <div class="grid">
           <div class="field half">
             <label>프로젝트명 <span class="en">PROJECT NAME</span></label>
@@ -92,6 +97,10 @@
               <option value="Night">야간</option>
               <option value="Sunset">노을</option>
             </select>
+          </div>
+          <div class="field">
+            <label class="check check--field"><input type="checkbox" name="unbuiltSite"><span>미착공 현장 · 계획 단계 <span class="en">UNBUILT / PLANNING-STAGE SITE</span></span></label>
+            <p class="field-hint">체크 시: 배치도/계획도만 존재하는 미착공 현장으로 간주하여, 없는 시설(광장·분수·게이트 등)을 새로 만들지 않고 럭셔리 마케팅 톤을 배제한 보수적인 제안형 프롬프트를 생성합니다.</p>
           </div>
         </div>
 
