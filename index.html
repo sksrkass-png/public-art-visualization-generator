@@ -143,6 +143,25 @@
           </div>
         </details>
 
+        <details class="more-details">
+          <summary>작품 고정 강화 — 핵심 식별 요소 직접 지정 (선택)</summary>
+          <div class="field-grid" style="margin-top:12px">
+            <div class="field field--full">
+              <label class="field__label" for="f-keyElements">반드시 유지할 핵심 요소
+                <button type="button" class="tip" data-tip="AI가 작품을 다른 형태로 재해석하는 것을 막기 위한 항목입니다. 한 줄에 하나씩, 눈에 띄는 시각 요소를 구체적으로 적을수록 강하게 고정됩니다.">ⓘ</button>
+              </label>
+              <textarea id="f-keyElements" name="artworkKeyElements" rows="4" placeholder="한 줄에 하나씩 입력하세요. 예:&#10;상단 하트 모양&#10;검정 스페이드 형상&#10;금색 다이아몬드 형상&#10;하단 검정 클로버 형상&#10;흑·금 배색&#10;각 심볼 내부의 서스펜디드 금속 부품"></textarea>
+            </div>
+            <div class="field field--full">
+              <label class="field__label" for="f-forbiddenForms">되지 않아야 할 형태 (금지할 재해석)
+                <button type="button" class="tip" data-tip="AI가 실수로 작품을 이런 형태로 바꿔버리는 것을 막기 위한 목록입니다. 프롬프트의 Negative 항목에도 함께 반영됩니다.">ⓘ</button>
+              </label>
+              <textarea id="f-forbiddenForms" name="artworkForbiddenForms" rows="3" placeholder="한 줄에 하나씩 입력하세요. 예:&#10;하우스 오브 카드 구조&#10;백색 조각물&#10;추상 타워 형태"></textarea>
+            </div>
+          </div>
+          <p class="field-hint">두 항목 중 하나라도 입력하면, 생성되는 모든 프롬프트(기준/시점/고정지침/카메라별)에 &ldquo;정확히 이 오브젝트여야 한다&rdquo;는 강화 문구와 별도 Negative 문구가 자동으로 추가됩니다.</p>
+        </details>
+
         <div class="step-nav">
           <span></span>
           <button type="button" class="btn btn-primary" data-goto="2">다음: 설치공간 →</button>

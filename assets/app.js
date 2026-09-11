@@ -361,6 +361,17 @@
 
   function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
+  function splitLines(text) {
+    return (text || "").split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  var GENERIC_IDENTITY_NEGATIVES = [
+    "reinterpretation of the artwork",
+    "simplified abstract sculpture",
+    "new sculptural design",
+    "loss of the artwork's original color and form identity"
+  ];
+
   function artworkLockText(state) {
     var lines = [];
     lines.push(LOCK_LEVEL_TEXT[state.lockLevel] || LOCK_LEVEL_TEXT.STANDARD);
@@ -374,6 +385,22 @@
     if (state.basePedestal === "No") {
       lines.push("Do not add a pedestal, water basin, circular reflecting pool, or special platform since none is specified for this artwork.");
     }
+
+    var keyElements = splitLines(state.artworkKeyElements);
+    var forbiddenForms = splitLines(state.artworkForbiddenForms);
+
+    if (keyElements.length) {
+      lines.push("Use the artwork reference image as the exact artwork reference. The artwork in the output must be the same object shown in that reference image, not a reinterpretation, simplification, or variation.");
+      lines.push("Preserve exactly: " + keyElements.join("; ") + ".");
+    }
+    if (forbiddenForms.length) {
+      lines.push("Do not transform the artwork into " + forbiddenForms.join(", ") + ", or any newly designed object.");
+    }
+    if (keyElements.length || forbiddenForms.length) {
+      lines.push("Do not recolor the sculpture. Do not simplify the silhouette. Do not replace the artwork's distinctive components with generic or structural forms. The result must clearly read as the exact same artwork shown in the reference image.");
+      lines.push("NEGATIVE (avoid): " + forbiddenForms.concat(GENERIC_IDENTITY_NEGATIVES).join(", ") + ".");
+    }
+
     lines.push("Scale lock: the artwork must always read at its true specified scale (" + dimsText(state) +
       ") relative to the site and any human figures present. Do not enlarge, shrink, or otherwise misrepresent scale between shots.");
     return lines.join(" ");
@@ -436,6 +463,12 @@
     lines.push("");
     lines.push("1. Use the approved master view image as the visual anchor for site, artwork design, and materials.");
     lines.push("2. Do not redesign, restyle, or reinterpret the artwork. " + (LOCK_LEVEL_TEXT[state.lockLevel] || LOCK_LEVEL_TEXT.STANDARD));
+
+    var keyElements = splitLines(state.artworkKeyElements);
+    var forbiddenForms = splitLines(state.artworkForbiddenForms);
+    if (keyElements.length) lines.push("   Preserve exactly: " + keyElements.join("; ") + ".");
+    if (forbiddenForms.length) lines.push("   Do not transform the artwork into " + forbiddenForms.join(", ") + ".");
+
     lines.push("3. Keep the installation position and orientation fixed exactly as shown in the master view.");
     lines.push("4. Keep the site, landscape, and building context consistent with the master view.");
     lines.push("5. Only the camera angle, distance, and framing may change between shots. All other elements must remain locked.");

@@ -28,8 +28,9 @@ Instead of writing each camera-angle prompt from scratch (and risking the AI sil
 - **Example preview instead of a blank result area** — before you generate anything, the results panel shows the 4-part output structure (00 기준 프롬프트 → 01 기준 시점 → 02 기준 고정 지침 → 03 카메라 구도별 프롬프트) with a sample excerpt, so the empty state teaches the workflow instead of just being empty.
 - One filled black primary action per screen; every other control is either outlined or a plain underlined text link — no competing buttons.
 
-### Prompt engine (unchanged in this redesign — see `assets/app.js` top half)
+### Prompt engine
 
+- **작품 고정 강화 (identity-lock reinforcement, optional)** — under "작품 고정 강화" in Stage 01, list the artwork's distinctive visual elements (one per line, e.g. "상단 하트 모양", "흑·금 배색") and/or forms the AI must never turn it into (e.g. "하우스 오브 카드 구조", "백색 조각물"). When either list is filled, every generated prompt (Master/View/Lock/every shot) automatically gets an itemized "Preserve exactly: …" clause, a "Do not transform the artwork into …" clause, and a dedicated `NEGATIVE (avoid): …` line combining your forbidden forms with generic identity-loss negatives. This exists because generic STRICT-level language ("don't redesign the artwork") isn't always enough for artworks with highly specific, easily-misread iconography — being explicit about the exact shapes/colors and the wrong shapes an AI might substitute closes that gap.
 - **Always-on Master Workflow** — every generation produces a 기준 프롬프트 (project brief), 기준 시점/Master View (first approved image prompt, highlighted with a green border and STEP 01 badge), and 기준 고정 지침/Master Lock (STEP 02 anchor instruction), followed by numbered shot prompts (STEP 03).
 - **Shot-by-shot prompts** for up to 12 camera angles: Main Perspective, Eye Level, Left 3/4, Right 3/4, Rear, Aerial, Long Shot, Close-up, plus optional technical views (Front/Rear Orthographic, Left/Right Elevation).
 - **Automatic lock language** — STRICT / STANDARD / FLEXIBLE artwork lock levels insert progressively stronger preservation instructions.
