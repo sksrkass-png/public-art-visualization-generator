@@ -64,6 +64,17 @@ const assert = require("node:assert/strict");
     const bytes = fs.readFileSync(file);
     assert.ok(bytes.length > 1000, "GLB should contain geometry");
     assert.equal(bytes.toString("ascii", 0, 4), "glTF", "binary GLB magic required");
+    // The scene GLB can be round-tripped through the actual site loader.
+    await page.locator("#site-file").setInputFiles({
+      name: "test-import-site.glb",
+      mimeType: "model/gltf-binary",
+      buffer: bytes
+    });
+    await page.waitForFunction(
+      () => document.querySelector("#site-status")?.textContent === "실제 모델",
+      null, { timeout: 15000 }
+    );
+    assert.match(await page.locator("#site-filename").textContent(), /test-import-site\.glb/);
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: WebGL, edit, undo/redo, lights, views, lock, PNG, JSON roundtrip, GLB export");
   } finally {
