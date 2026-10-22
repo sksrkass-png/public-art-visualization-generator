@@ -39,7 +39,7 @@ Instead of writing each camera-angle prompt from scratch (and risking the AI sil
 - **기단(base) 없음 자동 처리** — 기단 여부를 "없음"으로 설정하면 받침대/수반/플랫폼을 임의로 만들지 말라는 문구가 자동으로 삽입됩니다.
 - **수치 기반 Scale Lock** — 작품 높이(H)를 입력하면 평균 성인 키(1700mm) 대비 배율을 자동 계산해 "The artwork height is exactly 3000 mm... about 1.76 times the height of a person" 형태의 문장을 삽입합니다. "과장 확대 금지", "모든 뷰에서 동일 비율 유지", 사람이 없는 컷에서도 건축물·벤치·보행로·식재 등 주변 요소 대비 실제 크기로 보여야 한다는 문구가 함께 추가됩니다. 높이를 입력하지 않으면 기존의 일반 scale lock 문장만 사용됩니다.
 - **Site Hardscape Lock** — 미착공(unbuilt) + SITE CERTAINTY LOW 조합에서만 자동 적용되는 억제 규칙입니다. 원형 광장, 방사형 포장, 전용 조형광장, 수경/분수, 특수 받침대·플랫폼, 장식 옹벽, 게이트, 기념비형 기단, 특수 조경 조명 등을 배치도에 없는 한 임의로 만들지 않도록 제한하고, "작품이 계획된 부지에 맞춰야 하며 부지가 작품을 위해 재설계되어서는 안 된다"는 핵심 원칙을 명시합니다. MASTER VIEW에는 이 관계가 이후 모든 샷의 기준이 된다는 강조 문장이, MASTER LOCK에는 "스케일 관계 유지"·"이후 컷에서 새 하드스케이프 도입 금지" 항목이 추가로 포함됩니다.
-- **Export** the full prompt package as `.txt` or `.json`; **local history** (browser `localStorage`, last 20 generations).
+- **Export / Import** — export the full package as `.txt` or `.json`, then use **JSON 불러오기** to restore project inputs, reference type, preservation settings, and selected shots from a previously exported package. Import validates the file locally (max 1 MB), ignores unknown fields and prior output text, and **regenerates the prompts with the current engine**. No file is uploaded to a server. **Local history** stays in browser `localStorage` (last 20 generations).
 
 Everything runs client-side. Nothing is uploaded anywhere; history and drafts live only in your browser's local storage.
 
@@ -48,7 +48,7 @@ Everything runs client-side. Nothing is uploaded anywhere; history and drafts li
 1. **① 프로젝트 & 작품** — 프로젝트명, 작품명(필수) + 작가명, 공모명, 작품 규격(W·D·H·재료·컬러·기단)을 입력합니다. 설명/의도는 선택 사항입니다.
 2. **② 설치 공간** — 공간 유형과 설치 위치를 정하면 추천 배너가 나타납니다. 원하면 **추천 적용**을 눌러 카메라 구도·보존 수준·인물 스케일을 한 번에 채웁니다. 현장 레퍼런스 유형과 시간대, 미착공 현장 여부를 정합니다.
 3. **③ 스타일** — **공간 보존 수준**(최소/보통/최대)을 고르고, 리얼리즘과 인물 스케일을 정합니다. 전문가 모드에서는 개별 고정 항목을 직접 조정할 수 있습니다.
-4. **④ Prompt 생성** — 촬영 구도를 선택하고 **💭 프롬프트 생성**을 누릅니다.
+4. **④ Prompt 생성** — 촬영 구도를 선택하고 **프롬프트 생성**을 누릅니다. 이전에 JSON으로 내보낸 프로젝트를 재개할 때는 페이지 하단의 **JSON 불러오기**로 파일을 선택하세요. 입력값을 복원하고 최신 프롬프트 규칙으로 다시 생성합니다.
 5. 결과에서 `00 기준 프롬프트`를 먼저 이미지 생성 도구에 붙여 넣어 전체 컨셉을 검토합니다.
 6. `01 기준 시점(Master View)` 프롬프트로 대표 이미지를 생성하고 승인합니다.
 7. 승인된 이미지를 첨부한 채로 `02 기준 고정 지침`과 각 `03 카메라 구도` 프롬프트를 함께 사용해 각도별 이미지를 생성합니다.
@@ -106,7 +106,6 @@ git push -u origin main
 
 ## Future Roadmap
 
-- Import a previously exported `.json` package back into the form.
 - Per-project saved presets (e.g. save a site's lock configuration for reuse across multiple artwork proposals).
 - Batch shot selection presets tailored to specific competition submission requirements.
 - Optional side-by-side Korean translation of the generated English prompt for internal review.
