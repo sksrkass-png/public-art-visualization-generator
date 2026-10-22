@@ -13,6 +13,9 @@ import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
+import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
+  enumerateSiteMeshes, applyLayerVisibility, normalizeSiteAnnotations, canEditObject,
+  layerForObject } from "./layers.js";
 
 const $ = id => document.getElementById(id);
 const viewport = $("viewport");
@@ -120,6 +123,7 @@ let siteSourceFile = null, artSourceFile = null, planSourceFile = null;
 let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
 let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
+let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
 const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048 });
 const MAX_UNDO = 40;
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -175,6 +179,176 @@ function tree(parent, x, z, height = 3.6) {
   crown.position.set(x, height * .7, z);
   parent.add(trunk, crown);
 }
+function clearSiteHighlight() {
+  if (siteHighlight) {
+    scene.remove(siteHighlight);
+    siteHighlight.geometry.dispose();
+    siteHighlight.material.dispose();
+    siteHighlight = null;
+  }
+}
+function siteMeshByPath(path) {
+  return enumerateSiteMeshes(siteRoot).find(entry => entry.path === path);
+}
+function focusSiteMesh(path) {
+  if (approvedMaster) return;
+  const entry = siteMeshByPath(path);
+  if (!entry) return;
+  clearSiteHighlight();
+  siteHighlight = new THREE.BoxHelper(entry.object, 0xb17823);
+  siteHighlight.name = "Editor site selection bounds — not exported";
+  scene.add(siteHighlight);
+  $("site-selected-name").textContent = "보기 선택: " + entry.name + " · 원본 현장은 편집할 수 없습니다.";
+  const bounds = new THREE.Box3().setFromObject(entry.object);
+  if (!bounds.isEmpty()) {
+    const newTarget = bounds.getCenter(new THREE.Vector3());
+    camera.position.add(newTarget.clone().sub(orbit.target));
+    orbit.target.copy(newTarget);
+    orbit.update();
+  }
+}
+function siteLayerCounts(entries) {
+  return entries.reduce((acc, entry) => {
+    const category = layerState.siteNodes[entry.path]?.category || "unassigned";
+    acc[category]++;return acc;
+  },{buildings:0,landscape:0,unassigned:0});
+}
+function renderSiteLayerRows(entries) {
+  const root = $("site-object-list");
+  const query = $("site-object-search").value.trim().toLocaleLowerCase("ko-KR");
+  const matched = entries.filter(e => e.name.toLocaleLowerCase("ko-KR").includes(query) || e.path.includes(query));
+  root.replaceChildren();
+  for (const entry of matched.slice(0, 80)) {
+    const state = layerState.siteNodes[entry.path] || {category:"unassigned",hidden:false};
+    const item = document.createElement("div");
+    item.className = "site-mesh-item";
+    item.dataset.meshPath = entry.path;
+    const focus = document.createElement("button");
+    focus.type = "button";focus.className = "site-mesh-focus";
+    focus.title = "이 메시의 위치 보기 · 구조 편집 불가";
+    focus.textContent = entry.name;
+    focus.disabled = approvedMaster; // Approved camera stays locked to master unless user changes view preset.
+    focus.addEventListener("click", () => focusSiteMesh(entry.path));
+    const select = document.createElement("select");
+    select.setAttribute("aria-label",entry.name+" 분류");
+    select.dataset.siteMeshCategory = entry.path;
+    for(const [key,label] of [["unassigned","미분류"],["buildings","건물"],["landscape","조경"]]){
+      const option = document.createElement("option");
+      option.value=key;option.textContent=label;select.appendChild(option);
+    }
+    select.value=state.category;
+    select.disabled=approvedMaster;
+    const eye = document.createElement("input");
+    eye.type="checkbox";eye.checked=!state.hidden;eye.disabled=approvedMaster;
+    eye.dataset.siteMeshVisible=entry.path;
+    eye.setAttribute("aria-label",entry.name+" 표시");
+    item.append(focus,select,eye);
+    root.appendChild(item);
+  }
+  $("site-object-truncated").textContent = matched.length > 80
+    ? matched.length+"개 중 80개 표시 · 검색어를 입력하면 원하는 메시를 찾을 수 있습니다."
+    : (matched.length ? matched.length+"개 목록 · 분류 후 위 레이어 표시를 조절하세요." : "일치하는 메시 없음");
+}
+function renderExtraLayerRows() {
+  const list=$("layer-extra-list");
+  list.replaceChildren();
+  $("extra-layer-count").textContent=extrasRoot.children.length+"개";
+  for(const root of extrasRoot.children){
+    const item=document.createElement("div");
+    item.className="extra-layer-item";item.dataset.extraLayerId=String(root.userData.extraId);
+    const label=document.createElement("button");
+    label.type="button";label.textContent=root.name;label.title="선택 후 이동·회전·크기 변경";
+    const editable=canEditObject(root,artRoot,layerState,approvedMaster);
+    label.disabled=!editable;
+    label.addEventListener("click",()=>selectRoot(root));
+    const eye=document.createElement("input");
+    eye.type="checkbox";eye.checked=root.userData.layerHidden!==true;
+    eye.disabled=approvedMaster;
+    eye.dataset.extraVisible=String(root.userData.extraId);
+    eye.setAttribute("aria-label",root.name+" 표시");
+    const lock=document.createElement("input");
+    lock.type="checkbox";lock.checked=root.userData.layerLocked===true;
+    lock.disabled=approvedMaster;
+    lock.dataset.extraLock=String(root.userData.extraId);
+    lock.setAttribute("aria-label",root.name+" 선택 잠금");
+    item.append(label,eye,lock);
+    list.appendChild(item);
+  }
+}
+function selectedCanEdit() {
+  return canEditObject(selectedRoot,artRoot,layerState,approvedMaster);
+}
+function refreshLayers({redrawSite = false} = {}) {
+  const entries=applyLayerVisibility(layerState,siteRoot,artRoot,extrasRoot);
+  const counts=siteLayerCounts(entries);
+  $("site-mesh-count").textContent=entries.length+"개";
+  for(const key of LAYER_KEYS){
+    const checkbox=document.querySelector('[data-layer-visible="'+key+'"]');
+    checkbox.checked=layerState.groups[key].visible;
+    checkbox.disabled=approvedMaster;
+    const lock=document.querySelector('[data-layer-lock="'+key+'"]');
+    if(lock){lock.checked=layerState.groups[key].locked;lock.disabled=approvedMaster;}
+    const row=document.querySelector('[data-layer-row="'+key+'"]');
+    if(row){
+      row.classList.toggle("muted",!layerState.groups[key].visible);
+      const title=row.querySelector(".layer-group-title");
+      const count=counts[key];
+      if(title && count!==undefined) title.title=count+"개 메시 (분류는 직접 지정)";
+    }
+  }
+  if(redrawSite) renderSiteLayerRows(entries);
+  renderExtraLayerRows();
+  if(!selectedCanEdit()) transform.detach();
+  else if(!transform.dragging && transform.object!==selectedRoot) transform.attach(selectedRoot);
+  controls.forEach(input=>{input.disabled=!selectedCanEdit();});
+  $("delete-selected").disabled=!selectedCanEdit() || selectedRoot===artRoot;
+  $("ground-selected").disabled=!selectedCanEdit();
+  $("pick-selected-site").disabled=!selectedCanEdit();
+  $("apply-height").disabled=!canEditObject(artRoot,artRoot,layerState,approvedMaster);
+  $("extra-light-power").disabled=!selectedCanEdit();
+  $("extra-light-color").disabled=!selectedCanEdit();
+}
+function setLayerGroupVisible(key, value) {
+  if(approvedMaster || !LAYER_KEYS.includes(key))return;
+  const before=editSnapshot();
+  layerState.groups[key].visible=value;
+  refreshLayers({redrawSite:false});
+  updateExtrasStatus();
+  commit(before);
+}
+function setLayerGroupLocked(key,value){
+  if(approvedMaster || !["artwork","planting","lighting"].includes(key))return;
+  const before=editSnapshot();
+  layerState.groups[key].locked=value;
+  refreshLayers();
+  updateExtrasStatus();
+  commit(before);
+}
+function changeSiteMesh(path, field, value) {
+  if(approvedMaster) return;
+  if(!siteMeshByPath(path))return;
+  const before=editSnapshot();
+  const previous=layerState.siteNodes[path] || {category:"unassigned",hidden:false};
+  layerState.siteNodes[path]={...previous,[field]:value};
+  refreshLayers({redrawSite:field==="category"});
+  commit(before);
+}
+function changeExtraLayer(id,field,value){
+  if(approvedMaster)return;
+  const extra=extrasRoot.children.find(x=>x.userData.extraId===id);
+  if(!extra)return;
+  const before=editSnapshot();
+  extra.userData[field]=value;
+  refreshLayers();
+  updateExtrasStatus();
+  commit(before);
+}
+function resetSiteAnnotations(){
+  layerState.siteNodes={};
+  pendingSiteLayers=null;
+  clearSiteHighlight();
+  refreshLayers({redrawSite:true});
+}
 function buildSite(preset) {
   activeSiteOperation++;
   siteRoot.scale.setScalar(1);
@@ -184,6 +358,7 @@ function buildSite(preset) {
   clearGroup(siteRoot);
   siteFileName = "";
   siteSourceFile = null;
+  resetSiteAnnotations();
   syncGroundAvailability();
   $("site-filename").textContent = "업로드된 현장 모델 없음";
   showSiteGeometryStats(null);
@@ -893,6 +1068,11 @@ async function importModel(file, isSite) {
       $("site-unit").value = "m"; $("site-up").value = "y";
       applySiteUnits(); syncGroundAvailability();
       setShadows(siteRoot);
+      resetSiteAnnotations();
+      if(pendingSiteLayers && pendingSiteLayers.file === file.name){
+        layerState.siteNodes=structuredClone(pendingSiteLayers.nodes);
+        pendingSiteLayers=null;refreshLayers({redrawSite:true});
+      }
       showSiteGeometryStats(inspectSiteGeometry(siteRoot));
       notify("현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
     } else {
