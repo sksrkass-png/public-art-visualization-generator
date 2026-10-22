@@ -341,6 +341,161 @@ function renderExtraLayerRows() {
     list.appendChild(item);
   }
 }
+function modelingObjects(){
+  return [artRoot,...extrasRoot.children];
+}
+function renderPrecisionRows(){
+  const list=$("precision-group-list"),previous=groupChecked;
+  const selectedIds=new Set(extrasRoot.children.map(root=>root.userData.extraId));
+  for(const id of previous)if(!selectedIds.has(id))previous.delete(id);
+  list.replaceChildren();
+  for(const root of extrasRoot.children){
+    const label=document.createElement("label");
+    const check=document.createElement("input");
+    check.type="checkbox";check.dataset.precisionGroupId=String(root.userData.extraId);
+    check.checked=previous.has(root.userData.extraId);
+    check.disabled=!canEditObject(root,artRoot,layerState,approvedMaster);
+    const suffix=root.userData.groupId?" · 그룹 #"+root.userData.groupId:"";
+    label.append(check,document.createTextNode(" "+root.name+suffix));
+    list.append(label);
+  }
+}
+function refreshPrecisionUI(){
+  if(!$("precision-group-list"))return;
+  renderPrecisionRows();
+  const prevA=$("measure-first").value,prevB=$("measure-second").value;
+  const candidates=modelingObjects();
+  for(const [id,selected] of [["measure-first",prevA],["measure-second",prevB]]){
+    const input=$(id);input.replaceChildren();
+    for(const [i,o] of candidates.entries())input.add(new Option(o.name,i===0?"main":String(o.userData.extraId)));
+    if([...input.options].some(o=>o.value===selected))input.value=selected;
+    else input.selectedIndex=id==="measure-second" && candidates.length>1?1:0;
+  }
+  $("precision-duplicate").disabled=!selectedCanEdit() || extrasRoot.children.length>=120;
+  $("precision-group").disabled=approvedMaster || groupChecked.size<2;
+  $("precision-ungroup").disabled=approvedMaster || !selectedRoot?.userData?.groupId;
+}
+function duplicateEditable(){
+  if(!selectedCanEdit() || extrasRoot.children.length>=120)return;
+  const original=selectedRoot;
+  const kind=original===artRoot?"artwork-copy":original.userData.extraKind;
+  const sourceID=original.userData?.assetId||null;
+  const before=editSnapshot();
+  const root=makeExtra(kind,nextExtraId++,original.userData.appearanceVersion||2,sourceID,assetLibrary,artRoot);
+  root.position.copy(original.position).add(new THREE.Vector3(2,0,0));
+  root.rotation.copy(original.rotation);
+  root.scale.copy(original.scale);
+  const currentLight=extraLight(original),nextLight=extraLight(root);
+  if(currentLight && nextLight){
+    nextLight.intensity=currentLight.intensity;
+    nextLight.color.copy(currentLight.color);
+  }
+  extrasRoot.add(root);
+  selectRoot(root);
+  commit(before);
+  notify("원형을 변경하지 않고 "+root.name+" 복제본을 2m 옆에 배치했습니다.");
+}
+function createLogicalGroup(){
+  if(approvedMaster)return;
+  const list=extrasRoot.children.filter(root=>groupChecked.has(root.userData.extraId));
+  if(list.length<2 || list.some(root=>!canEditObject(root,artRoot,layerState,approvedMaster)))
+    return notify("그룹으로 묶을 편집 가능한 오브제 2개 이상을 선택하세요.");
+  const used=new Set(extrasRoot.children.map(x=>x.userData.groupId).filter(Boolean));
+  const id=Array.from({length:120},(_,i)=>i+1).find(x=>!used.has(x));
+  if(!id)return notify("그룹은 최대 120개까지 가능합니다.");
+  const before=editSnapshot();
+  for(const root of list)root.userData.groupId=id;
+  groupChecked.clear();
+  commit(before);
+  refreshPrecisionUI();
+  notify(list.length+"개 오브제를 그룹 #"+id+"로 연결했습니다. 이동만 함께 적용됩니다.");
+}
+function ungroupLogical(){
+  if(approvedMaster || !selectedRoot?.userData.groupId)return;
+  const before=editSnapshot();
+  const id=selectedRoot.userData.groupId;
+  for(const root of extrasRoot.children)if(root.userData.groupId===id)root.userData.groupId=null;
+  commit(before);
+  refreshPrecisionUI();
+  notify("그룹 #"+id+" 연결을 해제했습니다.");
+}
+function shiftGroupMembers(selected,delta){
+  return translateGroupPeers(extrasRoot,selected,delta,
+    other=>canEditObject(other,artRoot,layerState,approvedMaster));
+}
+function measuredPairs(){
+  const referenceKey=$("measure-first").value,targetKey=$("measure-second").value;
+  const find=key=>key==="main"?artRoot:extrasRoot.children.find(root=>String(root.userData.extraId)===key);
+  const a=find(referenceKey),b=find(targetKey);
+  if(!a||!b||a===b)throw Error("서로 다른 두 객체를 지정하세요.");
+  const result=pairMeasurement(a,b);
+  return {first:a.name,second:b.name,centerDistanceM:result.centerDistance,
+    boxGapM:result.minimumBoxGap,boxOverlap:result.overlap};
+}
+function showPairMeasurement(){
+  try{
+    lastDistanceReport=measuredPairs();
+    const m=lastDistanceReport;
+    $("measure-objects-status").textContent="중심 거리 "+m.centerDistanceM.toFixed(3)+
+      "m · 외접 박스 간격 "+m.boxGapM.toFixed(3)+"m"+
+      (m.boxOverlap?" · 박스 겹침 (예비 간섭)":"");
+  }catch(error){$("measure-objects-status").textContent="객체 측정 불가: "+error.message;}
+}
+function addMeasuredPoint(point){
+  if(measuredPoints.length>=2)measuredPoints=[];
+  measuredPoints.push(point.toArray());
+  if(measuredPoints.length===1){
+    $("measure-site-status").textContent="첫 번째 점 X "+
+      point.x.toFixed(2)+", Y "+point.y.toFixed(2)+", Z "+point.z.toFixed(2)+
+      " · 두 번째 현장 표면을 클릭하세요.";
+    return;
+  }
+  const first=new THREE.Vector3().fromArray(measuredPoints[0]);
+  const second=new THREE.Vector3().fromArray(measuredPoints[1]);
+  const delta=first.distanceTo(second);
+  const planar=Math.hypot(first.x-second.x,first.z-second.z);
+  $("measure-site-status").textContent="3D 거리 "+delta.toFixed(3)+"m · 수평 거리 "+
+    planar.toFixed(3)+"m · 높이차 "+Math.abs(first.y-second.y).toFixed(3)+"m";
+  placementMode=null;$("placement-hint").hidden=true;
+}
+function checkInterferences(){
+  const annotated=siteSourceFile?enumerateSiteMeshes(siteRoot).filter(entry=>
+    layerState.siteNodes[entry.path]?.category==="buildings" && entry.object.visible)
+    .map(entry=>entry.object):[];
+  const output=sceneInterferences(modelingObjects(),annotated);
+  lastCollisionReport={
+    schema:"axoo-aabb-site-interference-v1",
+    checkedAt:new Date().toISOString(),
+    inspectedBuildingMeshes:output.checkedBuildings,
+    placedObjects:output.checkedActors,
+    pairs:output.pairs,
+    truncated:output.truncated,
+    warning:"AABB는 부피 중첩의 예비 지표이며 삼각형 실제 충돌/이격거리/안전성 인증이 아닙니다. 건물 메시를 직접 분류해야 검사에 포함됩니다."
+  };
+  const examples=output.pairs.slice(0,4).map(p=>p.first+" ↔ "+p.second).join(" / ");
+  $("precision-collision-status").textContent=output.pairs.length
+    ? output.pairs.length+"건의 외접 박스 중첩 후보 · "+examples+
+       (output.pairs.length>4?" 외 "+(output.pairs.length-4)+"건":"")
+    :"검사 범위에서 외접 박스 중첩 없음 · 건물 메시 "+output.checkedBuildings+"개 분류됨";
+  if(output.truncated)$("precision-collision-status").textContent+=" · 전체 메시를 검사하지 못했습니다.";
+}
+function exportPrecisionReport(){
+  checkInterferences();
+  const data={schema:"axoo-modeling-precision-v1",project:$("project-name").value,
+    site:siteFileName,artwork:artFileName,masterLocked:approvedMaster,
+    measuredPoints:measuredPoints.length===2?measuredPoints:null,
+    measurement:measuredPoints.length===2?(()=>{
+      const a=new THREE.Vector3().fromArray(measuredPoints[0]),b=new THREE.Vector3().fromArray(measuredPoints[1]);
+      return {distance3DM:a.distanceTo(b),horizontalDistanceM:Math.hypot(a.x-b.x,a.z-b.z),heightDifferenceM:Math.abs(a.y-b.y)};
+    })():null,
+    objectMeasurement:lastDistanceReport,interference:lastCollisionReport,
+    logicalGroups:extrasRoot.children.filter(x=>x.userData.groupId).map(x=>({
+      name:x.name,id:x.userData.extraId,groupId:x.userData.groupId
+    })),
+    warning:"CAD 실측 검증이나 충돌 메시 삼각형 판정이 아닙니다. 실제 현장 도면 및 전문가 검토가 필요합니다."
+  };
+  download(safeFileName()+"-precision-audit.json",new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
+}
 function selectedCanEdit() {
   return canEditObject(selectedRoot,artRoot,layerState,approvedMaster);
 }
@@ -364,7 +519,8 @@ function refreshLayers({redrawSite = false} = {}) {
   }
   if(redrawSite) renderSiteLayerRows(entries);
   renderExtraLayerRows();
-  if(!selectedCanEdit()) transform.detach();
+  refreshPrecisionUI();
+  if(!selectedCanEdit() transform.detach();
   else if(!transform.dragging && transform.object!==selectedRoot) transform.attach(selectedRoot);
   controls.forEach(input=>{input.disabled=!selectedCanEdit();});
   $("delete-selected").disabled=!selectedCanEdit() || selectedRoot===artRoot;
@@ -1103,6 +1259,7 @@ function updateExtrasStatus() {
     button.disabled = !object || !canEditObject(object,artRoot,layerState,approvedMaster);
   }
   $("delete-selected").disabled = !selectedCanEdit() || selectedRoot === artRoot;
+  refreshPrecisionUI();
 }
 function selectRoot(object) {
   selectedRoot = object || artRoot;
