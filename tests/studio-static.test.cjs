@@ -51,6 +51,14 @@ assert.match(js, /selectedRoot\.scale\.fromArray\(base\.map/, "proportional scal
 assert.match(js, /const SITE_UNIT_TO_M/, "site unit conversion must exist");
 assert.match(js, /function syncGroundAvailability/, "hide redundant ground mapping when site imported");
 assert.match(js, /function createPlacedExtra/, "mouse placement for new objects");
+assert.match(js, /function groundSelected/, "selected surface grounding required");
+assert.match(js, /function placeSelectedOnSite/, "click-to-place selected objects required");
+assert.match(js, /function syncPlanOverlay/, "alignable site plan reference required");
+assert.match(js, /function validPlanAlignment/, "safe plan restoration required");
+for (const id of ["plan-visible","plan-x","plan-z","plan-rotation","plan-elevation","plan-opacity",
+  "plan-pick-center","ground-selected","pick-selected-site","auto-ground","ground-offset","ground-status"]) {
+  assert.ok(unique.has(id), "v0.5 precision control missing: " + id);
+}
 assert.match(js, /function deleteSelectedExtra/, "selected object delete control");
 assert.match(js, /sunGuide\.visible = false/, "sun sphere must not appear in render");
 assert.match(js, /setEditorGizmosVisible\(extrasRoot, false\)/, "light marker must not appear in render");
