@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 1.1</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 1.2</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -140,7 +140,7 @@
           <div class="layer-group" data-layer-row="landscape"><span class="layer-group-title">기존 조경</span><label title="조경 표시"><input type="checkbox" data-layer-visible="landscape" checked> 표시</label><span class="site-fixed-lock">🔒</span></div>
           <div class="layer-group" data-layer-row="unassigned"><span class="layer-group-title">미분류 현장</span><label title="기타 현장 표시"><input type="checkbox" data-layer-visible="unassigned" checked> 표시</label><span class="site-fixed-lock">🔒</span></div>
           <div class="layer-group" data-layer-row="artwork"><span class="layer-group-title">🎨 설치 작품</span><label><input type="checkbox" data-layer-visible="artwork" checked> 표시</label><label><input type="checkbox" data-layer-lock="artwork"> 잠금</label></div>
-          <div class="layer-group" data-layer-row="planting"><span class="layer-group-title">🌳 추가 식재</span><label><input type="checkbox" data-layer-visible="planting" checked> 표시</label><label><input type="checkbox" data-layer-lock="planting"> 잠금</label></div>
+          <div class="layer-group" data-layer-row="planting"><span class="layer-group-title">🌳 식재·인물·가구</span><label><input type="checkbox" data-layer-visible="planting" checked> 표시</label><label><input type="checkbox" data-layer-lock="planting"> 잠금</label></div>
           <div class="layer-group" data-layer-row="lighting"><span class="layer-group-title">💡 추가 조명</span><label><input type="checkbox" data-layer-visible="lighting" checked> 표시</label><label><input type="checkbox" data-layer-lock="lighting"> 잠금</label></div>
         </div>
         <details class="site-scene-objects">
@@ -202,14 +202,36 @@
         <div id="master-history" class="master-history" aria-label="승인 마스터 버전 이력"></div>
       </section>
       <section class="section">
-        <h2>식재·조명 오브제 추가</h2>
+        <h2>식재·인물·거리 가구·조명</h2>
         <p class="hint">추가 버튼을 누른 뒤 3D 현장을 클릭해 배치합니다. 실측 현장 모델에는 기존 건물·조경을 그대로 보존합니다.</p>
         <div class="asset-palette">
           <button type="button" data-add-extra="tree-round">🌳 활엽수</button>
           <button type="button" data-add-extra="tree-cone">🌲 침엽수</button>
           <button type="button" data-add-extra="shrub">🌿 덤불</button>
+          <button type="button" data-add-extra="tree-autumn">🍂 가을 수목</button>
+          <button type="button" data-add-extra="person-standing">🚶 사람 1.73m</button>
+          <button type="button" data-add-extra="park-bench">🪑 벤치</button>
+          <button type="button" data-add-extra="round-planter">🪴 화분</button>
           <button type="button" data-add-extra="point-light">💡 포인트 조명</button>
           <button type="button" data-add-extra="spot-light">🔦 스폿 조명</button>
+        </div>
+        <div class="asset-library-panel" id="asset-library-panel">
+          <div class="section-title"><h2>외부 GLB 에셋 라이브러리</h2><span class="tag">v1.2</span></div>
+          <p class="hint">실제 수목·사람·가구 3D GLB를 직접 업로드하세요. 독립형 GLB 최대 6종, 각 20MB, 합계 60MB, 모델당 삼각형 25만 개 이내입니다. 자동 에셋 다운로드는 제공하지 않습니다.</p>
+          <label class="file-button secondary" for="library-asset-file"><span>+ GLB 에셋 불러오기</span><small>glTF 2.0 GLB · 텍스처 포함 권장</small></label>
+          <input class="sr-only" id="library-asset-file" type="file" accept=".glb,model/gltf-binary">
+          <label for="library-asset-category">업로드하는 에셋 유형</label>
+          <select id="library-asset-category">
+            <option value="planting">식재 / 수목</option>
+            <option value="person">사람 / 스케일 인물</option>
+            <option value="furniture">거리 가구 / 공간 소품</option>
+          </select>
+          <label for="library-asset-select">배치할 에셋 선택</label>
+          <select id="library-asset-select"><option value="">등록한 GLB 에셋 없음</option></select>
+          <button id="library-place" class="outline full" type="button" disabled>선택한 GLB를 현장 클릭으로 배치</button>
+          <p id="library-status" class="hint" aria-live="polite">등록 에셋 0 / 6 · GLB 원본 파일은 프로젝트 ZIP에 보관됩니다.</p>
+          <label class="toggle"><input type="checkbox" id="asset-low-shadows"> 에셋 그림자 경량화 (편집 중)</label>
+          <p class="hint">실제 에셋은 제공된 GLB의 텍스처·형상·크기를 유지합니다. 크기는 객체 선택 후 Scale 도구로 조절하세요. 소스의 사용권은 직접 확인해 주세요.</p>
         </div>
         <div id="extra-count" class="hint">추가된 오브제 0개</div>
         <div id="extra-list" class="extra-list" aria-label="배치한 오브제 목록"></div>
