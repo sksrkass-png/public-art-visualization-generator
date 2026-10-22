@@ -742,6 +742,18 @@ function restoreOriginalArtworkMaterials(){
   for(const material of overrideArtMaterials)material.dispose();
   originalArtMaterials.clear();overrideArtMaterials.clear();
 }
+// Map each source artwork mesh to the same material on its editable copies.
+// This restores consistent appearance after ZIP/Undo without rewriting geometry.
+function syncArtworkCopyMaterials(){
+  const source=[];
+  artRoot.traverse(obj=>{if(obj.isMesh)source.push(obj);});
+  for(const clone of extrasRoot.children.filter(x=>x.userData.extraKind==="artwork-copy")){
+    const copies=[];
+    clone.traverse(obj=>{if(obj.isMesh)copies.push(obj);});
+    if(copies.length!==source.length)continue;
+    copies.forEach((obj,i)=>{obj.material=source[i].material;});
+  }
+}
 function setArtworkMaterial(config,{recordUndo=false}={}){
   if(approvedMaster)return false;
   if(!validMaterialConfig(config))throw Error("지원하지 않는 재질 설정");
@@ -761,6 +773,7 @@ function setArtworkMaterial(config,{recordUndo=false}={}){
   $("material-status").textContent=config.preset==="original"
     ?"원본 작품 재질·텍스처 유지 중"
     :ART_MATERIALS[config.preset].label+" 렌더용 적용 · 원본 파일 보존";
+  syncArtworkCopyMaterials();
   if(before)commit(before);
   return true;
 }
@@ -821,6 +834,8 @@ function setArtwork(object, name, options = {}) {
   $("art-material").value="original";
   $("art-material-color").value="#d0d6db";
   $("material-status").textContent="원본 작품 재질·텍스처 유지 중";
+  // The old base artwork may be replaced only after the user deletes its
+  // clones; ZIP restore replaces everything from a validated package.
   clearGroup(artRoot);
   artRoot.position.set(0, 0, 0);
   artRoot.rotation.set(0, 0, 0);
