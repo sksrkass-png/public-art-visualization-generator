@@ -10,6 +10,28 @@ function mesh(geometry, color, roughness = .85, metalness = 0) {
   o.receiveShadow = true;
   return o;
 }
+// v0.4 geometry is preserved for reopened old projects and approved MASTERs.
+function legacyTreeRound(root) {
+  const trunk = mesh(new THREE.CylinderGeometry(.2, .28, 2.25, 9), 0x7f6451);
+  trunk.position.y = 1.13; root.add(trunk);
+  for (const [x,y,z,r] of [[0,3.05,0,1.22],[-.68,2.88,.25,.8],[.67,3.1,.2,.87],[.24,3.85,-.2,.78]]) {
+    const b = mesh(new THREE.IcosahedronGeometry(r, 2), 0x6b8863);
+    b.position.set(x,y,z); root.add(b);
+  }
+}
+function legacyTreeCone(root) {
+  const trunk = mesh(new THREE.CylinderGeometry(.16,.24,3.8,8),0x84684f);trunk.position.y=1.9;root.add(trunk);
+  for(const [y, radius, height] of [[1.55,1.15,2.25],[2.45,.93,2.15],[3.25,.68,1.65]]) {
+    const p=mesh(new THREE.ConeGeometry(radius,height,9),0x4c7863);
+    p.position.y=y+height*.23;root.add(p);
+  }
+}
+function legacyShrub(root) {
+  for(const [x,y,z,r] of [[0,.65,0,.79],[-.62,.5,.15,.56],[.62,.48,.12,.58],[-.26,.8,-.48,.56],[.32,.76,-.45,.59]]) {
+    const b=mesh(new THREE.IcosahedronGeometry(r,1),0x73896b);
+    b.position.set(x,y,z);root.add(b);
+  }
+}
 // Reproducible foliage detail: no random source, so project reopens with
 // the same botanical silhouettes in screenshots and exported GLB geometry.
 const LEAF_COLORS = [0x5b7757, 0x6e9267, 0x7a9a6b, 0x476c50, 0x85a279];
@@ -91,16 +113,17 @@ function lightFixture(root,kind) {
   lightIcon(root,kind);
   return light;
 }
-export function makeExtra(kind,id) {
+export function makeExtra(kind,id,appearanceVersion=2) {
   if(!EXTRA_TYPES.includes(kind))throw Error("Unknown decorative object kind");
   const root=new THREE.Group();
   root.userData.extraKind=kind;
   root.userData.extraId=id;
+  root.userData.appearanceVersion=appearanceVersion;
   root.name=({ "tree-round":"활엽수", "tree-cone":"침엽수", "shrub":"덤불",
     "point-light":"포인트 조명","spot-light":"스폿 조명" })[kind]+" #"+id;
-  if(kind==="tree-round")treeRound(root);
-  else if(kind==="tree-cone")treeCone(root);
-  else if(kind==="shrub")shrub(root);
+  if(kind==="tree-round")(appearanceVersion === 1 ? legacyTreeRound : treeRound)(root);
+  else if(kind==="tree-cone")(appearanceVersion === 1 ? legacyTreeCone : treeCone)(root);
+  else if(kind==="shrub")(appearanceVersion === 1 ? legacyShrub : shrub)(root);
   else lightFixture(root,kind);
   return root;
 }
@@ -114,6 +137,7 @@ export function serializeExtras(container) {
     return {
       id:root.userData.extraId,
       kind:root.userData.extraKind,
+      appearanceVersion:root.userData.appearanceVersion || 1,
       transform:{
         p:root.position.toArray(),
         r:root.rotation.toArray().slice(0,3),
@@ -128,6 +152,7 @@ export function validateExtras(extras) {
   const ids=new Set();
   for(const x of extras) {
     if(!x||!EXTRA_TYPES.includes(x.kind)||!Number.isInteger(x.id)||x.id<1||ids.has(x.id))return false;
+    if(x.appearanceVersion !== undefined && ![1,2].includes(x.appearanceVersion))return false;
     ids.add(x.id);
     const t=x.transform;
     if(!t||!["p","r","s"].every(k=>Array.isArray(t[k])&&t[k].length===3&&
@@ -142,7 +167,7 @@ export function restoreExtras(container,entries) {
   if(!validateExtras(entries))throw Error("Invalid scene extras");
   container.clear();
   for(const x of entries){
-    const root=makeExtra(x.kind,x.id);
+    const root=makeExtra(x.kind,x.id,x.appearanceVersion || 1);
     root.position.fromArray(x.transform.p);
     root.rotation.set(...x.transform.r);
     root.scale.fromArray(x.transform.s);
