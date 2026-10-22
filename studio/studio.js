@@ -1042,26 +1042,41 @@ async function importProjectArchive(file) {
 }
 
 function exportImage() {
+  const width = Math.max(1, Math.floor(viewport.clientWidth));
+  const height = Math.max(1, Math.floor(viewport.clientHeight));
+  const originalRatio = renderer.getPixelRatio();
+  const originalGrid = grid.visible;
+  const originalHelper = transform.getHelper().visible;
+  const originalSun = sunGuide.visible;
+  const originalEditorGizmos = true;
   try {
-    const width = Math.max(1, Math.floor(viewport.clientWidth)), height = Math.max(1, Math.floor(viewport.clientHeight));
-    const ratio = renderer.getPixelRatio();
+    const targetMultiplier = safeNumber($("render-resolution").value, 2, 2, 4);
+    const maxPixels = renderer.capabilities.maxTextureSize;
+    const scale = Math.min(targetMultiplier, maxPixels / width, maxPixels / height);
     renderer.setPixelRatio(1);
-    renderer.setSize(width * 2, height * 2, false);
+    renderer.setSize(Math.round(width * scale), Math.round(height * scale), false);
     grid.visible = false;
     transform.getHelper().visible = false;
+    sunGuide.visible = false;
+    setEditorGizmosVisible(extrasRoot, false);
     renderer.render(scene, camera);
-    const image = renderer.domElement.toDataURL("image/png");
-    grid.visible = $("grid").checked;
-    transform.getHelper().visible = true;
-    renderer.setPixelRatio(ratio);
-    renderer.setSize(width, height, false);
-    renderer.render(scene, camera);
-    const a = document.createElement("a");
-    a.href = image; a.download = safeFileName() + "-render.png"; a.click();
-    notify("화면을 2배 해상도 PNG로 저장했습니다.");
+    const data = renderer.domElement.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = data;
+    link.download = safeFileName() + "-high-quality.png";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    notify("편집 보조물 없는 " + scale.toFixed(1) + "배 해상도 PNG 렌더를 저장했습니다.");
   } catch (err) {
-    notify("이미지 캡처 실패: " + (err.message || "렌더링 오류"));
-    resize();
+    notify("렌더 저장 실패: " + (err.message || "그래픽 메모리 부족"));
+  } finally {
+    grid.visible = originalGrid;
+    transform.getHelper().visible = originalHelper;
+    sunGuide.visible = originalSun;
+    setEditorGizmosVisible(extrasRoot, originalEditorGizmos);
+    renderer.setPixelRatio(originalRatio);
+    renderer.setSize(width, height, false);
   }
 }
 async function exportGLB() {
@@ -1071,8 +1086,13 @@ async function exportGLB() {
     exportRoot.name = $("project-name").value;
     exportRoot.add(siteRoot.clone(true));
     exportRoot.add(artRoot.clone(true));
-    exportRoot.add(floor.clone());
+    if (floor.visible) exportRoot.add(floor.clone());
     if (planPlane.visible) exportRoot.add(planPlane.clone());
+    const exportedExtras = extrasRoot.clone(true);
+    exportedExtras.traverse(object => {
+      if (object.userData.editorOnly) object.visible = false;
+    });
+    exportRoot.add(exportedExtras);
     const output = await new GLTFExporter().parseAsync(exportRoot, { binary: true, onlyVisible: true });
     download(safeFileName() + ".glb", new Blob([output], { type: "model/gltf-binary" }));
     notify("3D 씬을 GLB로 내보냈습니다.");
