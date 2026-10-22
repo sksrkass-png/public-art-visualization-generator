@@ -264,9 +264,23 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     ]) {
       await page.locator('[data-add-extra="'+kind+'"]').click();
       await page.mouse.click(bounds.x+bounds.width*.65,bounds.y+bounds.height*.82);
-      await page.waitForFunction(expectedCount =>
-        document.querySelectorAll("#extra-list button").length === expectedCount,
-        expected, {timeout:10000});
+      try {
+        await page.waitForFunction(expectedCount =>
+          document.querySelectorAll("#extra-list button").length === expectedCount,
+          expected, {timeout:10000});
+      } catch (error) {
+        const state = await page.evaluate(() => ({
+          displayed: document.querySelector("#extra-count")?.textContent,
+          count: document.querySelectorAll("#extra-list button").length,
+          placement: document.querySelector("#placement-hint")?.textContent,
+          placementHidden: document.querySelector("#placement-hint")?.hidden,
+          toast: document.querySelector("#toast")?.textContent,
+          site: document.querySelector("#site-filename")?.textContent,
+          viewport: document.querySelector("#viewport")?.getBoundingClientRect()?.toJSON()
+        }));
+        throw new Error(kind + " failed to place: " + JSON.stringify(state) +
+          " / JS errors: " + JSON.stringify(errors) + " / " + error.message);
+      }
     }
     assert.match(await page.locator("#extra-count").textContent(), /5개/);
     assert.equal(await page.locator("#delete-selected").isEnabled(), true);
