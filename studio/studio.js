@@ -80,7 +80,7 @@ let approvedMaster = false, revision = 1, loadedPlanTexture = null;
 let lastDrag = null, mouseMoved = false, toastTimer = null;
 let undoStack = [], redoStack = [];
 let pendingArtwork = null;
-let activeSiteOperation = 0, activeArtOperation = 0, activePlanOperation = 0;
+let activeSiteOperation = 0, activeArtOperation = 0, activePlanOperation = 0, activeProjectOperation = 0;
 let siteSourceFile = null, artSourceFile = null, planSourceFile = null;
 let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
@@ -310,6 +310,7 @@ async function loadPlan(file) {
   if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 20 * 1024 * 1024) {
     return notify("20MB 이하의 PNG/JPG/WEBP 이미지가 필요합니다.");
   }
+  activeProjectOperation++;
   const token = ++activePlanOperation;
   try {
     const texture = await decodePlanTexture(file);
@@ -565,6 +566,7 @@ async function decodeModel(file, isSite) {
 async function importModel(file, isSite) {
   if (!file) return;
   if (approvedMaster) return notify("MASTER LOCK을 먼저 해제해야 작품·공간 모델을 변경할 수 있습니다.");
+  activeProjectOperation++;
   const op = isSite ? ++activeSiteOperation : ++activeArtOperation;
   try {
     notify("파일을 읽고 있습니다: " + file.name);
@@ -618,13 +620,21 @@ function validTransform(t) {
   return t && isTriple(t.p) && isTriple(t.r) && isTriple(t.s) &&
     t.s.every(v => v > .00001 && v < 1000);
 }
-function importSceneConfig(data) {
-  if (approvedMaster) throw new Error("MASTER LOCK을 해제한 후 프로젝트를 불러오세요.");
+function validateProjectConfig(data) {
   if (!data || data.schema !== "axoo-public-art-3d-studio-v1" || !data.site || !data.artwork ||
       !validTransform(data.artwork.transform) || !data.lighting || !data.camera ||
-      !isTriple(data.camera.position) || !isTriple(data.camera.target)) {
+      !isTriple(data.camera.position) || !isTriple(data.camera.target) ||
+      typeof data.artwork.source !== "string" || typeof data.site.file !== "string" ||
+      !["empty", "plaza", "courtyard", "promenade"].includes(data.site.preset) ||
+      (data.masterSnapshots !== undefined &&
+        (!Array.isArray(data.masterSnapshots) || data.masterSnapshots.length > 40 ||
+          !data.masterSnapshots.every(validMasterSnapshot)))) {
     throw new Error("올바른 스튜디오 프로젝트 파일이 아닙니다.");
   }
+}
+function importSceneConfig(data) {
+  if (approvedMaster) throw new Error("MASTER LOCK을 해제한 후 프로젝트를 불러오세요.");
+  validateProjectConfig(data);
   const originalSite = siteFileName;
   const originalArt = artFileName;
   $("project-name").value = String(data.projectName || "공공미술 시안").slice(0, 100);
@@ -671,9 +681,6 @@ function importSceneConfig(data) {
   orbit.target.fromArray(data.camera.target);
   orbit.update();
   if (Array.isArray(data.masterSnapshots)) {
-    if (data.masterSnapshots.length > 40 || !data.masterSnapshots.every(validMasterSnapshot)) {
-      throw new Error("마스터 승인 이력이 올바르지 않습니다.");
-    }
     masterSnapshots = structuredClone(data.masterSnapshots);
   } else {
     // Backwards-compatible v0.1 JSON had only a boolean lock, not a snapshot.
@@ -682,6 +689,125 @@ function importSceneConfig(data) {
   renderMasterHistory();
   clearUndo();
 }
+// The portable project ZIP stores the actual original bytes, not just filenames.
+// Built-in sample meshes and scene presets remain reproducible from the application.
+const PROJECT_ARCHIVE_SCHEMA = "axoo-public-art-portable-v1";
+const MAX_ZIP_BYTES = 200 * 1024 * 1024;
+const MAX_MODEL_BYTES = 80 * 1024 * 1024;
+const MAX_MAP_BYTES = 20 * 1024 * 1024;
+async function exportProjectArchive() {
+  try {
+    const zip = new JSZip();
+    const data = sceneConfig();
+    data.archiveSchema = PROJECT_ARCHIVE_SCHEMA;
+    // The source asset names are preserved in JSON. Fixed ZIP keys eliminate
+    // path traversal and prevent the archive from assuming a user's directory.
+    zip.file("project.json", JSON.stringify(data, null, 2));
+    if (siteSourceFile) zip.file("assets/site", siteSourceFile);
+    if (artSourceFile) zip.file("assets/artwork", artSourceFile);
+    if (planSourceFile) zip.file("assets/plan", planSourceFile);
+    $("save-status").textContent = "프로젝트 패키지 저장 중…";
+    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
+    download(safeFileName() + "-project.zip", blob);
+    notify("프로젝트 ZIP에 현장·작품 원본 파일과 승인 이력을 포함했습니다.");
+  } catch (err) {
+    console.error(err);
+    notify("프로젝트 저장 실패: " + (err.message || "메모리 용량 확인 필요"));
+  } finally {
+    $("save-status").textContent = "브라우저에서 로컬 처리";
+  }
+}
+function checkedArchiveEntry(zip, name, limit, required) {
+  const entry = zip.file(name);
+  if (!entry) {
+    if (required) throw new Error("ZIP에 필요한 모델이 없습니다: " + name);
+    return null;
+  }
+  // Reject oversize payloads before allocation when metadata is available.
+  const announced = entry._data && entry._data.uncompressedSize;
+  if (announced && announced > limit) throw new Error("압축 해제 파일이 너무 큽니다: " + name);
+  return entry;
+}
+async function recoverArchiveAsset(entry, name, maxSize, mime = "application/octet-stream") {
+  if (!entry) return null;
+  const bytes = await entry.async("uint8array");
+  if (bytes.length > maxSize) throw new Error("허용 용량을 초과한 모델입니다.");
+  return new File([bytes], name, { type: mime });
+}
+async function importProjectArchive(file) {
+  if (!file) return;
+  if (approvedMaster) return notify("MASTER LOCK을 해제한 뒤 프로젝트 ZIP을 불러오세요.");
+  if (file.size > MAX_ZIP_BYTES) return notify("ZIP 파일은 200MB 이하여야 합니다.");
+  const op = ++activeProjectOperation;
+  $("save-status").textContent = "프로젝트 파일 검증 중…";
+  let planTexture = null;
+  try {
+    const zip = await JSZip.loadAsync(file);
+    if (Object.keys(zip.files).length > 10) throw new Error("허용되지 않는 파일이 너무 많습니다.");
+    const metaEntry = checkedArchiveEntry(zip, "project.json", 1024 * 1024, true);
+    const metadata = await metaEntry.async("string");
+    if (metadata.length > 1024 * 1024) throw new Error("프로젝트 설정 정보가 너무 큽니다.");
+    const data = JSON.parse(metadata);
+    validateProjectConfig(data);
+    if (data.archiveSchema !== PROJECT_ARCHIVE_SCHEMA) throw new Error("지원하지 않는 프로젝트 패키지 버전입니다.");
+    // Decode and validate EVERYTHING before changing the current scene.
+    const siteEntry = checkedArchiveEntry(zip, "assets/site", MAX_MODEL_BYTES, !!data.site.file);
+    const artEntry = checkedArchiveEntry(zip, "assets/artwork", MAX_MODEL_BYTES, data.artwork.source !== "Sample Artwork");
+    const planEntry = checkedArchiveEntry(zip, "assets/plan", MAX_MAP_BYTES, !!data.site.planFile);
+    const siteFile = await recoverArchiveAsset(siteEntry, data.site.file, MAX_MODEL_BYTES);
+    const artFile = await recoverArchiveAsset(artEntry, data.artwork.source, MAX_MODEL_BYTES);
+    const planName = String(data.site.planFile || "");
+    const planType = /\.png$/i.test(planName) ? "image/png" :
+      /\.webp$/i.test(planName) ? "image/webp" : "image/jpeg";
+    const planFile = await recoverArchiveAsset(planEntry, planName, MAX_MAP_BYTES, planType);
+    const [siteModel, artModel] = await Promise.all([
+      siteFile ? decodeModel(siteFile, true) : Promise.resolve(null),
+      artFile ? decodeModel(artFile, false) : Promise.resolve(null)
+    ]);
+    if (planFile) planTexture = await decodePlanTexture(planFile);
+    if (approvedMaster || op !== activeProjectOperation) {
+      if (planTexture) planTexture.dispose();
+      return notify("작업 상태가 변경되어 이전 파일 로딩을 취소했습니다.");
+    }
+    // Commit an already validated package. No user's original file is uploaded.
+    activeSiteOperation++; activeArtOperation++; activePlanOperation++;
+    if (siteModel) {
+      clearGroup(siteRoot);
+      siteRoot.add(siteModel);
+      siteFileName = siteFile.name;
+      siteSourceFile = siteFile;
+      $("site-status").textContent = "실제 모델";
+      $("site-filename").textContent = siteFile.name;
+      $("site-preset").value = "empty";
+      setShadows(siteRoot);
+    } else {
+      $("site-preset").value = data.site.preset;
+      buildSite(data.site.preset);
+    }
+    if (artModel) setArtwork(artModel, artFile.name, { file: artFile });
+    else setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 });
+    if (planTexture) {
+      applyPlanTexture(planTexture, planFile);
+      planTexture = null;
+    } else {
+      if (loadedPlanTexture) loadedPlanTexture.dispose();
+      loadedPlanTexture = null; planSourceFile = null; planFileName = "";
+      planPlane.material.map = null; planPlane.material.needsUpdate = true;
+      planPlane.visible = false;
+      $("map-name").textContent = "배치도 없음";
+    }
+    importSceneConfig(data);
+    pendingArtwork = null;
+    notify("전체 프로젝트 복원 완료 · 원본 모델과 MASTER 승인 이력 적용");
+  } catch (err) {
+    if (planTexture) planTexture.dispose();
+    console.error(err);
+    notify("전체 프로젝트 불러오기 실패: " + (err.message || "파일 확인 필요"));
+  } finally {
+    $("save-status").textContent = "브라우저에서 로컬 처리";
+  }
+}
+
 function exportImage() {
   try {
     const width = Math.max(1, Math.floor(viewport.clientWidth)), height = Math.max(1, Math.floor(viewport.clientHeight));
@@ -726,6 +852,7 @@ async function exportGLB() {
 // Event connections
 $("site-preset").addEventListener("change", e => {
   if (approvedMaster) return;
+  activeProjectOperation++;
   buildSite(e.target.value); notify("예시 현장 프리셋을 적용했습니다.");
 });
 $("site-file").addEventListener("change", e => importModel(e.target.files[0], true));
@@ -738,6 +865,7 @@ $("snap").addEventListener("change", snapSetting);
 $("sample-art").addEventListener("click", () => {
   if (approvedMaster) return notify("MASTER LOCK 해제 후 작품을 변경하세요.");
   activeArtOperation++;
+  activeProjectOperation++;
   setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 }); changeView("main");
 });
 $("apply-height").addEventListener("click", () => {
@@ -752,6 +880,7 @@ buttons.forEach(el => el.addEventListener("click", () => changeMode(el.dataset.m
 controls.forEach(el => el.addEventListener("change", () => setTransformFromField(el)));
 $("master-lock").addEventListener("click", () => {
   if (approvedMaster && !window.confirm("MASTER LOCK을 해제하고 새 수정 버전을 시작하시겠습니까?")) return;
+  activeProjectOperation++;
   if (approvedMaster) {
     revision++;
     approvedMaster = false;
@@ -773,6 +902,11 @@ document.querySelectorAll("[data-view]").forEach(el => el.addEventListener("clic
 $("focus").addEventListener("click", fitCamera);
 $("shot-export").addEventListener("click", exportImage);
 $("export-glb").addEventListener("click", exportGLB);
+$("export-project").addEventListener("click", exportProjectArchive);
+$("import-project").addEventListener("change", e => {
+  importProjectArchive(e.target.files[0]);
+  e.target.value = "";
+});
 $("export-json").addEventListener("click", () => download(safeFileName() + ".json",
   new Blob([JSON.stringify(sceneConfig(), null, 2)], { type: "application/json" })));
 $("import-json").addEventListener("change", async e => {
@@ -781,6 +915,9 @@ $("import-json").addEventListener("change", async e => {
   try {
     if (file.size > 1024 * 1024) throw new Error("1MB 이하의 설정 파일만 지원합니다.");
     const data = JSON.parse(await file.text());
+    validateProjectConfig(data);
+    if (approvedMaster) throw new Error("MASTER LOCK을 해제한 후 불러오세요.");
+    activeProjectOperation++;
     importSceneConfig(data);
     notify("프로젝트 설정을 불러왔습니다. 외부 3D/배치도 파일은 별도 재업로드가 필요할 수 있습니다.");
   } catch (err) { notify("설정 불러오기 실패: " + err.message); }
