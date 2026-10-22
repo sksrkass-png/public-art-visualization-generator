@@ -627,7 +627,11 @@ function updateExtrasStatus() {
       button.type = "button";
       button.dataset.extraId = String(root.userData.extraId);
       button.textContent = root.name;
-      button.addEventListener("click", () => selectRoot(root));
+      button.addEventListener("click", () => {
+        // Resolve by ID at click time: undo/ZIP restore may rebuild mesh roots.
+        const latest = extrasRoot.children.find(object => object.userData.extraId === root.userData.extraId);
+        if (latest) selectRoot(latest);
+      });
       list.append(button);
     }
   }
