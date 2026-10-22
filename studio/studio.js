@@ -343,9 +343,9 @@ function changeExtraLayer(id,field,value){
   updateExtrasStatus();
   commit(before);
 }
-function resetSiteAnnotations(){
+function resetSiteAnnotations({clearPending = true} = {}){
   layerState.siteNodes={};
-  pendingSiteLayers=null;
+  if(clearPending) pendingSiteLayers=null;
   clearSiteHighlight();
   refreshLayers({redrawSite:true});
 }
@@ -1083,10 +1083,12 @@ async function importModel(file, isSite) {
       $("site-unit").value = "m"; $("site-up").value = "y";
       applySiteUnits(); syncGroundAvailability();
       setShadows(siteRoot);
-      resetSiteAnnotations();
+      resetSiteAnnotations({clearPending:false});
       if(pendingSiteLayers && pendingSiteLayers.file === file.name){
         layerState.siteNodes=structuredClone(pendingSiteLayers.nodes);
         pendingSiteLayers=null;refreshLayers({redrawSite:true});
+      } else {
+        pendingSiteLayers=null;
       }
       showSiteGeometryStats(inspectSiteGeometry(siteRoot));
       notify("현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
@@ -1367,6 +1369,7 @@ async function importProjectArchive(file) {
       applySiteUnits(); syncGroundAvailability();
       showSiteGeometryStats(inspectSiteGeometry(siteRoot));
       setShadows(siteRoot);
+      resetSiteAnnotations();
     } else {
       $("site-preset").value = data.site.preset;
       buildSite(data.site.preset);
