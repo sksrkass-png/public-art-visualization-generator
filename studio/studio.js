@@ -764,6 +764,12 @@ async function importProjectArchive(file) {
       siteFile ? decodeModel(siteFile, true) : Promise.resolve(null),
       artFile ? decodeModel(artFile, false) : Promise.resolve(null)
     ]);
+    if (artModel) {
+      const preparedBounds = new THREE.Box3().setFromObject(artModel);
+      if (preparedBounds.isEmpty() || preparedBounds.getSize(new THREE.Vector3()).y <= 0.000001) {
+        throw new Error("ZIP 내부 작품 모델의 형상 또는 높이가 유효하지 않습니다.");
+      }
+    }
     if (planFile) planTexture = await decodePlanTexture(planFile);
     if (approvedMaster || op !== activeProjectOperation) {
       if (planTexture) planTexture.dispose();
