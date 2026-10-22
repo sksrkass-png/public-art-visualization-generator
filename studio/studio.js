@@ -753,6 +753,7 @@ function masterSnapshot() {
     extras: serializeExtras(extrasRoot),
     layers:structuredClone(layerState),
     material:structuredClone(artworkMaterialState),
+    render:currentRenderConfig(),
     planAlignment: planAlignmentSnapshot()
   };
 }
@@ -765,7 +766,8 @@ function validMasterSnapshot(entry) {
     entry.lighting && typeof entry.lighting === "object" &&
     (entry.extras === undefined || validateExtras(entry.extras)) &&
     (entry.layers === undefined || validateLayerState(entry.layers)) &&
-    (entry.material === undefined || validMaterialConfig(entry.material));
+    (entry.material === undefined || validMaterialConfig(entry.material)) &&
+    (entry.render === undefined || validRenderConfig(entry.render));
 }
 function renderMasterHistory() {
   const root = $("master-history");
@@ -805,6 +807,16 @@ function restoreMasterCamera(index) {
     }
   }
   $("shadows").checked = !!saved.shadows;
+  if(saved.render){
+    $("render-aspect").value=saved.render.aspect;
+    $("render-resolution").value=String(saved.render.multiplier);
+    $("env-strength").value=String(saved.render.envIntensity);
+    $("env-mode").value=saved.render.environmentMode==="hdr" &&
+      hdrSourceFile?.name!==saved.render.environmentFile
+      ? "neutral" : saved.render.environmentMode;
+    applyEnvironment();
+    updateRenderSizeLabel();
+  }
   $("camera-focal").value=String(Math.round(camera.getFocalLength()));
   $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
   orbit.update();
@@ -1314,6 +1326,8 @@ function importSceneConfig(data) {
   validateProjectConfig(data);
   const originalSite = siteFileName;
   const originalArt = artFileName;
+  if(!data.render?.environmentFile ||
+      data.render.environmentFile!==hdrSourceFile?.name)clearHDR();
   $("project-name").value = String(data.projectName || "공공미술 시안").slice(0, 100);
   if (data.site.file && data.site.file !== originalSite) {
     buildSite("empty");
@@ -1522,6 +1536,8 @@ async function importProjectArchive(file) {
       planPlane.visible = false;
       $("map-name").textContent = "배치도 없음";
     }
+    // Cancel an older asynchronous upload before switching archived lighting.
+    activeHDRIOperation++;
     if(hdrTexture)hdrTexture.dispose();
     hdrTexture=preparedHDR;hdrSourceFile=recoveredHDRFile;
     preparedHDR=null;
@@ -1678,6 +1694,10 @@ $("env-mode").addEventListener("change", () => {
 $("env-file").addEventListener("change",e=>{
   loadHDR(e.target.files[0]);
   e.target.value="";
+});
+$("clear-hdr").addEventListener("click",()=>{
+  clearHDR();
+  notify("사용자 HDRI 파일이 현재 렌더링 장면에서 해제됐습니다.");
 });
 $("env-strength").addEventListener("input",applyEnvironment);
 $("apply-material").addEventListener("click",()=>{
