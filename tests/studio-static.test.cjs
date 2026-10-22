@@ -50,6 +50,23 @@ assert.match(js, /if \(approvedMaster\) return notify\("MASTER LOCK/, "locked mo
 assert.match(js, /selectedRoot\.scale\.fromArray\(base\.map/, "proportional scale gizmo enforcement required");
 assert.match(js, /const SITE_UNIT_TO_M/, "site unit conversion must exist");
 assert.match(js, /function syncGroundAvailability/, "hide redundant ground mapping when site imported");
+for (const marker of [
+  "function refreshLayers", "function renderSiteLayerRows",
+  "function renderExtraLayerRows", "function changeSiteMesh",
+  "function changeExtraLayer", "function resetSiteAnnotations"
+]) assert.ok(js.includes(marker), "v0.6 layer engine function missing: "+marker);
+for (const id of ["layer-manager","layer-groups","site-object-search","site-object-list",
+  "site-mesh-count","layer-extra-list","site-selected-name"]) {
+  assert.ok(unique.has(id), "v0.6 DOM control missing: "+id);
+}
+const layerModule=fs.readFileSync(path.join(base,"studio/layers.js"),"utf8");
+assert.doesNotThrow(() => new Function(layerModule.replace(/^export /gm,"")), "layer module parses");
+assert.match(layerModule,/validateLayerState/, "archive validation of layer state");
+assert.match(layerModule,/enumerateSiteMeshes/, "stable source geometry paths");
+assert.match(layerModule,/canEditObject/, "selection lock gate");
+assert.match(js,/layers:structuredClone\(layerState\)/, "layer state is saved in scene archives");
+assert.match(js,/function clearSiteHighlight/, "source selection helper managed separately");
+
 assert.match(js, /function createPlacedExtra/, "mouse placement for new objects");
 assert.match(js, /function groundSelected/, "selected surface grounding required");
 assert.match(js, /function placeSelectedOnSite/, "click-to-place selected objects required");
