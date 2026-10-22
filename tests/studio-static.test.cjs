@@ -40,5 +40,12 @@ assert.match(js, /function importSceneConfig/, "portable settings importer requi
 assert.match(js, /if \(approvedMaster\) return notify\("MASTER LOCK/, "locked models must not be replaced");
 assert.match(js, /artRoot\.scale\.fromArray\(lastDrag\.s\.map/, "proportional scale gizmo enforcement required");
 assert.match(js, /const MAX_UNDO = 40/, "history cap required");
+assert.match(js, /import JSZip from/, "portable project ZIP handling required");
+assert.match(js, /function exportProjectArchive/, "portable project exporter required");
+assert.match(js, /function importProjectArchive/, "portable project importer required");
+assert.match(js, /function masterSnapshot/, "master snapshot required");
+assert.match(js, /function restoreMasterCamera/, "approved camera restore required");
+for (const id of ["export-project", "import-project", "source-dimensions", "master-summary", "master-history", "restore-master-camera"])
+  assert.ok(unique.has(id), "v0.2 safety control missing: " + id);
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");
