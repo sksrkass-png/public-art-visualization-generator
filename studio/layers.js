@@ -54,7 +54,7 @@ export function isExtraLight(root) {
   return !!root?.userData?.extraKind?.includes("light");
 }
 export function layerForObject(root, artRoot) {
-  if (root === artRoot) return "artwork";
+  if (root === artRoot || root?.userData?.extraKind==="artwork-copy") return "artwork";
   return isExtraLight(root) ? "lighting" : "planting";
 }
 export function canEditObject(root, artRoot, state, masterLocked) {
