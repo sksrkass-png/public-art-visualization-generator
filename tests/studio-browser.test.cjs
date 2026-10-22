@@ -15,6 +15,13 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
   page.on("pageerror", e => errors.push(e.stack || e.message));
   page.on("console",message=>{if(message.type()==="error")errors.push("console: "+message.text());});
   page.on("requestfailed",r=>errors.push("request "+r.url()+" "+r.failure()?.errorText));
+  page.on("response",r=>{if(r.status()>=400)errors.push("HTTP "+r.status()+" "+r.url());});
+  await page.addInitScript(()=>{
+    window.__startupModuleErrors=[];
+    window.addEventListener("error",e=>window.__startupModuleErrors.push({
+      message:e.message,source:e.filename,line:e.lineno,column:e.colno
+    }));
+  });
   try {
     await page.goto("http://127.0.0.1:8787/studio/", { waitUntil: "domcontentloaded", timeout: 60000 });
     try{
@@ -25,7 +32,8 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
         studioScript:document.querySelector('script[type="module"]')?.getAttribute("src"),
         viewport:!!document.querySelector("#viewport"),
         controls:!!document.querySelector("#precision-duplicate"),
-        html:document.body.innerHTML.slice(-260)
+        html:document.body.innerHTML.slice(-260),
+        scriptErrors:window.__startupModuleErrors
       }));
       throw new Error("Studio startup diagnostic: "+JSON.stringify(state)+
         " errors "+JSON.stringify(errors)+" / "+err.message);
