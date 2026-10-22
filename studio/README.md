@@ -1,6 +1,15 @@
-# AXOO Public Art 3D Studio — v1.3
+# AXOO Public Art 3D Studio — v1.4
 
 Static, browser-based interactive editor for public-art proposal staging. Version 0.3 expands site model imports. It is a companion to the existing prompt generator: `/studio/` leaves the legacy app unchanged.
+
+## v1.4 — Proposal Export / pack original views into a presentation
+
+- **Prerequisite:** Approve the latest MASTER VIEW and export its **eight-view 16:9 render ZIP**. The new **PROPOSAL EXPORT** panel requires this ZIP. It checks every image against the stored pixel size, fixed view ID and order, approved revision, source artwork and site identity, plus render integrity flags. A changed/unlocked MASTER blocks export; ZIP data is never treated as an independently certified model.
+- **Authored metadata:** Enter artwork title, artist and exact site label **manually** along with a short artistic/installation note. Never infer these from the source filename. Blank values are shown as *미입력*; export status becomes **DRAFT** if user metadata or the v1.0 readiness scan remains incomplete. Even a `READY_FOR_INTERNAL_REVIEW` output is **not** an official approved submission.
+- **Export package:** Download one ZIP containing `proposal-sheets.html`, eight original 16:9 PNG views in `images/`, `proposal-data.json`, `README.txt` and, when available, `precision-audit.json`, `readiness.json`, `contact-sheet.png`. Extract **all** files into the same folder, open the HTML in a browser, check each 16:9 slide, and choose Print→Save as PDF if appropriate for the current competition. This does **not** silently generate an official PPTX/PDF or rely on third-party AI services.
+- **Slides:** One branded cover, fact-checkable project profile sheet with source model filenames, model-derived visible artwork 3D bounding-box **W×D×H in viewer metres**, saved XYZ installation position, master revision, context art/object counts, **eight full-image view sheets**, then a placement/QA review sheet with measured 3D/horizontal distance and conservative AABB interference summary where these were measured. Including eight views never changes scene geometry/materials or camera.
+- **Accuracy/security:** HTML escapes user text, uses only ZIP-local PNG files, is strictly static and includes print CSS with 16:9 pages. A strict Content Security Policy blocks external resource loading and executable scripts. User-supplied render ZIPs are limited by input file size, entries, individual image size, unpacked byte budgets and decoded dimensions. A 3D model is not a verified survey or structural signoff.
+- **Project distinction:** Output ZIP contains proposal sheets and images, **not** the original editable site/artwork/GLB source assets. Store v1.0+ Full Project ZIP separately for recovery. v0.9 visually enhanced images are not silently substituted for the authoritative, geometry-preserving v0.8/master PNGs.
 
 ## v1.3 — Advanced Modeling / measured scene edits
 
