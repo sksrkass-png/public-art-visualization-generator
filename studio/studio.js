@@ -520,7 +520,7 @@ function refreshLayers({redrawSite = false} = {}) {
   if(redrawSite) renderSiteLayerRows(entries);
   renderExtraLayerRows();
   refreshPrecisionUI();
-  if(!selectedCanEdit() transform.detach();
+  if(!selectedCanEdit()) transform.detach();
   else if(!transform.dragging && transform.object!==selectedRoot) transform.attach(selectedRoot);
   controls.forEach(input=>{input.disabled=!selectedCanEdit();});
   $("delete-selected").disabled=!selectedCanEdit() || selectedRoot===artRoot;
