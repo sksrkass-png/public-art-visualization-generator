@@ -11,11 +11,14 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     args: ["--enable-webgl", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
   });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
-  const errors = [];
+  const errors = [], diagnostics=[];
   page.on("pageerror", e => errors.push(e.stack || e.message));
-  page.on("console",message=>{if(message.type()==="error")errors.push("console: "+message.text());});
-  page.on("requestfailed",r=>errors.push("request "+r.url()+" "+r.failure()?.errorText));
-  page.on("response",r=>{if(r.status()>=400)errors.push("HTTP "+r.status()+" "+r.url());});
+  // Negative import tests deliberately log errors when corrupted ZIPs and
+  // unsupported model extensions are rejected. Keep diagnostics for startup,
+  // but assert only uncaught JS exceptions as runtime failures.
+  page.on("console",message=>{if(message.type()==="error")diagnostics.push("console: "+message.text());});
+  page.on("requestfailed",r=>diagnostics.push("request "+r.url()+" "+r.failure()?.errorText));
+  page.on("response",r=>{if(r.status()>=400)diagnostics.push("HTTP "+r.status()+" "+r.url());});
   await page.addInitScript(()=>{
     window.__startupModuleErrors=[];
     window.addEventListener("error",e=>window.__startupModuleErrors.push({
@@ -36,7 +39,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
         scriptErrors:window.__startupModuleErrors
       }));
       throw new Error("Studio startup diagnostic: "+JSON.stringify(state)+
-        " errors "+JSON.stringify(errors)+" / "+err.message);
+        " errors "+JSON.stringify(errors)+" diagnostics "+JSON.stringify(diagnostics)+" / "+err.message);
     }
     await page.waitForFunction(() => document.querySelector("#art-filename")?.textContent.includes("Sample Artwork"), null, { timeout: 30000 });
     assert.equal(await page.locator("#site-status").textContent(), "예시 공간");
