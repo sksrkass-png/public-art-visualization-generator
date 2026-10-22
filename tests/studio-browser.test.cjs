@@ -832,8 +832,83 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       null,{timeout:40000});
     assert.match(await page.locator("#site-preflight-summary").textContent(),/삼각형 1개/);
     assert.ok(await page.locator("#site-preflight-export").isEnabled());
+
+    // v1.2: context asset categories must be movable editor objects, not
+    // replacements for the sculpture or original imported site geometry.
+    await page.locator("#site-preset").selectOption("plaza");
+    await page.locator('[data-view="aerial"]').click();
+    const sceneCanvas=page.locator("#viewport canvas");
+    const rect=await sceneCanvas.boundingBox();
+    const baselineCount=await page.locator("#extra-list button").count();
+    for(const [index,kind] of
+      ["tree-autumn","person-standing","park-bench","round-planter"].entries()){
+      await page.locator('[data-add-extra="'+kind+'"]').click();
+      await page.mouse.click(rect.x+rect.width*.65,rect.y+rect.height*.82);
+      await page.waitForFunction(n=>document.querySelectorAll("#extra-list button").length===n,
+        baselineCount+index+1,{timeout:15000});
+    }
+    assert.match(await page.locator("#extra-count").textContent(),/추가된 오브제/);
+    await page.locator("#extra-list button").last().click();
+    assert.match(await page.locator("#object-name").textContent(),/화분/);
+    await page.locator('[data-transform="scale"][data-axis="x"]').fill("1.5");
+    await page.locator('[data-transform="scale"][data-axis="x"]').dispatchEvent("change");
+    assert.equal(Number(await page.locator('[data-transform="scale"][data-axis="x"]').inputValue()),1.5);
+
+    // Upload an *actual* GLB binary exported by this browser earlier.
+    await page.locator("#library-asset-category").selectOption("furniture");
+    await page.locator("#library-asset-file").setInputFiles({
+      name:"licensed-urban-seat.glb",mimeType:"model/gltf-binary",buffer:bytes
+    });
+    await page.waitForFunction(()=>
+      document.querySelector("#library-asset-select")?.options.length===1 &&
+      document.querySelector("#library-asset-select")?.value==="lib1",
+      null,{timeout:20000});
+    assert.match(await page.locator("#library-status").textContent(),/등록 1 \/ 6/);
+    await page.locator("#library-place").click();
+    await page.mouse.click(rect.x+rect.width*.65,rect.y+rect.height*.82);
+    await page.waitForFunction(n=>document.querySelectorAll("#extra-list button").length===n,
+      baselineCount+5,{timeout:15000});
+    await page.locator("#extra-list button").last().click();
+    assert.match(await page.locator("#object-name").textContent(),/licensed-urban-seat/);
+
+    // Editor undo/redo reconstructs imported assets from the untouched
+    // in-memory source rather than replacing them with dummy geometry.
+    await page.locator("#undo").click();
+    assert.equal(await page.locator("#extra-list button").count(),baselineCount+4);
+    await page.locator("#redo").click();
+    assert.equal(await page.locator("#extra-list button").count(),baselineCount+5);
+
+    const assetProjectEvent=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#export-project").click();
+    const assetProjectPath=await (await assetProjectEvent).path();
+    const assetAudit=JSON.parse(execFileSync("python3",["-c",[
+      "import json,sys,zipfile,hashlib",
+      "with zipfile.ZipFile(sys.argv[1]) as z:",
+      "  project=json.loads(z.read('project.json'))",
+      "  integrity=json.loads(z.read('integrity.json'))",
+      "  source='assets/library/lib1.glb'",
+      "  assert source in z.namelist()",
+      "  assert hashlib.sha256(z.read(source)).hexdigest()==integrity['files'][source]['sha256']",
+      "  assert len(project['library'])==1 and project['library'][0]['category']=='furniture'",
+      "  assert sum(x['kind']=='custom-glb' and x.get('assetId')=='lib1' for x in project['extras'])==1",
+      "  print(json.dumps({'bytes':len(z.read(source)),'pieces':len(project['extras'])}))"
+    ].join("\n"),assetProjectPath],{encoding:"utf8",timeout:30000}).trim());
+    assert.equal(assetAudit.pieces,baselineCount+5);
+    await page.locator("#site-preset").selectOption("empty");
+    await page.locator("#import-project").setInputFiles({
+      name:"context-asset-source.zip",mimeType:"application/zip",
+      buffer:fs.readFileSync(assetProjectPath)
+    });
+    await page.waitForFunction(n=>
+      document.querySelectorAll("#extra-list button").length===n &&
+      document.querySelector("#library-asset-select")?.value==="lib1" &&
+      document.querySelector("#site-status")?.textContent==="예시 공간",
+      baselineCount+5,{timeout:40000});
+    assert.match(await page.locator("#library-status").textContent(),/등록 1 \/ 6/);
+    await page.locator("#extra-list button").last().click();
+    assert.match(await page.locator("#object-name").textContent(),/licensed-urban-seat/);
     assert.deepEqual(errors, [], "no uncaught runtime errors");
-    console.log("PASS studio browser: v1.1 external-resource glTF ZIP, preflight geometry diagnostics, non-destructive origin recenter and full-project recovery plus v1.0 regressions");
+    console.log("PASS studio browser: v1.2 seasonal trees, person, bench, planter, source GLB import, placement, undo/redo, signed asset ZIP roundtrip and previous regressions");
   } finally {
     await browser.close();
   }
