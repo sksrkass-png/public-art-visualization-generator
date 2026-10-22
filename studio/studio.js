@@ -10,6 +10,8 @@ import { ColladaLoader } from "three/addons/loaders/ColladaLoader.js";
 import { TDSLoader } from "three/addons/loaders/TDSLoader.js";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
 
 const $ = id => document.getElementById(id);
 const viewport = $("viewport");
@@ -25,6 +27,16 @@ renderer.toneMappingExposure = 1;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.domElement.setAttribute("aria-label", "공공미술 3D 뷰포트");
+try {
+  const envGenerator = new THREE.PMREMGenerator(renderer);
+  const room = new RoomEnvironment();
+  const env = envGenerator.fromScene(room);
+  scene.environment = env.texture;
+  room.dispose();
+  envGenerator.dispose();
+} catch (error) {
+  console.warn("Environment reflections unavailable; retaining standard PBR materials.", error);
+}
 viewport.appendChild(renderer.domElement);
 
 const orbit = new OrbitControls(camera, renderer.domElement);
@@ -32,6 +44,10 @@ orbit.enableDamping = true;
 orbit.minDistance = .25;
 orbit.maxDistance = 800;
 orbit.target.set(0, 1.5, 0);
+orbit.screenSpacePanning = true;
+orbit.rotateSpeed = 1.7;
+orbit.panSpeed = 2.6;
+orbit.zoomSpeed = 1.5;
 const transform = new TransformControls(camera, renderer.domElement);
 scene.add(transform.getHelper());
 const grid = new THREE.GridHelper(120, 120, 0x9ba4ac, 0xc7cdd1);
@@ -46,6 +62,20 @@ scene.add(siteRoot);
 const artRoot = new THREE.Group();
 artRoot.name = "Editable Artwork";
 scene.add(artRoot);
+const extrasRoot = new THREE.Group();
+extrasRoot.name = "Editable placement assets";
+scene.add(extrasRoot);
+const sunGuide = new THREE.Mesh(
+  new THREE.SphereGeometry(.7, 22, 16),
+  new THREE.MeshBasicMaterial({ color: 0xffcb73, opacity: .28, transparent: true, depthWrite: false })
+);
+sunGuide.name = "Editor Sun Sphere — never saved into exports";
+scene.add(sunGuide);
+const sunGuideRing = new THREE.Mesh(
+  new THREE.TorusGeometry(.77, .025, 8, 48),
+  new THREE.MeshBasicMaterial({ color: 0xe0ad57, transparent: true, opacity: .85, depthTest: false })
+);
+sunGuide.add(sunGuideRing);
 const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(120, 120),
   new THREE.MeshStandardMaterial({ color: 0xe4e5e4, roughness: 1 })
@@ -88,6 +118,8 @@ let activeSiteOperation = 0, activeArtOperation = 0, activePlanOperation = 0, ac
 let siteSourceFile = null, artSourceFile = null, planSourceFile = null;
 let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
+let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
+const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048 });
 const MAX_UNDO = 40;
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
 const buttons = [...document.querySelectorAll("[data-mode]")];
@@ -144,9 +176,14 @@ function tree(parent, x, z, height = 3.6) {
 }
 function buildSite(preset) {
   activeSiteOperation++;
+  siteRoot.scale.setScalar(1);
+  siteRoot.rotation.set(0, 0, 0);
+  $("site-unit").value = "m";
+  $("site-up").value = "y";
   clearGroup(siteRoot);
   siteFileName = "";
   siteSourceFile = null;
+  syncGroundAvailability();
   $("site-filename").textContent = "업로드된 현장 모델 없음";
   showSiteGeometryStats(null);
   $("site-status").textContent = preset === "empty" ? "빈 공간" : "예시 공간";
@@ -169,6 +206,21 @@ function buildSite(preset) {
     for (let z of [-9, 9]) for (let x = -24; x <= 24; x += 8) tree(siteRoot, x, z, 4);
     for (let z of [-18, 18]) box(siteRoot, 54, 6, 5, 0, 3, z, 0xc6c8c8);
   }
+}
+function syncGroundAvailability() {
+  const imported = !!siteSourceFile;
+  $("fallback-ground").hidden = imported;
+  $("site-ground-note").hidden = !imported;
+  floor.visible = !imported;
+  if (imported) planPlane.visible = false;
+}
+function applySiteUnits() {
+  if (approvedMaster) return;
+  const factor = SITE_UNIT_TO_M[$("site-unit").value] || 1;
+  siteRoot.scale.setScalar(factor);
+  siteRoot.rotation.set($("site-up").value === "z" ? -Math.PI / 2 : 0, 0, 0);
+  siteRoot.updateMatrixWorld(true);
+  if (siteSourceFile) showSiteGeometryStats(inspectSiteGeometry(siteRoot));
 }
 function sampleArtwork() {
   const g = new THREE.Group();
@@ -211,6 +263,7 @@ function setArtwork(object, name, options = {}) {
   artRoot.add(aligned.holder);
   artRoot.name = name;
   artFileName = name;
+  selectRoot(artRoot);
   artSourceFile = options.file || null;
   sourceDimensions = aligned.sourceSize.toArray();
   $("source-dimensions").textContent = sourceDimensions.map(v => v.toFixed(3)).join(" × ") + " m (W×H×D)";
@@ -326,8 +379,12 @@ async function loadPlan(file) {
     notify("배치도 불러오기 실패: " + (error.message || "알 수 없는 오류"));
   }
 }
-function snapshot() {
-  return { p: artRoot.position.toArray(), r: artRoot.rotation.toArray().slice(0, 3), s: artRoot.scale.toArray() };
+function snapshot(root = artRoot) {
+  return { p: root.position.toArray(), r: root.rotation.toArray().slice(0, 3), s: root.scale.toArray() };
+}
+function editSnapshot() {
+  return { artwork: snapshot(), extras: serializeExtras(extrasRoot),
+    selectedId: selectedRoot === artRoot ? 0 : selectedRoot.userData.extraId };
 }
 function sameSnapshot(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
@@ -338,13 +395,21 @@ function restore(data) {
   artRoot.scale.fromArray(data.s);
   updateInspector(true);
 }
+function restoreEdit(state) {
+  restore(state.artwork);
+  restoreExtras(extrasRoot, state.extras);
+  nextExtraId = Math.max(1, ...state.extras.map(x => x.id + 1));
+  const picked = state.selectedId ? extrasRoot.children.find(x => x.userData.extraId === state.selectedId) : artRoot;
+  selectRoot(picked || artRoot);
+  updateExtrasStatus();
+}
 function clearUndo() {
   undoStack = [];
   redoStack = [];
   updateUndoButtons();
 }
 function commit(before) {
-  if (approvedMaster || !before || sameSnapshot(before, snapshot())) return;
+  if (approvedMaster || !before || sameSnapshot(before, editSnapshot())) return;
   undoStack.push(before);
   if (undoStack.length > MAX_UNDO) undoStack.shift();
   redoStack = [];
@@ -356,14 +421,14 @@ function updateUndoButtons() {
 }
 function undo() {
   if (approvedMaster || !undoStack.length) return;
-  redoStack.push(snapshot());
-  restore(undoStack.pop());
+  redoStack.push(editSnapshot());
+  restoreEdit(undoStack.pop());
   updateUndoButtons();
 }
 function redo() {
   if (approvedMaster || !redoStack.length) return;
-  undoStack.push(snapshot());
-  restore(redoStack.pop());
+  undoStack.push(editSnapshot());
+  restoreEdit(redoStack.pop());
   updateUndoButtons();
 }
 function masterSnapshot() {
@@ -377,7 +442,8 @@ function masterSnapshot() {
     camera: { position: camera.position.toArray(), target: orbit.target.toArray(), fov: camera.fov },
     lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"]
       .map(id => [id, Number($(id).value)])),
-    shadows: $("shadows").checked
+    shadows: $("shadows").checked,
+    extras: serializeExtras(extrasRoot)
   };
 }
 function validMasterSnapshot(entry) {
@@ -433,13 +499,19 @@ function restoreMasterCamera(index) {
 function syncLock() {
   transform.enabled = !approvedMaster;
   if (approvedMaster) {
+    placementMode = null;
+    $("placement-hint").hidden = true;
     // Even a file read that began before approval must not replace the master.
     activeSiteOperation++;
     activeArtOperation++;
     activePlanOperation++;
     transform.detach();
   }
-  else if (artRoot.children.length) transform.attach(artRoot);
+  else if (selectedRoot) transform.attach(selectedRoot);
+  ["site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color"]
+    .forEach(id => { $(id).disabled = approvedMaster; });
+  document.querySelectorAll("[data-add-extra]").forEach(btn => { btn.disabled = approvedMaster; });
+  updateExtrasStatus();
   controls.forEach(el => el.disabled = approvedMaster);
   ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale"]
     .forEach(id => { $(id).disabled = approvedMaster; });
@@ -453,18 +525,27 @@ function syncLock() {
   updateUndoButtons();
 }
 function updateInspector(force = false) {
-  const state = snapshot();
+  const state = snapshot(selectedRoot);
   const values = { position: state.p, rotation: state.r.map(v => THREE.MathUtils.radToDeg(v)), scale: state.s };
   controls.forEach(el => {
     if (!force && document.activeElement === el) return;
     const axis = { x: 0, y: 1, z: 2 }[el.dataset.axis];
     el.value = Number(values[el.dataset.transform][axis].toFixed(3));
   });
-  const bounds = new THREE.Box3().setFromObject(artRoot);
+  const bounds = new THREE.Box3().setFromObject(selectedRoot);
   const d = bounds.getSize(new THREE.Vector3());
   $("dimensions").textContent = [d.x, d.y, d.z].map(v => v.toFixed(2)).join(" × ") + " m (W×H×D)";
   $("coords").textContent = ["X", "Y", "Z"].map((k, i) => k + " " + state.p[i].toFixed(2)).join(" · ");
-  $("art-height").value = d.y ? Number(d.y.toFixed(2)) : 0;
+  $("object-name").textContent = selectedRoot.name;
+  const light = selectedRoot === artRoot ? null : extraLight(selectedRoot);
+  $("extra-light-controls").hidden = !light;
+  if (light) {
+    $("extra-light-power").value = light.intensity;
+    $("extra-light-power-value").textContent = light.intensity.toFixed(1);
+    $("extra-light-color").value = "#" + light.color.getHexString();
+  }
+  $("delete-selected").disabled = approvedMaster || selectedRoot === artRoot;
+  if (selectedRoot === artRoot) $("art-height").value = d.y ? Number(d.y.toFixed(2)) : 0;
 }
 function changeMode(mode) {
   if (approvedMaster) return;
@@ -485,9 +566,15 @@ function updateLight() {
   sun.position.set(radius * Math.cos(el) * Math.sin(az), radius * Math.sin(el), radius * Math.cos(el) * Math.cos(az));
   sun.target.position.copy(artRoot.position);
   sun.target.updateMatrixWorld();
+  sunGuide.position.copy(artRoot.position).addScaledVector(
+    sun.position.clone().normalize(), 8
+  );
+  sunGuide.visible = $("sun-helper").checked;
   sun.intensity = +$("sun-strength").value;
   ambient.intensity = +$("ambient").value;
   renderer.toneMappingExposure = +$("exposure").value;
+  sun.color.set($("light-preset").value === "golden" ? 0xffc489 : 0xfff7e6);
+  scene.background.set($("light-preset").value === "night" ? 0x171f33 : 0xdce0e2);
   sun.castShadow = $("shadows").checked;
   renderer.shadowMap.enabled = $("shadows").checked;
   ["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"].forEach(id => {
@@ -537,19 +624,19 @@ function handleSelection(event) {
 }
 function setTransformFromField(el) {
   if (approvedMaster) return;
-  const current = artRoot[el.dataset.transform][el.dataset.axis];
+  const current = selectedRoot[el.dataset.transform][el.dataset.axis];
   const raw = safeNumber(el.value, NaN);
   if (!Number.isFinite(raw)) return updateInspector();
   if (el.dataset.transform === "scale" && (raw < .01 || raw > 1000)) return updateInspector();
   const next = el.dataset.transform === "rotation" ? THREE.MathUtils.degToRad(raw) : raw;
   if (Math.abs(current - next) < 1e-8) return;
-  const before = snapshot();
+  const before = editSnapshot();
   if (el.dataset.transform === "scale" && $("uniform-scale").checked) {
     // Preserve the existing XYZ ratio rather than forcing all values equal.
-    const previousAxis = artRoot.scale[el.dataset.axis];
-    if (Math.abs(previousAxis) > 1e-8) artRoot.scale.multiplyScalar(next / previousAxis);
+    const previousAxis = selectedRoot.scale[el.dataset.axis];
+    if (Math.abs(previousAxis) > 1e-8) selectedRoot.scale.multiplyScalar(next / previousAxis);
   }
-  else artRoot[el.dataset.transform][el.dataset.axis] = next;
+  else selectedRoot[el.dataset.transform][el.dataset.axis] = next;
   commit(before);
   updateInspector();
 }
