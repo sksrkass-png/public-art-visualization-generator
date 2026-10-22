@@ -25,6 +25,8 @@ jobs:
           node --check studio/rendering.js
           node --check studio/batch.js
           node --check studio/review.js
+          node --check studio/integrity.js
+          node --check studio/readiness.js
       - name: Run JSON import regression tests
         run: |
           node tests/json-import.test.cjs
