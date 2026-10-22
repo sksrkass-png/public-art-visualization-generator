@@ -1405,6 +1405,7 @@ function exportImage() {
   const originalGrid = grid.visible;
   const originalHelper = transform.getHelper().visible;
   const originalSun = sunGuide.visible;
+  const originalHighlight = siteHighlight?.visible;
   const originalEditorGizmos = true;
   try {
     const targetMultiplier = safeNumber($("render-resolution").value, 2, 2, 4);
@@ -1415,6 +1416,7 @@ function exportImage() {
     grid.visible = false;
     transform.getHelper().visible = false;
     sunGuide.visible = false;
+    if(siteHighlight) siteHighlight.visible = false;
     setEditorGizmosVisible(extrasRoot, false);
     renderer.render(scene, camera);
     const data = renderer.domElement.toDataURL("image/png");
@@ -1431,6 +1433,7 @@ function exportImage() {
     grid.visible = originalGrid;
     transform.getHelper().visible = originalHelper;
     sunGuide.visible = originalSun;
+    if(siteHighlight) siteHighlight.visible = originalHighlight;
     setEditorGizmosVisible(extrasRoot, originalEditorGizmos);
     renderer.setPixelRatio(originalRatio);
     renderer.setSize(width, height, false);
@@ -1460,6 +1463,19 @@ async function exportGLB() {
 }
 
 // Event connections
+// Delegate changes from dynamically rendered layer rows; site source geometry stays read-only.
+$("layer-manager").addEventListener("change", event => {
+  const target=event.target;
+  if(!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement))return;
+  if(approvedMaster) return;
+  if(target.dataset.layerVisible) return setLayerGroupVisible(target.dataset.layerVisible,target.checked);
+  if(target.dataset.layerLock) return setLayerGroupLocked(target.dataset.layerLock,target.checked);
+  if(target.dataset.siteMeshVisible) return changeSiteMesh(target.dataset.siteMeshVisible,"hidden",!target.checked);
+  if(target.dataset.siteMeshCategory && SITE_CATEGORIES.includes(target.value)) return changeSiteMesh(target.dataset.siteMeshCategory,"category",target.value);
+  if(target.dataset.extraVisible) return changeExtraLayer(Number(target.dataset.extraVisible),"layerHidden",!target.checked);
+  if(target.dataset.extraLock) return changeExtraLayer(Number(target.dataset.extraLock),"layerLocked",target.checked);
+});
+$("site-object-search").addEventListener("input", () => renderSiteLayerRows(enumerateSiteMeshes(siteRoot)));
 $("site-unit").addEventListener("change", () => {
   if (approvedMaster) return;
   applySiteUnits();
