@@ -1025,6 +1025,46 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     const restoredJSON=JSON.parse(fs.readFileSync(await (await restoredEvent).path(),"utf8"));
     assert.equal(restoredJSON.extras.find(x=>x.id===originalCopy.id).kind,"artwork-copy");
     assert.equal(restoredJSON.extras.find(x=>x.id===preceding.id).groupId,a1.groupId);
+
+    // Import a *different* sculpture source through the same GLB registry.
+    // It stays on artwork-layer locks, independent from base sculptural source.
+    page.once("dialog",dialog=>dialog.accept());
+    await page.locator("#master-lock").click();
+    await page.locator("#library-asset-category").selectOption("artwork");
+    await page.locator("#library-asset-file").setInputFiles({
+      name:"second-sculpture.glb",mimeType:"model/gltf-binary",buffer:bytes
+    });
+    await page.waitForFunction(()=>
+      document.querySelector("#library-asset-select")?.options.length===2 &&
+      document.querySelector("#library-asset-select")?.value==="lib2",
+      null,{timeout:20000});
+    await page.locator('[data-view="aerial"]').click();
+    const canvasRect=await page.locator("#viewport canvas").boundingBox();
+    await page.locator("#library-place").click();
+    await page.mouse.click(canvasRect.x+canvasRect.width*.65,canvasRect.y+canvasRect.height*.82);
+    await page.waitForFunction(n=>document.querySelectorAll("#extra-list button").length===n,
+      beforeCopies+2,{timeout:15000});
+    await page.locator('[data-layer-lock="artwork"]').check();
+    assert.equal(await page.locator('[data-transform="position"][data-axis="x"]').isDisabled(),true,
+      "independently sourced sculptures must respect artwork layer lock");
+    await page.locator('[data-layer-lock="artwork"]').uncheck();
+    assert.equal(await page.locator('[data-transform="position"][data-axis="x"]').isDisabled(),false);
+    const secondZipEvent=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#export-project").click();
+    const secondPath=await (await secondZipEvent).path();
+    const secondAudit=JSON.parse(execFileSync("python3",["-c",[
+      "import json,zipfile,sys,hashlib",
+      "with zipfile.ZipFile(sys.argv[1]) as z:",
+      "  p=json.loads(z.read('project.json'))",
+      "  m=json.loads(z.read('integrity.json'))",
+      "  path='assets/library/lib2.glb'",
+      "  assert path in z.namelist()",
+      "  assert hashlib.sha256(z.read(path)).hexdigest()==m['files'][path]['sha256']",
+      "  assert any(v['category']=='artwork' for v in p['library'])",
+      "  assert any(v['kind']=='custom-glb' and v.get('assetId')=='lib2' for v in p['extras'])",
+      "  print(json.dumps({'sources':len(p['library'])}))"
+    ].join("\n"),secondPath],{encoding:"utf8",timeout:25000}).trim());
+    assert.equal(secondAudit.sources,2);
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.3 real sculpture duplicate, group translation/Undo, object and surface measurement, AABB report, MASTER lock, source-consistent ZIP restoration + legacy regressions");
   } finally {
