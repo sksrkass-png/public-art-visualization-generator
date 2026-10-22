@@ -727,6 +727,89 @@
     triggerDownload(exportFilename() + ".json", JSON.stringify(payload, null, 2), "application/json");
   }
 
+  // ---------------------------------------------------------------------
+  // Restore a previously exported project (formState only; regenerate output)
+  // ---------------------------------------------------------------------
+
+  function normalizeImportedState(payload) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload) ||
+        !payload.formState || typeof payload.formState !== "object" ||
+        Array.isArray(payload.formState)) {
+      throw new Error("이 도구에서 내보낸 프로젝트 JSON이 아닙니다.");
+    }
+
+    var source = payload.formState;
+    if (!Array.isArray(source.shots)) {
+      throw new Error("촬영 구도 정보가 없는 파일입니다.");
+    }
+
+    var known = getFormState();
+    var restored = {};
+    var recognized = 0;
+    Object.keys(source).forEach(function (key) {
+      // Derived UI control: reconstruct it from the actual preservation fields.
+      if (key === "preserveLevelPreset") return;
+      if (!Object.prototype.hasOwnProperty.call(known, key)) return;
+
+      var value = source[key];
+      if (key === "shots") {
+        if (!value.every(function (shot) {
+          return typeof shot === "string" && ALL_SHOTS.indexOf(shot) !== -1;
+        })) throw new Error("지원하지 않는 촬영 구도가 포함되어 있습니다.");
+        restored.shots = ALL_SHOTS.filter(function (shot) {
+          return value.indexOf(shot) !== -1;
+        });
+      } else if (CHECKBOX_FIELDS.indexOf(key) !== -1) {
+        if (typeof value !== "boolean") throw new Error("고정 설정 값이 올바르지 않습니다.");
+        restored[key] = value;
+      } else {
+        if (typeof value !== "string" || value.length > 10000) {
+          throw new Error("입력값 형식 또는 길이가 올바르지 않습니다.");
+        }
+        var el = form.elements.namedItem(key);
+        if (el && el.tagName === "SELECT" && !Array.prototype.some.call(el.options, function (o) {
+          return o.value === value;
+        })) throw new Error("지원하지 않는 선택 항목이 있습니다.");
+        if (el && el.type === "number" && value !== "" &&
+            (!/^\d+(\.\d+)?$/.test(value) || !Number.isFinite(Number(value)))) {
+          throw new Error("작품 규격에 올바르지 않은 숫자가 있습니다.");
+        }
+        restored[key] = value;
+      }
+      recognized++;
+    });
+
+    if (recognized < 4 || !Object.prototype.hasOwnProperty.call(source, "artworkName")) {
+      throw new Error("프로젝트 입력 정보가 부족합니다.");
+    }
+    return restored;
+  }
+
+  function importJsonFile(file) {
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      showToast("1MB 이하의 JSON 파일만 불러올 수 있습니다.");
+      return;
+    }
+    file.text().then(function (text) {
+      var payload;
+      try {
+        payload = JSON.parse(text);
+      } catch (e) {
+        throw new Error("JSON 형식이 올바르지 않습니다.");
+      }
+      var state = normalizeImportedState(payload);
+      // Parse and validate before touching the current form or results.
+      form.reset();
+      dismissedRecommendationFor = null;
+      applyFormState(state);
+      generate();
+      showToast("JSON 불러오기 완료 · 최신 규칙으로 재생성했습니다.");
+    }).catch(function (err) {
+      showToast("불러오기 실패: " + (err && err.message ? err.message : "파일을 읽을 수 없습니다."));
+    });
+  }
+
   function exportFilename() {
     var state = getFormState();
     var base = (state.projectName || state.artworkName || "public-art-prompts")
@@ -1105,6 +1188,14 @@
   document.getElementById("btn-copy-all").addEventListener("click", copyAll);
   document.getElementById("btn-export-txt").addEventListener("click", exportTxt);
   document.getElementById("btn-export-json").addEventListener("click", exportJson);
+  document.getElementById("btn-import-json").addEventListener("click", function () {
+    var input = document.getElementById("import-json-file");
+    input.value = "";
+    input.click();
+  });
+  document.getElementById("import-json-file").addEventListener("change", function () {
+    importJsonFile(this.files && this.files[0]);
+  });
   document.getElementById("btn-clear-history").addEventListener("click", clearHistory);
   document.getElementById("btn-jump-history").addEventListener("click", function () {
     document.getElementById("history-section").scrollIntoView({ behavior: "smooth", block: "center" });
