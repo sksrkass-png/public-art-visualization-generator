@@ -140,6 +140,7 @@ let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
 const groupChecked=new Set();
 let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=null;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
+let proposalBridge = null;
 const assetLibrary=new Map();
 let nextLibraryId=1,activeLibraryOperation=0;
 const neutralEnvironment=scene.environment;
@@ -1161,6 +1162,7 @@ function syncLock() {
   syncBatchAvailability();
   refreshLayers({redrawSite:true});
   updateUndoButtons();
+  if(proposalBridge)proposalBridge.refresh();
 }
 function updateInspector(force = false) {
   const state = snapshot(selectedRoot);
@@ -2470,7 +2472,7 @@ const readinessBridge=initReadiness({getScene:()=>{
     masterMatches:!!master && masterConsistency(master,baselineForMaster()).ok
   };
 }});
-const proposalBridge=initProposalExport({getContext:()=>{
+proposalBridge=initProposalExport({getContext:()=>{
   const master=masterSnapshots[masterSnapshots.length-1] || null;
   const bounding=new THREE.Box3().setFromObject(artRoot);
   const dims=bounding.isEmpty()?new THREE.Vector3(0,0,0):bounding.getSize(new THREE.Vector3());
