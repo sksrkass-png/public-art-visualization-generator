@@ -135,5 +135,13 @@ for(const marker of ["initReadiness","validateReadiness","ready-for-internal-rev
   assert.ok(readinessCode.includes(marker),"readiness guard missing: "+marker);
 assert.match(js,/integrity\.json/,"checksum must be saved in full project ZIP");
 assert.match(js,/verifyIntegrityManifest\(zip\)/,"checksum must be checked on ZIP import");
+for(const id of ["site-import-inspector","site-center-origin","site-preflight-summary",
+  "site-preflight-export"])assert.ok(unique.has(id),"v1.1 site diagnostic UI missing: "+id);
+for(const symbol of ["decodeSiteBundle","inspectImportedSite","validSiteAlignment"])
+  assert.ok(js.includes(symbol),"v1.1 site import functions not wired: "+symbol);
+assert.match(js,/centerOrigin:\$\("site-center-origin"\)\.checked/,"site center preference persisted to project");
+const preflightSource=fs.readFileSync(path.join(base,"studio/site-import.js"),"utf8");
+for(const token of ["decodeSiteBundle","resourceName","inspectImportedSite","GLTFLoader","MAX_UNPACKED"])
+  assert.ok(preflightSource.includes(token),"v1.1 bundled glTF import guard absent: "+token);
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");
