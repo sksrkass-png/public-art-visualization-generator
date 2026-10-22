@@ -1572,6 +1572,7 @@ async function exportProjectArchive() {
     if (artSourceFile) zip.file("assets/artwork", artSourceFile);
     if (planSourceFile) zip.file("assets/plan", planSourceFile);
     if (hdrSourceFile) zip.file("assets/environment", hdrSourceFile);
+    for(const asset of assetLibrary.values())zip.file("assets/library/"+asset.id+".glb",asset.file);
     $("save-status").textContent = "SHA-256 원본 검증 정보 생성 중…";
     const integrity=await makeIntegrityManifest(zip);
     zip.file("integrity.json",JSON.stringify(integrity,null,2));
@@ -1612,7 +1613,7 @@ async function importProjectArchive(file) {
   let planTexture = null, preparedHDR=null, recoveredHDRFile=null;
   try {
     const zip = await JSZip.loadAsync(file);
-    if (Object.keys(zip.files).length > 10) throw new Error("허용되지 않는 파일이 너무 많습니다.");
+    if (Object.keys(zip.files).length > 26) throw new Error("허용되지 않는 파일이 너무 많습니다.");
     const integrityResult=await verifyIntegrityManifest(zip);
     $("save-status").textContent=integrityResult.verified
       ? "ZIP 모든 파일 SHA-256 검사 통과"
@@ -1622,6 +1623,14 @@ async function importProjectArchive(file) {
     if (metadata.length > 1024 * 1024) throw new Error("프로젝트 설정 정보가 너무 큽니다.");
     const data = JSON.parse(metadata);
     validateProjectConfig(data);
+    const loadedLibrary=new Map();
+    for(const entry of data.library||[]){
+      const bin=checkedArchiveEntry(zip,"assets/library/"+entry.id+".glb",20*1024*1024,true);
+      const file=await recoverArchiveAsset(bin,entry.name,20*1024*1024,"model/gltf-binary");
+      if(file.size!==entry.byteSize)throw Error("사용자 GLB 파일 크기가 일치하지 않습니다: "+entry.name);
+      loadedLibrary.set(entry.id,await parseLibraryGLB(file,entry.id,entry.category));
+    }
+    ensureAvailableLibrary(data.library||[],loadedLibrary);
     if (data.archiveSchema !== PROJECT_ARCHIVE_SCHEMA) throw new Error("지원하지 않는 프로젝트 패키지 버전입니다.");
     // Decode and validate EVERYTHING before changing the current scene.
     const siteEntry = checkedArchiveEntry(zip, "assets/site", MAX_MODEL_BYTES, !!data.site.file);
@@ -1655,6 +1664,11 @@ async function importProjectArchive(file) {
       return notify("작업 상태가 변경되어 이전 파일 로딩을 취소했습니다.");
     }
     // Commit an already validated package. No user's original file is uploaded.
+    activeLibraryOperation++;
+    assetLibrary.clear();
+    for(const [key,value] of loadedLibrary)assetLibrary.set(key,value);
+    nextLibraryId=Math.max(1,...[...assetLibrary.keys()].map(id=>Number(id.slice(3))+1));
+    refreshAssetLibraryUI();
     activeSiteOperation++; activeArtOperation++; activePlanOperation++;
     if (siteModel) {
       clearGroup(siteRoot);
