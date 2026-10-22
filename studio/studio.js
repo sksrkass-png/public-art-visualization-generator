@@ -19,6 +19,8 @@ import { STANDARD_VIEWS, createStandardCameras, captureSceneIntegrity,
 import { initVisualReview } from "./review.js";
 import { makeIntegrityManifest, verifyIntegrityManifest } from "./integrity.js";
 import { initReadiness } from "./readiness.js";
+import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
+  MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
 import { decodeSiteBundle, inspectImportedSite, validSiteAlignment } from "./site-import.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
@@ -134,6 +136,8 @@ let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
 let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
+const assetLibrary=new Map();
+let nextLibraryId=1,activeLibraryOperation=0;
 const neutralEnvironment=scene.environment;
 let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
 let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
@@ -263,6 +267,51 @@ function renderSiteLayerRows(entries) {
     ? matched.length+"개 중 80개 표시 · 검색어를 입력하면 원하는 메시를 찾을 수 있습니다."
     : (matched.length ? matched.length+"개 목록 · 분류 후 위 레이어 표시를 조절하세요." : "일치하는 메시 없음");
 }
+function refreshAssetLibraryUI(){
+  const chosen=$("library-asset-select").value;
+  const select=$("library-asset-select");
+  select.replaceChildren();
+  if(!assetLibrary.size)select.add(new Option("등록한 GLB 에셋 없음",""));
+  for(const asset of assetLibrary.values())select.add(new Option(
+    asset.file.name+" · "+asset.stats.triangles.toLocaleString()+" tris",asset.id));
+  if(assetLibrary.has(chosen))select.value=chosen;
+  const total=[...assetLibrary.values()].reduce((sum,a)=>sum+a.file.size,0);
+  const placed=extrasRoot.children.filter(x=>x.userData.extraKind==="custom-glb");
+  const perf=libraryMemoryStats(assetLibrary,placed);
+  $("library-status").textContent="등록 "+assetLibrary.size+" / "+MAX_LIBRARY_ASSETS+" · "+
+    (total/1048576).toFixed(1)+"MB / 60MB · 장면 내 GLB "+placed.length+
+    "개 / 약 "+perf.visibleTriangles.toLocaleString()+" 삼각형"+
+    (perf.visibleTriangles>500000?" · 저사양 GPU 주의":"");
+  $("library-place").disabled=approvedMaster || !assetLibrary.size ||
+    !layerState.groups.planting.visible || layerState.groups.planting.locked ||
+    extrasRoot.children.length>=120;
+  $("library-asset-file").disabled=approvedMaster || assetLibrary.size>=MAX_LIBRARY_ASSETS;
+  $("library-asset-category").disabled=approvedMaster;
+}
+async function importLibraryGLB(file){
+  if(!file || approvedMaster)return;
+  if(assetLibrary.size>=MAX_LIBRARY_ASSETS)return notify("에셋은 최대 6개까지 등록할 수 있습니다.");
+  const bytes=[...assetLibrary.values()].reduce((sum,a)=>sum+a.file.size,0);
+  if(bytes+file.size>MAX_LIBRARY_BYTES)return notify("GLB 합계 60MB 초과입니다.");
+  const op=++activeLibraryOperation;activeProjectOperation++;
+  const id="lib"+nextLibraryId++;
+  try{
+    const asset=await parseLibraryGLB(file,id,$("library-asset-category").value);
+    if(op!==activeLibraryOperation || approvedMaster)return;
+    assetLibrary.set(id,asset);
+    refreshAssetLibraryUI();
+    $("library-asset-select").value=id;
+    notify("에셋 등록 완료 · 원본 크기와 재질 유지: "+file.name);
+  }catch(error){console.error(error);notify("에셋 등록 실패: "+error.message);}
+}
+function ensureAvailableLibrary(assets,library=assetLibrary){
+  if(!validLibraryManifest(assets))throw Error("GLB 에셋 목록 형식이 올바르지 않습니다.");
+  for(const a of assets){
+    const entry=library.get(a.id);
+    if(!entry || entry.file.name!==a.name || entry.file.size!==a.byteSize ||
+      entry.category!==a.category)throw Error("사용자 GLB 파일을 다시 불러오세요: "+a.name);
+  }
+}
 function renderExtraLayerRows() {
   const list=$("layer-extra-list");
   list.replaceChildren();
@@ -325,6 +374,7 @@ function refreshLayers({redrawSite = false} = {}) {
     const group=button.dataset.addExtra.includes("light") ? layerState.groups.lighting : layerState.groups.planting;
     button.disabled=approvedMaster || !group.visible || group.locked;
   });
+  refreshAssetLibraryUI();
 }
 function setLayerGroupVisible(key, value) {
   if(approvedMaster || !LAYER_KEYS.includes(key))return;
@@ -771,7 +821,7 @@ function restore(data) {
 }
 function restoreEdit(state) {
   restore(state.artwork);
-  restoreExtras(extrasRoot, state.extras);
+  restoreExtras(extrasRoot, state.extras,assetLibrary);
   setArtworkMaterial(state.material || {preset:"original",color:"#d0d6db"});
   if(state.layers) layerState=importLayerState(state.layers);
   refreshLayers({redrawSite:true});
@@ -905,7 +955,8 @@ function syncLock() {
     transform.detach();
   }
   else if (selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
-  ["site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
+  ["library-place","library-asset-file","library-asset-category",
+    "site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
     "plan-pick-center", "plan-visible", "map-file", "map-width", "plan-x", "plan-z",
     "plan-rotation", "plan-elevation", "plan-opacity"]
@@ -1070,7 +1121,9 @@ function createPlacedExtra(kind, position) {
   const group=kind.includes("light")?layerState.groups.lighting:layerState.groups.planting;
   if (approvedMaster || group.locked || !group.visible || extrasRoot.children.length >= 120) return null;
   const before = editSnapshot();
-  const root = makeExtra(kind, nextExtraId++);
+  const assetId=kind==="custom-glb"?$("library-asset-select").value:null;
+  if(kind==="custom-glb" && !assetLibrary.has(assetId))return notify("에셋을 선택하세요.");
+  const root = makeExtra(kind, nextExtraId++,2,assetId,assetLibrary);
   root.position.copy(position);
   if (kind.includes("light")) root.position.y += 3;
   extrasRoot.add(root);
@@ -2062,6 +2115,14 @@ $("light-preset").addEventListener("change", e => {
   updateLight();
 });
 document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener("click", () => setPlacement(el.dataset.addExtra)));
+$("library-asset-file").addEventListener("change",e=>{
+  importLibraryGLB(e.target.files[0]);e.target.value="";
+});
+$("library-place").addEventListener("click",()=>{
+  if(!assetLibrary.has($("library-asset-select").value))return notify("에셋을 등록하세요.");
+  setPlacement("custom-glb");
+});
+$("library-asset-select").addEventListener("change",refreshAssetLibraryUI);
 $("select-artwork").addEventListener("click", () => selectRoot(artRoot));
 $("delete-selected").addEventListener("click", deleteSelectedExtra);
 $("extra-light-power").addEventListener("input", e => {
