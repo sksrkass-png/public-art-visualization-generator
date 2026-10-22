@@ -761,8 +761,20 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.locator("#import-project").setInputFiles({
       name:"modified-project.zip",mimeType:"application/zip",buffer:fs.readFileSync(corruptPath)
     });
-    await page.waitForFunction(()=>document.querySelector("#toast")?.textContent.includes("무결성 검사 실패"),
-      null,{timeout:20000});
+    try {
+      await page.waitForFunction(()=>document.querySelector("#toast")?.textContent.includes("무결성 검사 실패"),
+        null,{timeout:12000});
+    }catch(error){
+      const inspect=await page.evaluate(()=>({
+        toast:document.querySelector("#toast")?.textContent,
+        saveStatus:document.querySelector("#save-status")?.textContent,
+        filename:document.querySelector("#site-filename")?.textContent,
+        input:document.querySelector("#import-project")?.files?.[0]?.name,
+        approved:document.querySelector("#master-lock")?.textContent
+      }));
+      throw new Error("Corrupted ZIP rejection diagnostic: "+JSON.stringify(inspect)+
+        " JS errors: "+JSON.stringify(errors)+"; "+error.message);
+    }
     assert.equal(await page.locator("#site-filename").textContent(),beforeCorrupt,
       "invalid ZIP must not replace original imported site");
     await page.locator("#readiness-scan").click();
