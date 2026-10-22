@@ -119,8 +119,13 @@ const assert = require("node:assert/strict");
     assert.match(archiveDownload.suggestedFilename(), /\.zip$/);
     const archivePath = await archiveDownload.path();
     const archiveData = fs.readFileSync(archivePath);
-    assert.ok(archiveData.length > bytes.length,
-      "project archive must include source geometry and plan, not only settings");
+    const archiveHeaders = archiveData.toString("latin1");
+    assert.ok(archiveData.length > 2000, "project ZIP must contain binary assets");
+    for (const entry of ["project.json", "assets/site", "assets/artwork", "assets/plan"]) {
+      assert.ok(archiveHeaders.includes(entry), "ZIP must contain " + entry);
+    }
+    // ZIP compression can be smaller than a single source GLB: compare entries,
+    // never compressed archive byte length against uncompressed model bytes.
 
     // Unlock and discard the scene; the full package restores real source assets.
     page.once("dialog", dialog => dialog.accept());
