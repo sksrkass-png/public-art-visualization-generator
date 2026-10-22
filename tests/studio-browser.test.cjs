@@ -762,7 +762,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       name:"modified-project.zip",mimeType:"application/zip",buffer:fs.readFileSync(corruptPath)
     });
     try {
-      await page.waitForFunction(()=>document.querySelector("#toast")?.textContent.includes("무결성 검사 실패"),
+      await page.waitForFunction(()=>/무결성 검사 실패|파일 크기가 일치하지/.test(document.querySelector("#toast")?.textContent||""),
         null,{timeout:12000});
     }catch(error){
       const inspect=await page.evaluate(()=>({
