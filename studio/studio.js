@@ -285,8 +285,10 @@ function refreshAssetLibraryUI(){
     (total/1048576).toFixed(1)+"MB / 60MB · 장면 내 GLB "+placed.length+
     "개 / 약 "+perf.visibleTriangles.toLocaleString()+" 삼각형"+
     (perf.visibleTriangles>500000?" · 저사양 GPU 주의":"");
+  const chosenSource=assetLibrary.get(select.value);
+  const chosenLayer=chosenSource?.category==="artwork"?layerState.groups.artwork:layerState.groups.planting;
   $("library-place").disabled=approvedMaster || !assetLibrary.size ||
-    !layerState.groups.planting.visible || layerState.groups.planting.locked ||
+    !chosenLayer.visible || chosenLayer.locked ||
     extrasRoot.children.length>=120;
   $("library-asset-file").disabled=approvedMaster || assetLibrary.size>=MAX_LIBRARY_ASSETS;
   $("library-asset-category").disabled=approvedMaster;
@@ -1285,8 +1287,15 @@ function selectRoot(object) {
   updateExtrasStatus();
   refreshLayers();
 }
+function groupForPlacement(kind){
+  if(kind.includes("light"))return layerState.groups.lighting;
+  if(kind==="artwork-copy" ||
+    (kind==="custom-glb" && assetLibrary.get($("library-asset-select").value)?.category==="artwork"))
+    return layerState.groups.artwork;
+  return layerState.groups.planting;
+}
 function setPlacement(kind) {
-  const group=kind.includes("light")?layerState.groups.lighting:layerState.groups.planting;
+  const group=groupForPlacement(kind);
   if (approvedMaster || group.locked || !group.visible) return notify("잠긴 레이어나 숨겨진 레이어에는 오브제를 추가할 수 없습니다.");
   placementMode = kind;
   $("placement-hint").hidden = false;
@@ -1296,7 +1305,7 @@ function setPlacement(kind) {
   notify("현장 위치를 클릭하여 추가하세요.");
 }
 function createPlacedExtra(kind, position) {
-  const group=kind.includes("light")?layerState.groups.lighting:layerState.groups.planting;
+  const group=groupForPlacement(kind);
   if (approvedMaster || group.locked || !group.visible || extrasRoot.children.length >= 120) return null;
   const before = editSnapshot();
   const assetId=kind==="custom-glb"?$("library-asset-select").value:null;
