@@ -1,6 +1,7 @@
 const { chromium } = require("playwright");
 const fs = require("node:fs");
 const assert = require("node:assert/strict");
+const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
 
 (async () => {
   const browser = await chromium.launch({
@@ -186,8 +187,52 @@ const assert = require("node:assert/strict");
     assert.equal(Number(await px.inputValue()), 4.5,
       "pending async import must preserve approved artwork placement");
     assert.equal(await px.isDisabled(), true, "scene remains locked after asynchronous import resolves");
+
+    // Site model import compatibility: tests load actual mesh bytes through
+    // the browser (not just checking the input file extension list).
+    page.once("dialog", dialog => dialog.accept());
+    await page.locator("#master-lock").click();
+    const modelFiles = [...siteFixtures, await loadFbxFixture()];
+    const fileInput = page.locator("#site-file");
+    for (const file of modelFiles) {
+      await fileInput.setInputFiles(file);
+      await page.waitForFunction(
+        name => document.querySelector("#site-filename")?.textContent === name,
+        file.name, { timeout: 25000 }
+      );
+      assert.equal(await page.locator("#site-status").textContent(), "실제 모델");
+      const dimensions = await page.locator("#site-dimensions").textContent();
+      assert.match(dimensions, /메시 [1-9]\d*개/, file.name + " must contain a valid scene mesh");
+      assert.doesNotMatch(dimensions, /^—$/, file.name + " must report real native dimensions");
+      assert.equal(Number(await px.inputValue()), 4.5, "site loading must not alter artwork placement");
+    }
+
+    // Saving a non-GLB site file must keep its original source extension
+    // and restore via the ZIP project asset decoder.
+    const objFile = modelFiles.find(file => file.name.endsWith(".obj"));
+    await fileInput.setInputFiles(objFile);
+    await page.waitForFunction(() => document.querySelector("#site-filename")?.textContent === "test-site.obj");
+    const zipDownload = page.waitForEvent("download", { timeout: 45000 });
+    await page.locator("#export-project").click();
+    const portable = fs.readFileSync(await (await zipDownload).path());
+    await page.locator("#site-preset").selectOption("empty");
+    await page.locator("#import-project").setInputFiles({
+      name: "site-obj-roundtrip.zip", mimeType: "application/zip", buffer: portable
+    });
+    await page.waitForFunction(() => document.querySelector("#site-filename")?.textContent === "test-site.obj",
+      null, { timeout: 20000 });
+    assert.match(await page.locator("#site-dimensions").textContent(), /3\.00 × 2\.00 × 1\.00/);
+    assert.equal(Number(await px.inputValue()), 4.5);
+
+    // Reject unsupported CAD/BIM formats without discarding existing scene.
+    await fileInput.setInputFiles({
+      name: "unsupported.skp", mimeType: "application/octet-stream", buffer: Buffer.from("not-supported")
+    });
+    await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("SKP/IFC"),
+      null, { timeout: 10000 });
+    assert.equal(await page.locator("#site-filename").textContent(), "test-site.obj");
     assert.deepEqual(errors, [], "no uncaught runtime errors");
-    console.log("PASS studio browser: WebGL, edit, undo/redo, lights, views, lock, PNG, JSON roundtrip, GLB export, source scale, master snapshot, ZIP recovery and locks");
+    console.log("PASS studio browser: WebGL, edit, undo/redo, lights, views, lock, PNG, JSON roundtrip, GLB export, source scale, master snapshot, ZIP recovery, multi-format site models and locks");
   } finally {
     await browser.close();
   }
