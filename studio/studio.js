@@ -614,13 +614,80 @@ function resize() {
   camera.updateProjectionMatrix();
   renderer.setSize(rect.width, rect.height, false);
 }
-function handleSelection(event) {
-  if (mouseMoved || approvedMaster || transform.dragging) return;
+function updateExtrasStatus() {
+  $("extra-count").textContent = "추가된 오브제 " + extrasRoot.children.length + "개";
+  $("delete-selected").disabled = approvedMaster || selectedRoot === artRoot;
+}
+function selectRoot(object) {
+  selectedRoot = object || artRoot;
+  if (!approvedMaster && selectedRoot) transform.attach(selectedRoot);
+  else transform.detach();
+  updateInspector(true);
+  updateExtrasStatus();
+}
+function setPlacement(kind) {
+  if (approvedMaster) return;
+  placementMode = kind;
+  $("placement-hint").hidden = false;
+  $("placement-hint").textContent = kind.includes("light")
+    ? "현장 바닥을 클릭하여 조명 위치 지정 · 배치 후 이동(G)으로 높이 조절 · Esc 취소"
+    : "현장 바닥을 클릭해 식재 배치 · 위치(G)·크기(S) 조절 · Esc 취소";
+  notify("현장 위치를 클릭하여 추가하세요.");
+}
+function createPlacedExtra(kind, position) {
+  if (approvedMaster || extrasRoot.children.length >= 120) return null;
+  const before = editSnapshot();
+  const root = makeExtra(kind, nextExtraId++);
+  root.position.copy(position);
+  if (kind.includes("light")) root.position.y += 3;
+  extrasRoot.add(root);
+  selectRoot(root);
+  updateExtrasStatus();
+  commit(before);
+  return root;
+}
+function deleteSelectedExtra() {
+  if (approvedMaster || selectedRoot === artRoot || !selectedRoot.parent) return;
+  const before = editSnapshot();
+  selectedRoot.parent.remove(selectedRoot);
+  selectRoot(artRoot);
+  commit(before);
+  notify("선택한 오브제를 삭제했습니다. Ctrl+Z로 복원할 수 있습니다.");
+}
+function pickPlacement(event) {
   const rect = viewport.getBoundingClientRect();
   mouse.x = (event.clientX - rect.left) / rect.width * 2 - 1;
   mouse.y = -(event.clientY - rect.top) / rect.height * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
-  if (raycaster.intersectObjects(artRoot.children, true).length) transform.attach(artRoot);
+  const hits = raycaster.intersectObjects(siteRoot.children, true);
+  const planeHits = raycaster.intersectObject(floor);
+  const hit = hits.length ? hits[0] : (planeHits.length ? planeHits[0] : null);
+  if (hit) return hit.point.clone();
+  const ground = new THREE.Plane(new THREE.Vector3(0,1,0),0);
+  const intersection = new THREE.Vector3();
+  return raycaster.ray.intersectPlane(ground, intersection) ? intersection : null;
+}
+function handleSelection(event) {
+  if (mouseMoved || approvedMaster || transform.dragging || event.button !== 0) return;
+  if (placementMode) {
+    const point = pickPlacement(event);
+    if (!point) { notify("선택한 방향에서 바닥을 찾지 못했습니다."); return; }
+    const kind = placementMode;
+    placementMode = null;
+    $("placement-hint").hidden = true;
+    createPlacedExtra(kind, point);
+    return;
+  }
+  const rect = viewport.getBoundingClientRect();
+  mouse.x = (event.clientX - rect.left) / rect.width * 2 - 1;
+  mouse.y = -(event.clientY - rect.top) / rect.height * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const allHits = raycaster.intersectObjects([...extrasRoot.children, ...artRoot.children], true);
+  if (!allHits.length) return;
+  let candidate = allHits[0].object;
+  while (candidate.parent && candidate.parent !== extrasRoot && candidate.parent !== artRoot) candidate = candidate.parent;
+  if (candidate.parent === extrasRoot) selectRoot(candidate);
+  else selectRoot(artRoot);
 }
 function setTransformFromField(el) {
   if (approvedMaster) return;
@@ -1015,7 +1082,7 @@ $("apply-height").addEventListener("click", () => {
   if (approvedMaster) return;
   const h = safeNumber($("art-height").value, NaN, .05, 100);
   if (!Number.isFinite(h)) return notify("높이는 0.05~100m 범위로 입력하세요.");
-  const before = snapshot();
+  const before = editSnapshot();
   fitArtworkHeight(h);
   commit(before);
 });
@@ -1067,17 +1134,21 @@ $("import-json").addEventListener("change", async e => {
   e.target.value = "";
 });
 transform.addEventListener("dragging-changed", e => { orbit.enabled = !e.value; });
-transform.addEventListener("mouseDown", () => { lastDrag = snapshot(); });
+transform.addEventListener("mouseDown", () => { lastDrag = editSnapshot(); });
 transform.addEventListener("mouseUp", () => { if (lastDrag) commit(lastDrag); lastDrag = null; updateInspector(); });
 transform.addEventListener("objectChange", () => {
   // Keep size proportional by default, including direct gizmo manipulation.
   // The axis with the strongest deviation from the drag's starting scale wins.
   if (!approvedMaster && selectedMode === "scale" && $("uniform-scale").checked && lastDrag) {
-    const current = artRoot.scale.toArray();
-    const delta = current.map((v, i) => Math.abs(v / lastDrag.s[i] - 1));
-    const axis = delta.indexOf(Math.max(...delta));
-    const factor = current[axis] / lastDrag.s[axis];
-    artRoot.scale.fromArray(lastDrag.s.map(v => v * factor));
+    const base = selectedRoot === artRoot ? lastDrag.artwork.s :
+      lastDrag.extras.find(x => x.id === selectedRoot.userData.extraId)?.transform.s;
+    if (base) {
+      const current = selectedRoot.scale.toArray();
+      const delta = current.map((v, i) => Math.abs(v / base[i] - 1));
+      const axis = delta.indexOf(Math.max(...delta));
+      const factor = current[axis] / base[axis];
+      selectedRoot.scale.fromArray(base.map(v => v * factor));
+    }
   }
   // Artistic geometry is never rebuilt. All transforms are on the root group.
   updateInspector();
@@ -1088,6 +1159,12 @@ renderer.domElement.addEventListener("pointermove", e => { if (e.buttons) mouseM
 renderer.domElement.addEventListener("pointerup", handleSelection);
 window.addEventListener("keydown", e => {
   if (e.target instanceof HTMLElement && e.target.closest("input,textarea,select,[contenteditable]")) return;
+  if (e.key === "Escape" && placementMode) {
+    placementMode = null; $("placement-hint").hidden = true; return;
+  }
+  if ((e.key === "Delete" || e.key === "Backspace") && !approvedMaster) {
+    deleteSelectedExtra(); return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
     e.preventDefault(); if (e.shiftKey) redo(); else undo(); return;
   }
