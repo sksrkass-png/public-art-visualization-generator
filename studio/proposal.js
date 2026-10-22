@@ -53,10 +53,12 @@ export function makeProposalData(ctx,manifest,fields){
     artworkTitle:fields.artworkTitle.trim().slice(0,130),
     artistName:fields.artistName.trim().slice(0,130),
     siteLabel:fields.siteLabel.trim().slice(0,160),
-    note:fields.note.trim().slice(0,1600)
+    note:fields.note.trim().slice(0,1600),
+    confirmedByOperator:fields.confirmed===true
   };
   const supplied=!!metadata.artworkTitle&&!!metadata.artistName&&!!metadata.siteLabel;
-  const ready=ctx.readiness?.status==="ready-for-internal-review" && supplied;
+  const ready=ctx.readiness?.status==="ready-for-internal-review" && supplied &&
+    fields.confirmed===true;
   const extras=Array.isArray(ctx.config.extras)?ctx.config.extras:[];
   const physical=ctx.artworkDimensions.map(numeric);
   const placement=ctx.artworkPosition.map(numeric);
@@ -64,7 +66,8 @@ export function makeProposalData(ctx,manifest,fields){
     ...(ctx.readiness?.issues||[]),
     ...(!metadata.artworkTitle?["작품명이 입력되지 않았습니다."]:[]),
     ...(!metadata.artistName?["작가명이 입력되지 않았습니다."]:[]),
-    ...(!metadata.siteLabel?["설치 현장명이 입력되지 않았습니다."]:[])
+    ...(!metadata.siteLabel?["설치 현장명이 입력되지 않았습니다."]:[]),
+    ...(!metadata.confirmedByOperator?["이번 MASTER 제안서 정보의 담당자 최종 확인이 필요합니다."]:[])
   ];
   return {
     schema:REVIEW_SCHEMA,
@@ -139,7 +142,7 @@ export function proposalHtml(data){
   const auditSpecs=auditRows.map(([k,v])=>'<div class="spec"><div class="label">'+esc(k)+'</div><div class="value">'+esc(v)+'</div></div>').join("");
   return '<!doctype html><html lang="ko"><head><meta charset="utf-8">'+
     '<meta name="viewport" content="width=device-width,initial-scale=1">'+
-    '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; img-src &#39;self&#39; data:; style-src &#39;unsafe-inline&#39;">'+
+    '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; img-src &#39;self&#39; file: data:; style-src &#39;unsafe-inline&#39;">'+
     '<title>'+esc(data.project)+" / AXOO Proposal Sheets</title>"+
     '<style>*{box-sizing:border-box}body{margin:0;background:#222;font-family:"Pretendard","Noto Sans KR",Arial,sans-serif;color:#101419}'+
     '.slide{width:min(100vw,1600px);aspect-ratio:16/9;margin:0 auto 22px;background:#f5f5f2;display:flex;flex-direction:column;page-break-after:always;break-after:page;overflow:hidden;position:relative;padding:3% 4%}'+
@@ -229,6 +232,7 @@ export function initProposalExport({getContext}){
       validateProposalArchive(manifest,current.master);
       if(!current.locked||!current.matchesMaster)throw Error("검증하는 동안 MASTER 상태가 변경됐습니다.");
       source={manifest,pictures,contact};
+      $("proposal-confirmed").checked=false;
       status("MASTER REV "+manifest.master.revision+" · 원본 8컷 확인 완료 · 제안서 정보 입력 후 ZIP 제작 가능");
     }catch(error){source=null;console.error(error);status("불러오기 실패: "+error.message);}
     finally{reading=false;refresh();}
@@ -245,7 +249,8 @@ export function initProposalExport({getContext}){
         artworkTitle:$("proposal-artwork-title").value,
         artistName:$("proposal-artist").value,
         siteLabel:$("proposal-site-label").value,
-        note:$("proposal-note").value
+        note:$("proposal-note").value,
+        confirmed:$("proposal-confirmed").checked
       });
       const zip=new JSZip();
       zip.file("proposal-sheets.html",proposalHtml(data));
