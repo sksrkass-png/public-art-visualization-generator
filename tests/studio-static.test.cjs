@@ -34,6 +34,15 @@ assert.match(js, /new OrbitControls/, "camera orbit/pan/zoom required");
 assert.match(js, /new GLTFLoader/, "GLB/GLTF scene import required");
 assert.match(js, /new OBJLoader/, "OBJ artwork import required");
 assert.match(js, /new STLLoader/, "STL artwork import required");
+for (const [ext, loader] of [
+  ["obj", "OBJLoader"], ["fbx", "FBXLoader"], ["stl", "STLLoader"],
+  ["ply", "PLYLoader"], ["dae", "ColladaLoader"], ["3ds", "TDSLoader"]
+]) {
+  assert.match(js, new RegExp("new " + loader), "site " + ext + " loader required");
+  assert.match(html, new RegExp('\\.' + ext + '(?:,|")'), "site " + ext + " input extension required");
+}
+assert.match(js, /function inspectSiteGeometry/, "site geometry validation required");
+assert.ok(unique.has("site-dimensions"), "site size indicator required");
 assert.match(js, /new GLTFExporter/, "GLB model export required");
 assert.match(js, /function sceneConfig/, "portable project settings exporter required");
 assert.match(js, /function importSceneConfig/, "portable settings importer required");
