@@ -715,6 +715,58 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     delete afterReview.createdAt;
     delete approvedAfter.createdAt;
     assert.deepEqual(afterReview,approvedAfter,"enhanced-image review must not mutate MASTER 3D scene");
+
+    // v1.0: internal proposal preflight cannot silently sign off a project.
+    assert.match(await page.locator("#readiness-status").textContent(),/추가 확인 필요/);
+    for(const id of ["ready-dimensions","ready-artwork","ready-placement","ready-render"])
+      await page.locator("#"+id).check();
+    await page.locator("#readiness-scan").click();
+    assert.match(await page.locator("#readiness-status").textContent(),/사내 제안서 검토 준비 완료/);
+    const readyDownload=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#readiness-export").click();
+    const readinessReport=JSON.parse(fs.readFileSync(await (await readyDownload).path(),"utf8"));
+    assert.equal(readinessReport.schema,"axoo-public-art-internal-readiness-v1");
+    assert.equal(readinessReport.status,"ready-for-internal-review");
+    assert.ok(readinessReport.source.siteImported&&readinessReport.source.artworkImported);
+    assert.ok(readinessReport.caveats.some(t=>t.includes("NOT structural engineering approval")));
+
+    // v1.0: exported full-project ZIP includes SHA-256 for every preserved
+    // source file, and a mutated JSON member fails before any scene change.
+    const integrityExport=page.waitForEvent("download",{timeout:45000});
+    await page.locator("#export-project").click();
+    const verifiedPath=await (await integrityExport).path();
+    const intact=JSON.parse(execFileSync("python3",["-c",
+      ["import zipfile,json,hashlib,sys","with zipfile.ZipFile(sys.argv[1]) as z:",
+       "  m=json.loads(z.read('integrity.json'))",
+       "  assert m['schema']=='axoo-studio-integrity-v1'",
+       "  assert 'project.json' in m['files']",
+       "  assert all(hashlib.sha256(z.read(n)).hexdigest()==v['sha256'] for n,v in m['files'].items())",
+       "  print(json.dumps({'checks':len(m['files'])}))"].join("\n"),
+       verifiedPath],{encoding:"utf8",timeout:30000}).trim());
+    assert.ok(intact.checks>=3,"site, artwork and settings should all be checksummed");
+
+    const corruptPath=verifiedPath+".corrupt.zip";
+    execFileSync("python3",["-c",
+      ["import zipfile,sys",
+       "with zipfile.ZipFile(sys.argv[1]) as source, zipfile.ZipFile(sys.argv[2],'w',compression=zipfile.ZIP_DEFLATED) as target:",
+       "  for info in source.infolist():",
+       "    value=source.read(info.filename)",
+       "    if info.filename=='project.json': value+=b'  '",
+       "    target.writestr(info.filename,value)"].join("\n"),
+      verifiedPath,corruptPath],{timeout:30000});
+    page.once("dialog",dialog=>dialog.accept());
+    await page.locator("#master-lock").click();
+    const beforeCorrupt=await page.locator("#site-filename").textContent();
+    await page.locator("#import-project").setInputFiles({
+      name:"modified-project.zip",mimeType:"application/zip",buffer:fs.readFileSync(corruptPath)
+    });
+    await page.waitForFunction(()=>document.querySelector("#toast")?.textContent.includes("무결성 검사 실패"),
+      null,{timeout:20000});
+    assert.equal(await page.locator("#site-filename").textContent(),beforeCorrupt,
+      "invalid ZIP must not replace original imported site");
+    await page.locator("#readiness-scan").click();
+    assert.match(await page.locator("#readiness-status").textContent(),/현재 MASTER VIEW가 승인되지 않았습니다/,
+      "unlocking must invalidate internal READY status");
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v0.8 approved eight-view batch ZIP, 8 real 16:9 PNGs, contact sheet, QA integrity manifest, immutable scene restoration plus existing editor regression suite");
   } finally {
