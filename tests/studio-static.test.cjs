@@ -157,5 +157,18 @@ for(const marker of ["tree-autumn","person-standing","park-bench","round-planter
  assert.ok(extrasModule.includes(marker),"v1.2 scene asset missing: "+marker);
 const integrity=fs.readFileSync(path.join(base,"studio/integrity.js"),"utf8");
 assert.ok(integrity.includes("assets/library/"),"checksums for external GLB sources required");
+for(const id of ["precision-modeling","precision-duplicate","precision-group-list",
+"precision-group","precision-ungroup","measure-site-start","measure-site-clear",
+"measure-site-status","measure-first","measure-second","measure-objects",
+"measure-objects-status","precision-collision","precision-collision-status","precision-report"])
+  assert.ok(unique.has(id),"v1.3 precision UI missing: "+id);
+for(const token of ["duplicateEditable","createLogicalGroup","shiftGroupMembers",
+"addMeasuredPoint","showPairMeasurement","checkInterferences","exportPrecisionReport"])
+  assert.ok(js.includes(token),"v1.3 precision feature missing: "+token);
+const precisionSource=fs.readFileSync(path.join(base,"studio/precision.js"),"utf8");
+for(const fn of ["pairMeasurement","sceneInterferences","translateGroupPeers","boxGap"])
+  assert.ok(precisionSource.includes(fn),"v1.3 precise geometry helper missing: "+fn);
+assert.match(js,/restoreExtras\(extrasRoot, state\.extras,assetLibrary,artRoot\)/,
+  "artist duplicate source required for undo restore");
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");

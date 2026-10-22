@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 1.2</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 1.3</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -201,6 +201,31 @@
         <button id="restore-master-camera" class="outline full" type="button" disabled>승인 마스터의 카메라·조명으로 복귀</button>
         <div id="master-history" class="master-history" aria-label="승인 마스터 버전 이력"></div>
       </section>
+      <section class="section" id="precision-modeling">
+        <div class="section-title"><h2>ADVANCED MODELING</h2><span class="tag">v1.3</span></div>
+        <p class="hint">작품 원본과 현장 지오메트리는 수정하지 않고, 배치된 개체를 복제·그룹 이동합니다. 실제 설치 검토 전 실측 도면과 비교해 주세요.</p>
+        <button id="precision-duplicate" class="outline full" type="button">선택한 작품·오브제 복제 (X +2m)</button>
+        <fieldset class="precision-group-fieldset">
+          <legend>그룹 지정 · 이동은 함께, 회전과 크기는 개별</legend>
+          <div id="precision-group-list" class="precision-group-list"></div>
+          <div class="inline"><button id="precision-group" class="outline full" type="button">선택 객체 그룹 묶기</button><button id="precision-ungroup" class="outline full" type="button">선택 객체 그룹 해제</button></div>
+        </fieldset>
+        <p class="hint">그룹 이동은 대표 객체의 위치 XYZ를 변경하거나 이동 기즈모를 놓으면 적용됩니다. 원본 건물은 그룹에 포함할 수 없습니다.</p>
+        <h3>정밀 간격 측정</h3>
+        <button id="measure-site-start" class="outline full" type="button">현장 두 점 클릭해 거리 측정</button>
+        <button id="measure-site-clear" class="outline full" type="button">측정점 초기화</button>
+        <p class="hint" id="measure-site-status" aria-live="polite">현장 표면을 두 번 클릭하면 3D 거리와 수평 거리, 높이차를 계산합니다.</p>
+        <label for="measure-first">첫 번째 객체</label>
+        <select id="measure-first"></select>
+        <label for="measure-second">두 번째 객체</label>
+        <select id="measure-second"></select>
+        <button id="measure-objects" class="outline full" type="button">객체 간격 측정</button>
+        <p class="hint" id="measure-objects-status" aria-live="polite">객체 중심간 거리와 외접 박스 사이의 최소 간격을 확인합니다.</p>
+        <h3>간섭·충돌 예비 검사</h3>
+        <button id="precision-collision" class="outline full" type="button">배치 객체 ↔ 건물 간섭 검사</button>
+        <p id="precision-collision-status" class="hint" aria-live="polite">간섭 검사는 회전된 객체를 포함한 월드 AABB 대략값이며, BIM 충돌검사·구조 안전 확인을 대체하지 않습니다.</p>
+        <button id="precision-report" class="outline full" type="button">정밀 측정·간섭 리포트 JSON 저장</button>
+      </section>
       <section class="section">
         <h2>식재·인물·거리 가구·조명</h2>
         <p class="hint">추가 버튼을 누른 뒤 3D 현장을 클릭해 배치합니다. 실측 현장 모델에는 기존 건물·조경을 그대로 보존합니다.</p>
@@ -225,6 +250,7 @@
             <option value="planting">식재 / 수목</option>
             <option value="person">사람 / 스케일 인물</option>
             <option value="furniture">거리 가구 / 공간 소품</option>
+            <option value="artwork">별도 조형 작품 / 다중 작품</option>
           </select>
           <label for="library-asset-select">배치할 에셋 선택</label>
           <select id="library-asset-select"><option value="">등록한 GLB 에셋 없음</option></select>

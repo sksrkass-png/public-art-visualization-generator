@@ -11,11 +11,36 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     args: ["--enable-webgl", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
   });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
-  const errors = [];
-  page.on("pageerror", e => errors.push(e.message));
+  const errors = [], diagnostics=[];
+  page.on("pageerror", e => errors.push(e.stack || e.message));
+  // Negative import tests deliberately log errors when corrupted ZIPs and
+  // unsupported model extensions are rejected. Keep diagnostics for startup,
+  // but assert only uncaught JS exceptions as runtime failures.
+  page.on("console",message=>{if(message.type()==="error")diagnostics.push("console: "+message.text());});
+  page.on("requestfailed",r=>diagnostics.push("request "+r.url()+" "+r.failure()?.errorText));
+  page.on("response",r=>{if(r.status()>=400)diagnostics.push("HTTP "+r.status()+" "+r.url());});
+  await page.addInitScript(()=>{
+    window.__startupModuleErrors=[];
+    window.addEventListener("error",e=>window.__startupModuleErrors.push({
+      message:e.message,source:e.filename,line:e.lineno,column:e.colno
+    }));
+  });
   try {
     await page.goto("http://127.0.0.1:8787/studio/", { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.locator("#viewport canvas").waitFor({ timeout: 60000 });
+    try{
+      await page.locator("#viewport canvas").waitFor({ timeout: 12000 });
+    }catch(err){
+      const state=await page.evaluate(()=>({
+        title:document.title,
+        studioScript:document.querySelector('script[type="module"]')?.getAttribute("src"),
+        viewport:!!document.querySelector("#viewport"),
+        controls:!!document.querySelector("#precision-duplicate"),
+        html:document.body.innerHTML.slice(-260),
+        scriptErrors:window.__startupModuleErrors
+      }));
+      throw new Error("Studio startup diagnostic: "+JSON.stringify(state)+
+        " errors "+JSON.stringify(errors)+" diagnostics "+JSON.stringify(diagnostics)+" / "+err.message);
+    }
     await page.waitForFunction(() => document.querySelector("#art-filename")?.textContent.includes("Sample Artwork"), null, { timeout: 30000 });
     assert.equal(await page.locator("#site-status").textContent(), "예시 공간");
     assert.equal(await page.locator("#export-master-pack").isDisabled(),true,
@@ -907,8 +932,141 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.match(await page.locator("#library-status").textContent(),/등록 1 \/ 6/);
     await page.locator("#extra-list button").last().click();
     assert.match(await page.locator("#object-name").textContent(),/licensed-urban-seat/);
+
+    // v1.3 repeat the true source artwork as a new editable installation.
+    const beforeCopies=await page.locator("#extra-list button").count();
+    await page.locator("#select-artwork").click();
+    await page.locator("#precision-duplicate").click();
+    await page.waitForFunction(n=>document.querySelectorAll("#extra-list button").length===n,
+      beforeCopies+1,{timeout:15000});
+    assert.match(await page.locator("#object-name").textContent(),/작품 복제/);
+    assert.equal(await page.locator("#precision-ungroup").isDisabled(),true);
+
+    const stateEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const beforeState=JSON.parse(fs.readFileSync(await (await stateEvent).path(),"utf8"));
+    const originalCopy=beforeState.extras.at(-1);
+    const preceding=beforeState.extras.at(-2);
+    assert.equal(originalCopy.kind,"artwork-copy");
+    assert.equal(originalCopy.assetId,undefined);
+    assert.ok(originalCopy.transform.p[0]>=2,"copy offset +2m from source");
+
+    // Group the freshly duplicated sculpture with another editable contextual
+    // object. Only translation is grouped; original source site is untouched.
+    await page.locator('[data-precision-group-id="'+originalCopy.id+'"]').check();
+    await page.locator('[data-precision-group-id="'+preceding.id+'"]').check();
+    await page.locator("#precision-group").click();
+    const groupedEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const groupedJSON=JSON.parse(fs.readFileSync(await (await groupedEvent).path(),"utf8"));
+    const a1=groupedJSON.extras.find(x=>x.id===originalCopy.id);
+    const b1=groupedJSON.extras.find(x=>x.id===preceding.id);
+    assert.ok(a1.groupId>0);
+    assert.equal(a1.groupId,b1.groupId);
+    await page.locator("#measure-first").selectOption(String(originalCopy.id));
+    await page.locator("#measure-second").selectOption(String(preceding.id));
+    await page.locator("#measure-objects").click();
+    assert.match(await page.locator("#measure-objects-status").textContent(),/외접 박스 간격/);
+
+    const originalX=Number(await page.locator('[data-transform="position"][data-axis="x"]').inputValue());
+    await page.locator('[data-transform="position"][data-axis="x"]').fill(String(originalX+3));
+    await page.locator('[data-transform="position"][data-axis="x"]').dispatchEvent("change");
+    const movedEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const movedJSON=JSON.parse(fs.readFileSync(await (await movedEvent).path(),"utf8"));
+    const a2=movedJSON.extras.find(x=>x.id===originalCopy.id);
+    const b2=movedJSON.extras.find(x=>x.id===preceding.id);
+    assert.ok(Math.abs(a2.transform.p[0]-a1.transform.p[0]-3)<.0001);
+    assert.ok(Math.abs(b2.transform.p[0]-b1.transform.p[0]-3)<.0001,
+      "logical group members translate by same displacement");
+    await page.locator("#undo").click();
+    const unmoveEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const unmoveJSON=JSON.parse(fs.readFileSync(await (await unmoveEvent).path(),"utf8"));
+    assert.ok(Math.abs(unmoveJSON.extras.find(x=>x.id===preceding.id).transform.p[0]-b1.transform.p[0])<.0001,
+      "Undo restores all grouped positions");
+
+    // Read-only AABB audit and optional two site-surface point distances.
+    await page.locator("#precision-collision").click();
+    assert.match(await page.locator("#precision-collision-status").textContent(),/중첩|박스/);
+    await page.locator('[data-view="aerial"]').click();
+    const capture=await page.locator("#viewport canvas").boundingBox();
+    await page.locator("#measure-site-start").click();
+    await page.mouse.click(capture.x+capture.width*.45,capture.y+capture.height*.76);
+    await page.mouse.click(capture.x+capture.width*.63,capture.y+capture.height*.78);
+    assert.match(await page.locator("#measure-site-status").textContent(),/3D 거리/);
+    const precisionDownload=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#precision-report").click();
+    const precisionJSON=JSON.parse(fs.readFileSync(await (await precisionDownload).path(),"utf8"));
+    assert.equal(precisionJSON.schema,"axoo-modeling-precision-v1");
+    assert.equal(precisionJSON.measuredPoints.length,2);
+    assert.ok(precisionJSON.interference.warning.includes("AABB"));
+    assert.ok(precisionJSON.logicalGroups.length>=2);
+
+    // Only movable/selected copies are in the artwork layer. MASTER locks
+    // duplication and grouping; ZIP must restore the approved copy geometry.
+    await page.locator("#master-lock").click();
+    assert.equal(await page.locator("#precision-duplicate").isDisabled(),true);
+    const multiZIPEvent=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#export-project").click();
+    const multiZip=fs.readFileSync(await (await multiZIPEvent).path());
+    page.once("dialog",dialog=>dialog.accept());
+    await page.locator("#master-lock").click();
+    await page.locator("#site-preset").selectOption("empty");
+    await page.locator("#import-project").setInputFiles({
+      name:"precision-v13.zip",mimeType:"application/zip",buffer:multiZip
+    });
+    await page.waitForFunction(n=>
+      document.querySelectorAll("#extra-list button").length===n &&
+      document.querySelector("#object-state")?.textContent==="MASTER LOCK",
+      beforeCopies+1,{timeout:45000});
+    const restoredEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const restoredJSON=JSON.parse(fs.readFileSync(await (await restoredEvent).path(),"utf8"));
+    assert.equal(restoredJSON.extras.find(x=>x.id===originalCopy.id).kind,"artwork-copy");
+    assert.equal(restoredJSON.extras.find(x=>x.id===preceding.id).groupId,a1.groupId);
+
+    // Import a *different* sculpture source through the same GLB registry.
+    // It stays on artwork-layer locks, independent from base sculptural source.
+    page.once("dialog",dialog=>dialog.accept());
+    await page.locator("#master-lock").click();
+    await page.locator("#library-asset-category").selectOption("artwork");
+    await page.locator("#library-asset-file").setInputFiles({
+      name:"second-sculpture.glb",mimeType:"model/gltf-binary",buffer:bytes
+    });
+    await page.waitForFunction(()=>
+      document.querySelector("#library-asset-select")?.options.length===2 &&
+      document.querySelector("#library-asset-select")?.value==="lib2",
+      null,{timeout:20000});
+    await page.locator('[data-view="aerial"]').click();
+    const canvasRect=await page.locator("#viewport canvas").boundingBox();
+    await page.locator("#library-place").click();
+    await page.mouse.click(canvasRect.x+canvasRect.width*.65,canvasRect.y+canvasRect.height*.82);
+    await page.waitForFunction(n=>document.querySelectorAll("#extra-list button").length===n,
+      beforeCopies+2,{timeout:15000});
+    await page.locator('[data-layer-lock="artwork"]').check();
+    assert.equal(await page.locator('[data-transform="position"][data-axis="x"]').isDisabled(),true,
+      "independently sourced sculptures must respect artwork layer lock");
+    await page.locator('[data-layer-lock="artwork"]').uncheck();
+    assert.equal(await page.locator('[data-transform="position"][data-axis="x"]').isDisabled(),false);
+    const secondZipEvent=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#export-project").click();
+    const secondPath=await (await secondZipEvent).path();
+    const secondAudit=JSON.parse(execFileSync("python3",["-c",[
+      "import json,zipfile,sys,hashlib",
+      "with zipfile.ZipFile(sys.argv[1]) as z:",
+      "  p=json.loads(z.read('project.json'))",
+      "  m=json.loads(z.read('integrity.json'))",
+      "  path='assets/library/lib2.glb'",
+      "  assert path in z.namelist()",
+      "  assert hashlib.sha256(z.read(path)).hexdigest()==m['files'][path]['sha256']",
+      "  assert any(v['category']=='artwork' for v in p['library'])",
+      "  assert any(v['kind']=='custom-glb' and v.get('assetId')=='lib2' for v in p['extras'])",
+      "  print(json.dumps({'sources':len(p['library'])}))"
+    ].join("\n"),secondPath],{encoding:"utf8",timeout:25000}).trim());
+    assert.equal(secondAudit.sources,2);
     assert.deepEqual(errors, [], "no uncaught runtime errors");
-    console.log("PASS studio browser: v1.2 seasonal trees, person, bench, planter, source GLB import, placement, undo/redo, signed asset ZIP roundtrip and previous regressions");
+    console.log("PASS studio browser: v1.3 real sculpture duplicate, group translation/Undo, object and surface measurement, AABB report, MASTER lock, source-consistent ZIP restoration + legacy regressions");
   } finally {
     await browser.close();
   }
