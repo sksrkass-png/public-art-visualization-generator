@@ -636,6 +636,8 @@ function updateExtrasStatus() {
     }
   }
   for (const button of list.children) {
+    const object = extrasRoot.children.find(node => node.userData.extraId === Number(button.dataset.extraId));
+    if (object) button.textContent = object.name;
     button.classList.toggle("active", Number(button.dataset.extraId) === activeId);
     button.disabled = approvedMaster;
   }
