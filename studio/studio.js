@@ -985,6 +985,7 @@ function restoreEdit(state) {
   if(state.layers) layerState=importLayerState(state.layers);
   refreshLayers({redrawSite:true});
   nextExtraId = Math.max(1, ...state.extras.map(x => x.id + 1));
+  groupChecked.clear();refreshPrecisionUI();
   const picked = state.selectedId ? extrasRoot.children.find(x => x.userData.extraId === state.selectedId) : artRoot;
   selectRoot(picked || artRoot);
   updateExtrasStatus();
@@ -1369,9 +1370,13 @@ function handleSelection(event) {
     const hit = pickPlacement(event);
     if (!hit) { notify("해당 지점에서 위쪽 표면을 찾을 수 없습니다. 현장 메시와 각도를 확인하세요."); return; }
     const kind = placementMode;
-    placementMode = null;
-    $("placement-hint").hidden = true;
-    if (kind === "plan-center") {
+    if(kind!=="measure-point"){
+      placementMode=null;
+      $("placement-hint").hidden=true;
+    }
+    if (kind === "measure-point") {
+      addMeasuredPoint(hit.point);
+    } else if (kind === "plan-center") {
       $("plan-x").value = hit.point.x.toFixed(3);
       $("plan-z").value = hit.point.z.toFixed(3);
       syncPlanOverlay();
@@ -1409,6 +1414,7 @@ function setTransformFromField(el) {
   const next = el.dataset.transform === "rotation" ? THREE.MathUtils.degToRad(raw) : raw;
   if (Math.abs(current - next) < 1e-8) return;
   const before = editSnapshot();
+  const oldPosition=selectedRoot.position.clone();
   if (el.dataset.transform === "scale" && $("uniform-scale").checked) {
     // Preserve the existing XYZ ratio rather than forcing all values equal.
     const previousAxis = selectedRoot.scale[el.dataset.axis];
@@ -1422,6 +1428,8 @@ function setTransformFromField(el) {
       offset: toFinite($("ground-offset").value, 0, -20, 50)
     });
   }
+  if(el.dataset.transform==="position" && selectedRoot!==artRoot)
+    shiftGroupMembers(selectedRoot,selectedRoot.position.clone().sub(oldPosition));
   commit(before);
   updateInspector();
 }
@@ -2324,6 +2332,30 @@ $("library-place").addEventListener("click",()=>{
   setPlacement("custom-glb");
 });
 $("library-asset-select").addEventListener("change",refreshAssetLibraryUI);
+$("precision-group-list").addEventListener("change",e=>{
+  const id=Number(e.target?.dataset?.precisionGroupId);
+  if(!id || approvedMaster)return;
+  if(e.target.checked)groupChecked.add(id);else groupChecked.delete(id);
+  $("precision-group").disabled=groupChecked.size<2;
+});
+$("precision-duplicate").addEventListener("click",duplicateEditable);
+$("precision-group").addEventListener("click",createLogicalGroup);
+$("precision-ungroup").addEventListener("click",ungroupLogical);
+$("measure-site-start").addEventListener("click",()=>{
+  measuredPoints=[];
+  placementMode="measure-point";
+  $("placement-hint").hidden=false;
+  $("placement-hint").textContent="실제 현장 표면의 두 점을 차례로 클릭 · ESC 취소";
+  $("measure-site-status").textContent="첫 번째 점을 선택하세요.";
+});
+$("measure-site-clear").addEventListener("click",()=>{
+  measuredPoints=[];
+  if(placementMode==="measure-point"){placementMode=null;$("placement-hint").hidden=true;}
+  $("measure-site-status").textContent="측정점 초기화됨";
+});
+$("measure-objects").addEventListener("click",showPairMeasurement);
+$("precision-collision").addEventListener("click",checkInterferences);
+$("precision-report").addEventListener("click",exportPrecisionReport);
 $("select-artwork").addEventListener("click", () => selectRoot(artRoot));
 $("delete-selected").addEventListener("click", deleteSelectedExtra);
 $("extra-light-power").addEventListener("input", e => {
@@ -2434,10 +2466,16 @@ $("import-json").addEventListener("change", async e => {
 transform.addEventListener("dragging-changed", e => { orbit.enabled = !e.value; });
 transform.addEventListener("mouseDown", () => { lastDrag = editSnapshot(); });
 transform.addEventListener("mouseUp", () => {
+  const dragStart=lastDrag && selectedRoot!==artRoot
+    ?lastDrag.extras.find(x=>x.id===selectedRoot.userData.extraId)?.transform.p : null;
   if (lastDrag && !approvedMaster && selectedMode === "translate" && $("auto-ground").checked &&
       !extraLight(selectedRoot)) {
     snapRootToSurface(selectedRoot, siteRoot, { allowFallback: !siteSourceFile,
       offset: toFinite($("ground-offset").value, 0, -20, 50) });
+  }
+  if(lastDrag && !approvedMaster && selectedMode==="translate" && dragStart){
+    const delta=selectedRoot.position.clone().sub(new THREE.Vector3().fromArray(dragStart));
+    shiftGroupMembers(selectedRoot,delta);
   }
   if (lastDrag) commit(lastDrag);
   lastDrag = null;
