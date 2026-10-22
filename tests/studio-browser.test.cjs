@@ -7,6 +7,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
 (async () => {
   const browser = await chromium.launch({
     headless: true,
+    ...(process.env.AXOO_CHROME_PATH ? {executablePath:process.env.AXOO_CHROME_PATH} : {}),
     args: ["--enable-webgl", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
   });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
