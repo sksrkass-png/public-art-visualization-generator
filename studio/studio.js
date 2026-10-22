@@ -1584,6 +1584,8 @@ async function exportProjectArchive() {
     zip.file("integrity.json",JSON.stringify(integrity,null,2));
     $("save-status").textContent = "검증 가능한 프로젝트 패키지 저장 중…";
     const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
+    if(blob.size>MAX_ZIP_BYTES)
+      throw Error("ZIP 200MB 복원 한도를 초과했습니다. 현장·작품·에셋 파일을 경량화하세요.");
     download(safeFileName() + "-project.zip", blob);
     notify("프로젝트 ZIP 저장 완료 · 원본과 SHA-256 손상 검증 정보 포함");
   } catch (err) {
@@ -1637,6 +1639,11 @@ async function importProjectArchive(file) {
       loadedLibrary.set(entry.id,await parseLibraryGLB(file,entry.id,entry.category));
     }
     ensureAvailableLibrary(data.library||[],loadedLibrary);
+    const actualGlbSources=Object.keys(zip.files).filter(name=>
+      /^assets\/library\/lib[1-9]\d{0,4}\.glb$/.test(name)).sort();
+    const declaredGlbSources=(data.library||[]).map(a=>"assets/library/"+a.id+".glb").sort();
+    if(JSON.stringify(actualGlbSources)!==JSON.stringify(declaredGlbSources))
+      throw Error("프로젝트 설정과 ZIP 내 GLB 에셋 목록이 일치하지 않습니다.");
     if (data.archiveSchema !== PROJECT_ARCHIVE_SCHEMA) throw new Error("지원하지 않는 프로젝트 패키지 버전입니다.");
     // Decode and validate EVERYTHING before changing the current scene.
     const siteEntry = checkedArchiveEntry(zip, "assets/site", MAX_MODEL_BYTES, !!data.site.file);
