@@ -12,6 +12,7 @@ import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
+import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
 
 const $ = id => document.getElementById(id);
 const viewport = $("viewport");
@@ -212,7 +213,7 @@ function syncGroundAvailability() {
   $("fallback-ground").hidden = imported;
   $("site-ground-note").hidden = !imported;
   floor.visible = !imported;
-  if (imported) planPlane.visible = false;
+  syncPlanOverlay();
 }
 function applySiteUnits() {
   if (approvedMaster) return;
@@ -333,11 +334,26 @@ function updateGround() {
   if (old) old.dispose();
 }
 function syncPlanWidth() {
-  if (approvedMaster || !planPlane.visible || !loadedPlanTexture) return;
+  if (!loadedPlanTexture) return;
   const img = loadedPlanTexture.image;
   if (!img || !img.width || !img.height) return;
   const w = safeNumber($("map-width").value, 40, 1, 1000);
   planPlane.scale.set(w, w * img.height / img.width, 1);
+  syncPlanOverlay();
+}
+function syncPlanOverlay() {
+  planPlane.visible = !!loadedPlanTexture && $("plan-visible").checked;
+  planPlane.position.set(
+    toFinite($("plan-x").value, 0),
+    toFinite($("plan-elevation").value, .05, -50, 1000),
+    toFinite($("plan-z").value, 0)
+  );
+  // Rotation about the plane's local normal maps to world Y after X=-90°.
+  planPlane.rotation.set(-Math.PI / 2, 0, THREE.MathUtils.degToRad(toFinite($("plan-rotation").value, 0, -36000, 36000)));
+  const alpha = toFinite($("plan-opacity").value, 55, 10, 100);
+  planPlane.material.opacity = alpha / 100;
+  planPlane.material.transparent = true;
+  $("plan-opacity-value").textContent = Math.round(alpha) + "%";
 }
 function decodePlanTexture(file) {
   return new Promise((resolve, reject) => {
@@ -374,7 +390,7 @@ async function loadPlan(file) {
     const texture = await decodePlanTexture(file);
     if (approvedMaster || token !== activePlanOperation) { texture.dispose(); return; }
     applyPlanTexture(texture, file);
-    notify("배치도 이미지를 현장의 수평면에 배치했습니다.");
+    notify("배치도 이미지를 불러왔습니다. 폭·좌표·회전·투명도를 조정할 수 있습니다.");
   } catch (error) {
     notify("배치도 불러오기 실패: " + (error.message || "알 수 없는 오류"));
   }
