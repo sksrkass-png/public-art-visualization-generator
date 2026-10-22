@@ -871,6 +871,7 @@ function masterSnapshot() {
       .map(id => [id, Number($(id).value)])),
     shadows: $("shadows").checked,
     extras: serializeExtras(extrasRoot),
+    library:libraryManifest(assetLibrary),
     layers:structuredClone(layerState),
     material:structuredClone(artworkMaterialState),
     render:currentRenderConfig(),
@@ -885,6 +886,7 @@ function validMasterSnapshot(entry) {
     entry.camera && isTriple(entry.camera.position) && isTriple(entry.camera.target) &&
     entry.lighting && typeof entry.lighting === "object" &&
     (entry.extras === undefined || validateExtras(entry.extras)) &&
+    (entry.library === undefined || validLibraryManifest(entry.library)) &&
     (entry.layers === undefined || validateLayerState(entry.layers)) &&
     (entry.material === undefined || validMaterialConfig(entry.material)) &&
     (entry.render === undefined || validRenderConfig(entry.render));
@@ -1403,6 +1405,7 @@ function sceneConfig() {
   return {
     schema: "axoo-public-art-3d-studio-v1",
     projectName: $("project-name").value,
+    library:libraryManifest(assetLibrary),
     createdAt: new Date().toISOString(),
     site: { file: siteFileName, preset: $("site-preset").value, floor: $("floor-map").value,
       unit: $("site-unit").value, up: $("site-up").value,
@@ -1436,6 +1439,9 @@ function validateProjectConfig(data) {
       typeof data.artwork.source !== "string" || typeof data.site.file !== "string" ||
       !["empty", "plaza", "courtyard", "promenade"].includes(data.site.preset) ||
       (data.extras !== undefined && !validateExtras(data.extras)) ||
+      (data.library !== undefined && !validLibraryManifest(data.library)) ||
+      (data.extras || []).some(x=>x.kind==="custom-glb" &&
+        !(data.library || []).some(a=>a.id===x.assetId)) ||
       (data.layers !== undefined && !validateLayerState(data.layers)) ||
       (data.render !== undefined && !validRenderConfig(data.render)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
@@ -1456,6 +1462,7 @@ function validateProjectConfig(data) {
 function importSceneConfig(data) {
   if (approvedMaster) throw new Error("MASTER LOCK을 해제한 후 프로젝트를 불러오세요.");
   validateProjectConfig(data);
+  ensureAvailableLibrary(data.library||[]);
   const originalSite = siteFileName;
   const originalArt = artFileName;
   if(!data.render?.environmentFile ||
@@ -1498,7 +1505,8 @@ function importSceneConfig(data) {
   $("nav-speed").value = safeNumber(data.navSpeed, 2.6, .5, 5);
   $("nav-speed").dispatchEvent(new Event("input"));
   updateLight();
-  restoreExtras(extrasRoot, data.extras || []);
+  restoreExtras(extrasRoot, data.extras || [],assetLibrary);
+  refreshAssetLibraryUI();
   layerState=importLayerState(data.layers);
   if(data.site.file && data.site.file!==siteFileName){
     pendingSiteLayers={file:data.site.file,nodes:structuredClone(layerState.siteNodes)};
@@ -1710,6 +1718,7 @@ function baselineForMaster(){
   return {
     artworkTransform:snapshot(),
     extras:serializeExtras(extrasRoot),
+    library:libraryManifest(assetLibrary),
     layers:structuredClone(layerState),
     material:structuredClone(artworkMaterialState),
     artworkFile:artFileName,siteFile:siteFileName
