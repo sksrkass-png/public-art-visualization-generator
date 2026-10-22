@@ -11,6 +11,9 @@ import { TDSLoader } from "three/addons/loaders/TDSLoader.js";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
+import { ART_MATERIALS, validMaterialConfig, validRenderConfig, normalizeRenderConfig,
+  targetSize, makeMaterial } from "./rendering.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
 import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
@@ -124,6 +127,10 @@ let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
 let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
+const neutralEnvironment=scene.environment;
+let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
+let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
+let artworkMaterialState={preset:"original",color:"#d0d6db"};
 const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048 });
 const MAX_UNDO = 40;
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -403,6 +410,100 @@ function applySiteUnits() {
   siteRoot.updateMatrixWorld(true);
   if (siteSourceFile) showSiteGeometryStats(inspectSiteGeometry(siteRoot));
 }
+function currentRenderConfig(){
+  return {
+    aspect:$("render-aspect").value,environmentMode:$("env-mode").value,
+    environmentFile:hdrSourceFile?.name || "",envIntensity:Number($("env-strength").value),
+    focalLength:camera.getFocalLength(),multiplier:Number($("render-resolution").value),
+    artworkMaterial:structuredClone(artworkMaterialState)
+  };
+}
+function applyEnvironment(){
+  const mode=$("env-mode").value,strength=safeNumber($("env-strength").value,1,0,3);
+  scene.environment=mode==="hdr" && hdrTexture ? hdrTexture : neutralEnvironment;
+  scene.environmentIntensity=strength*(mode==="bright"?1.35:mode==="overcast"?.65:1);
+  $("env-strength-value").textContent=strength.toFixed(1);
+  $("env-filename").textContent=hdrSourceFile
+    ?"HDRI: "+hdrSourceFile.name+(mode==="hdr"?" · 반사 적용":" · 파일 보관 중")
+    :"HDRI 미설정 · .HDR를 업로드하면 ZIP에 포함됩니다.";
+}
+async function decodeHDR(file){
+  if(!file || !/\.hdr$/i.test(file.name) || file.size>20*1024*1024)
+    throw Error("20MB 이하 Radiance .HDR만 지원합니다.");
+  const url=URL.createObjectURL(file);
+  try{
+    const texture=await new RGBELoader().loadAsync(url);
+    texture.mapping=THREE.EquirectangularReflectionMapping;
+    return texture;
+  }finally{URL.revokeObjectURL(url);}
+}
+async function loadHDR(file){
+  if(!file)return;
+  const op=++activeHDRIOperation;
+  try{
+    const texture=await decodeHDR(file);
+    if(op!==activeHDRIOperation){texture.dispose();return;}
+    const old=hdrTexture;
+    hdrTexture=texture;hdrSourceFile=file;
+    $("env-mode").value="hdr";
+    applyEnvironment();
+    if(old)old.dispose();
+    notify("HDRI 환경 반사가 적용됐습니다. 원본 작품·현장 모델은 변경되지 않습니다.");
+  }catch(error){console.error(error);notify("HDRI 불러오기 실패: "+error.message);}
+}
+function clearHDR(){
+  activeHDRIOperation++;
+  if(hdrTexture)hdrTexture.dispose();
+  hdrTexture=null;hdrSourceFile=null;
+  if($("env-mode").value==="hdr")$("env-mode").value="neutral";
+  applyEnvironment();
+}
+function restoreOriginalArtworkMaterials(){
+  for(const [mesh,original] of originalArtMaterials)mesh.material=original;
+  for(const material of overrideArtMaterials)material.dispose();
+  originalArtMaterials.clear();overrideArtMaterials.clear();
+}
+function setArtworkMaterial(config,{recordUndo=false}={}){
+  if(approvedMaster)return false;
+  if(!validMaterialConfig(config))throw Error("지원하지 않는 재질 설정");
+  const before=recordUndo?editSnapshot():null;
+  restoreOriginalArtworkMaterials();
+  artworkMaterialState=structuredClone(config);
+  if(config.preset!=="original")artRoot.traverse(mesh=>{
+    if(!mesh.isMesh)return;
+    originalArtMaterials.set(mesh,mesh.material);
+    const existing=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+    const applied=existing.map(()=>makeMaterial(config.preset,config.color));
+    applied.forEach(material=>overrideArtMaterials.add(material));
+    mesh.material=Array.isArray(mesh.material)?applied:applied[0];
+  });
+  $("art-material").value=config.preset;
+  $("art-material-color").value=config.color;
+  $("material-status").textContent=config.preset==="original"
+    ?"원본 작품 재질·텍스처 유지 중"
+    :ART_MATERIALS[config.preset].label+" 렌더용 적용 · 원본 파일 보존";
+  if(before)commit(before);
+  return true;
+}
+function updateRenderSizeLabel(){
+  const size=targetSize(viewport.clientWidth,viewport.clientHeight,$("render-aspect").value,
+    Number($("render-resolution").value),renderer.capabilities.maxTextureSize);
+  $("render-size-label").textContent="PNG 예상 "+size.width+" × "+size.height+" px"+(size.limited?" · GPU 안전 제한 적용":"");
+}
+function restoreRenderConfig(raw){
+  const config=normalizeRenderConfig(raw);
+  $("render-aspect").value=config.aspect;
+  $("render-resolution").value=String(config.multiplier);
+  $("camera-focal").value=String(Math.round(config.focalLength));
+  camera.setFocalLength(config.focalLength);
+  camera.updateProjectionMatrix();
+  $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
+  $("env-strength").value=String(config.envIntensity);
+  $("env-mode").value=config.environmentMode==="hdr"&&!hdrTexture?"neutral":config.environmentMode;
+  applyEnvironment();
+  setArtworkMaterial(config.artworkMaterial);
+  updateRenderSizeLabel();
+}
 function sampleArtwork() {
   const g = new THREE.Group();
   const base = mesh(new THREE.CylinderGeometry(.7, .82, .18, 48), 0x969c9c, .7, .28);
@@ -436,6 +537,11 @@ function normalizeArtwork(object) {
 }
 function setArtwork(object, name, options = {}) {
   transform.detach();
+  restoreOriginalArtworkMaterials();
+  artworkMaterialState={preset:"original",color:"#d0d6db"};
+  $("art-material").value="original";
+  $("art-material-color").value="#d0d6db";
+  $("material-status").textContent="원본 작품 재질·텍스처 유지 중";
   clearGroup(artRoot);
   artRoot.position.set(0, 0, 0);
   artRoot.rotation.set(0, 0, 0);
@@ -580,6 +686,7 @@ function snapshot(root = artRoot) {
 }
 function editSnapshot() {
   return { artwork: snapshot(), extras: serializeExtras(extrasRoot),
+    material:structuredClone(artworkMaterialState),
     layers:structuredClone(layerState),
     selectedId: selectedRoot === artRoot ? 0 : selectedRoot.userData.extraId };
 }
@@ -595,6 +702,7 @@ function restore(data) {
 function restoreEdit(state) {
   restore(state.artwork);
   restoreExtras(extrasRoot, state.extras);
+  setArtworkMaterial(state.material || {preset:"original",color:"#d0d6db"});
   if(state.layers) layerState=importLayerState(state.layers);
   refreshLayers({redrawSite:true});
   nextExtraId = Math.max(1, ...state.extras.map(x => x.id + 1));
@@ -644,6 +752,7 @@ function masterSnapshot() {
     shadows: $("shadows").checked,
     extras: serializeExtras(extrasRoot),
     layers:structuredClone(layerState),
+    material:structuredClone(artworkMaterialState),
     planAlignment: planAlignmentSnapshot()
   };
 }
@@ -655,7 +764,8 @@ function validMasterSnapshot(entry) {
     entry.camera && isTriple(entry.camera.position) && isTriple(entry.camera.target) &&
     entry.lighting && typeof entry.lighting === "object" &&
     (entry.extras === undefined || validateExtras(entry.extras)) &&
-    (entry.layers === undefined || validateLayerState(entry.layers));
+    (entry.layers === undefined || validateLayerState(entry.layers)) &&
+    (entry.material === undefined || validMaterialConfig(entry.material));
 }
 function renderMasterHistory() {
   const root = $("master-history");
