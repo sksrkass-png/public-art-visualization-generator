@@ -439,8 +439,81 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     for(const id of ["plan-pick-center","plan-visible","ground-selected","pick-selected-site","ground-offset"]) {
       assert.equal(await page.locator("#"+id).isDisabled(),true,id+" must respect MASTER LOCK");
     }
+    // v0.6 all layer controls must be disabled on an approved MASTER.
+    assert.equal(await page.locator('[data-layer-visible="artwork"]').isDisabled(),true);
+    assert.equal(await page.locator('[data-layer-lock="lighting"]').isDisabled(),true);
+    page.once("dialog", dialog=>dialog.accept());
+    await page.locator("#master-lock").click();
+
+    // Group visibility protects the scene mesh without deleting it or its source.
+    const artLayer=page.locator('[data-layer-visible="artwork"]');
+    await artLayer.uncheck();
+    assert.equal(await artX.isDisabled(),true,"hidden artwork cannot be transformed");
+    await artLayer.check();
+    assert.equal(await artX.isDisabled(),false,"visible artwork returns to editable state");
+    await page.locator('[data-layer-lock="artwork"]').check();
+    assert.equal(await artX.isDisabled(),true,"selection-locked artwork cannot be moved");
+    await page.locator("#undo").click();
+    assert.equal(await page.locator('[data-layer-lock="artwork"]').isChecked(),false,"Undo restores layer lock");
+    assert.equal(await artX.isDisabled(),false);
+
+    // Imported scene hierarchy remains read-only, but each source mesh can
+    // be explicitly classified as building/landscape instead of guessed.
+    await page.locator(".site-scene-objects summary").click();
+    const siteRows=page.locator(".site-mesh-item");
+    assert.ok(await siteRows.count()>=1,"real OBJ terrain has named site meshes");
+    const category=siteRows.first().locator("select");
+    await category.selectOption("buildings");
+    assert.equal(await category.inputValue(),"buildings");
+    const meshVisible=siteRows.first().locator('input[type="checkbox"]');
+    await meshVisible.uncheck();
+    assert.equal(await meshVisible.isChecked(),false);
+    await page.locator("#undo").click();
+    assert.equal(await page.locator(".site-mesh-item").first().locator('input[type="checkbox"]').isChecked(),true,
+      "Undo restores individual site mesh visibility");
+    await page.locator('[data-layer-visible="buildings"]').uncheck();
+
+    // A layer group is a view filter, not an edit to imported site geometry.
+    const sourceFile=await page.locator("#site-filename").textContent();
+    assert.equal(sourceFile,"surveyed-ground.obj");
+    const jsonLayerDownload=page.waitForEvent("download",{timeout:15000});
+    await page.locator("#export-json").click();
+    const layerJSON=JSON.parse(fs.readFileSync(await (await jsonLayerDownload).path(),"utf8"));
+    assert.equal(layerJSON.layers.groups.buildings.visible,false);
+    assert.ok(Object.values(layerJSON.layers.siteNodes).some(n=>n.category==="buildings"));
+    assert.equal(layerJSON.site.file,"surveyed-ground.obj");
+
+    // Independently hide/lock one existing lamp/tree, no modification to
+    // others; type and transform survive portable ZIP roundtrip.
+    await page.locator(".extra-scene-objects summary").click();
+    assert.equal(await page.locator("#layer-extra-list .extra-layer-item").count(),5);
+    const firstExtra=page.locator("#layer-extra-list .extra-layer-item").first();
+    await firstExtra.locator('[data-extra-visible]').uncheck();
+    const firstExtraLocked=page.locator("#layer-extra-list .extra-layer-item").first().locator('[data-extra-lock]');
+    await firstExtraLocked.check();
+    assert.equal(await firstExtraLocked.isChecked(),true);
+    const layerZipEvent=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#export-project").click();
+    const layerZip=fs.readFileSync(await (await layerZipEvent).path());
+    await page.locator("#site-preset").selectOption("empty");
+    await page.locator("#import-project").setInputFiles({
+      name:"layers-v06.zip", mimeType:"application/zip", buffer:layerZip
+    });
+    await page.waitForFunction(()=>document.querySelector("#site-filename")?.textContent==="surveyed-ground.obj" &&
+      document.querySelectorAll("#layer-extra-list .extra-layer-item").length===5,
+      null,{timeout:45000});
+    assert.equal(await page.locator('[data-layer-visible="buildings"]').isChecked(),false);
+    assert.equal(await page.locator(".site-mesh-item").first().locator("select").inputValue(),"buildings");
+    assert.equal(await page.locator("#layer-extra-list .extra-layer-item").first().locator('[data-extra-visible]').isChecked(),false);
+    assert.equal(await page.locator("#layer-extra-list .extra-layer-item").first().locator('[data-extra-lock]').isChecked(),true);
+
+    // Site visibility settings must lock after MASTER approval as well.
+    await page.locator("#master-lock").click();
+    assert.equal(await page.locator('[data-layer-visible="buildings"]').isDisabled(),true);
+    assert.equal(await page.locator(".site-mesh-item").first().locator("select").isDisabled(),true);
+    assert.equal(await page.locator("#layer-extra-list .extra-layer-item").first().locator('[data-extra-visible]').isDisabled(),true);
     assert.deepEqual(errors, [], "no uncaught runtime errors");
-    console.log("PASS studio browser: V0.5 ground raycast, imported site no-fallback, undo, auto-ground, plan alignment/ZIP recovery, MASTER LOCK and legacy scene controls");
+    console.log("PASS studio browser: v0.6 non-destructive site layer classification, artwork/extra visibility+locks, Undo, ZIP restoration, MASTER approval and legacy ground controls");
   } finally {
     await browser.close();
   }
