@@ -11,6 +11,9 @@ import { TDSLoader } from "three/addons/loaders/TDSLoader.js";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
+import { ART_MATERIALS, validMaterialConfig, validRenderConfig, normalizeRenderConfig,
+  targetSize, makeMaterial } from "./rendering.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
 import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
@@ -124,6 +127,10 @@ let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
 let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
+const neutralEnvironment=scene.environment;
+let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
+let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
+let artworkMaterialState={preset:"original",color:"#d0d6db"};
 const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048 });
 const MAX_UNDO = 40;
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -403,6 +410,100 @@ function applySiteUnits() {
   siteRoot.updateMatrixWorld(true);
   if (siteSourceFile) showSiteGeometryStats(inspectSiteGeometry(siteRoot));
 }
+function currentRenderConfig(){
+  return {
+    aspect:$("render-aspect").value,environmentMode:$("env-mode").value,
+    environmentFile:hdrSourceFile?.name || "",envIntensity:Number($("env-strength").value),
+    focalLength:Number(camera.getFocalLength().toFixed(3)),multiplier:Number($("render-resolution").value),
+    artworkMaterial:structuredClone(artworkMaterialState)
+  };
+}
+function applyEnvironment(){
+  const mode=$("env-mode").value,strength=safeNumber($("env-strength").value,1,0,3);
+  scene.environment=mode==="hdr" && hdrTexture ? hdrTexture : neutralEnvironment;
+  scene.environmentIntensity=strength*(mode==="bright"?1.35:mode==="overcast"?.65:1);
+  $("env-strength-value").textContent=strength.toFixed(1);
+  $("env-filename").textContent=hdrSourceFile
+    ?"HDRI: "+hdrSourceFile.name+(mode==="hdr"?" · 반사 적용":" · 파일 보관 중")
+    :"HDRI 미설정 · .HDR를 업로드하면 ZIP에 포함됩니다.";
+}
+async function decodeHDR(file){
+  if(!file || !/\.hdr$/i.test(file.name) || file.size>20*1024*1024)
+    throw Error("20MB 이하 Radiance .HDR만 지원합니다.");
+  const url=URL.createObjectURL(file);
+  try{
+    const texture=await new RGBELoader().loadAsync(url);
+    texture.mapping=THREE.EquirectangularReflectionMapping;
+    return texture;
+  }finally{URL.revokeObjectURL(url);}
+}
+async function loadHDR(file){
+  if(!file)return;
+  const op=++activeHDRIOperation;
+  try{
+    const texture=await decodeHDR(file);
+    if(op!==activeHDRIOperation){texture.dispose();return;}
+    const old=hdrTexture;
+    hdrTexture=texture;hdrSourceFile=file;
+    $("env-mode").value="hdr";
+    applyEnvironment();
+    if(old)old.dispose();
+    notify("HDRI 환경 반사가 적용됐습니다. 원본 작품·현장 모델은 변경되지 않습니다.");
+  }catch(error){console.error(error);notify("HDRI 불러오기 실패: "+error.message);}
+}
+function clearHDR(){
+  activeHDRIOperation++;
+  if(hdrTexture)hdrTexture.dispose();
+  hdrTexture=null;hdrSourceFile=null;
+  if($("env-mode").value==="hdr")$("env-mode").value="neutral";
+  applyEnvironment();
+}
+function restoreOriginalArtworkMaterials(){
+  for(const [mesh,original] of originalArtMaterials)mesh.material=original;
+  for(const material of overrideArtMaterials)material.dispose();
+  originalArtMaterials.clear();overrideArtMaterials.clear();
+}
+function setArtworkMaterial(config,{recordUndo=false}={}){
+  if(approvedMaster)return false;
+  if(!validMaterialConfig(config))throw Error("지원하지 않는 재질 설정");
+  const before=recordUndo?editSnapshot():null;
+  restoreOriginalArtworkMaterials();
+  artworkMaterialState=structuredClone(config);
+  if(config.preset!=="original")artRoot.traverse(mesh=>{
+    if(!mesh.isMesh)return;
+    originalArtMaterials.set(mesh,mesh.material);
+    const existing=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+    const applied=existing.map(()=>makeMaterial(config.preset,config.color));
+    applied.forEach(material=>overrideArtMaterials.add(material));
+    mesh.material=Array.isArray(mesh.material)?applied:applied[0];
+  });
+  $("art-material").value=config.preset;
+  $("art-material-color").value=config.color;
+  $("material-status").textContent=config.preset==="original"
+    ?"원본 작품 재질·텍스처 유지 중"
+    :ART_MATERIALS[config.preset].label+" 렌더용 적용 · 원본 파일 보존";
+  if(before)commit(before);
+  return true;
+}
+function updateRenderSizeLabel(){
+  const size=targetSize(viewport.clientWidth,viewport.clientHeight,$("render-aspect").value,
+    Number($("render-resolution").value),renderer.capabilities.maxTextureSize);
+  $("render-size-label").textContent="PNG 예상 "+size.width+" × "+size.height+" px"+(size.limited?" · GPU 안전 제한 적용":"");
+}
+function restoreRenderConfig(raw){
+  const config=normalizeRenderConfig(raw);
+  $("render-aspect").value=config.aspect;
+  $("render-resolution").value=String(config.multiplier);
+  $("camera-focal").value=String(Math.round(config.focalLength));
+  camera.setFocalLength(config.focalLength);
+  camera.updateProjectionMatrix();
+  $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
+  $("env-strength").value=String(config.envIntensity);
+  $("env-mode").value=config.environmentMode==="hdr"&&!hdrTexture?"neutral":config.environmentMode;
+  applyEnvironment();
+  setArtworkMaterial(config.artworkMaterial);
+  updateRenderSizeLabel();
+}
 function sampleArtwork() {
   const g = new THREE.Group();
   const base = mesh(new THREE.CylinderGeometry(.7, .82, .18, 48), 0x969c9c, .7, .28);
@@ -436,6 +537,11 @@ function normalizeArtwork(object) {
 }
 function setArtwork(object, name, options = {}) {
   transform.detach();
+  restoreOriginalArtworkMaterials();
+  artworkMaterialState={preset:"original",color:"#d0d6db"};
+  $("art-material").value="original";
+  $("art-material-color").value="#d0d6db";
+  $("material-status").textContent="원본 작품 재질·텍스처 유지 중";
   clearGroup(artRoot);
   artRoot.position.set(0, 0, 0);
   artRoot.rotation.set(0, 0, 0);
@@ -580,6 +686,7 @@ function snapshot(root = artRoot) {
 }
 function editSnapshot() {
   return { artwork: snapshot(), extras: serializeExtras(extrasRoot),
+    material:structuredClone(artworkMaterialState),
     layers:structuredClone(layerState),
     selectedId: selectedRoot === artRoot ? 0 : selectedRoot.userData.extraId };
 }
@@ -595,6 +702,7 @@ function restore(data) {
 function restoreEdit(state) {
   restore(state.artwork);
   restoreExtras(extrasRoot, state.extras);
+  setArtworkMaterial(state.material || {preset:"original",color:"#d0d6db"});
   if(state.layers) layerState=importLayerState(state.layers);
   refreshLayers({redrawSite:true});
   nextExtraId = Math.max(1, ...state.extras.map(x => x.id + 1));
@@ -644,6 +752,8 @@ function masterSnapshot() {
     shadows: $("shadows").checked,
     extras: serializeExtras(extrasRoot),
     layers:structuredClone(layerState),
+    material:structuredClone(artworkMaterialState),
+    render:currentRenderConfig(),
     planAlignment: planAlignmentSnapshot()
   };
 }
@@ -655,7 +765,9 @@ function validMasterSnapshot(entry) {
     entry.camera && isTriple(entry.camera.position) && isTriple(entry.camera.target) &&
     entry.lighting && typeof entry.lighting === "object" &&
     (entry.extras === undefined || validateExtras(entry.extras)) &&
-    (entry.layers === undefined || validateLayerState(entry.layers));
+    (entry.layers === undefined || validateLayerState(entry.layers)) &&
+    (entry.material === undefined || validMaterialConfig(entry.material)) &&
+    (entry.render === undefined || validRenderConfig(entry.render));
 }
 function renderMasterHistory() {
   const root = $("master-history");
@@ -695,6 +807,18 @@ function restoreMasterCamera(index) {
     }
   }
   $("shadows").checked = !!saved.shadows;
+  if(saved.render){
+    $("render-aspect").value=saved.render.aspect;
+    $("render-resolution").value=String(saved.render.multiplier);
+    $("env-strength").value=String(saved.render.envIntensity);
+    $("env-mode").value=saved.render.environmentMode==="hdr" &&
+      hdrSourceFile?.name!==saved.render.environmentFile
+      ? "neutral" : saved.render.environmentMode;
+    applyEnvironment();
+    updateRenderSizeLabel();
+  }
+  $("camera-focal").value=String(Math.round(camera.getFocalLength()));
+  $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
   orbit.update();
   updateLight();
   notify("승인 Revision " + saved.revision + "의 카메라·조명으로 돌아왔습니다. 작품·현장 위치는 변경되지 않습니다.");
@@ -717,6 +841,7 @@ function syncLock() {
     "plan-rotation", "plan-elevation", "plan-opacity"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   document.querySelectorAll("[data-add-extra]").forEach(btn => { btn.disabled = approvedMaster; });
+  ["art-material","art-material-color","apply-material","reset-material"].forEach(id=>{$(id).disabled=approvedMaster;});
   updateExtrasStatus();
   controls.forEach(el => el.disabled = approvedMaster);
   ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale"]
@@ -821,6 +946,7 @@ function resize() {
   camera.aspect = rect.width / rect.height;
   camera.updateProjectionMatrix();
   renderer.setSize(rect.width, rect.height, false);
+  updateRenderSizeLabel();
 }
 function updateExtrasStatus() {
   $("extra-count").textContent = "추가된 오브제 " + extrasRoot.children.length + "개";
@@ -1158,6 +1284,7 @@ function sceneConfig() {
     navSpeed: +$("nav-speed").value,
     lightPreset: $("light-preset").value,
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked },
+    render:currentRenderConfig(),
     masterSnapshots,
     lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"].map(id => [id, +$(id).value])),
     shadows: $("shadows").checked,
@@ -1179,6 +1306,7 @@ function validateProjectConfig(data) {
       !["empty", "plaza", "courtyard", "promenade"].includes(data.site.preset) ||
       (data.extras !== undefined && !validateExtras(data.extras)) ||
       (data.layers !== undefined && !validateLayerState(data.layers)) ||
+      (data.render !== undefined && !validRenderConfig(data.render)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
       (data.site.up !== undefined && !["y","z"].includes(data.site.up)) ||
       (data.site.planAlignment !== undefined && !validPlanAlignment(data.site.planAlignment)) ||
@@ -1198,6 +1326,8 @@ function importSceneConfig(data) {
   validateProjectConfig(data);
   const originalSite = siteFileName;
   const originalArt = artFileName;
+  if(!data.render?.environmentFile ||
+      data.render.environmentFile!==hdrSourceFile?.name)clearHDR();
   $("project-name").value = String(data.projectName || "공공미술 시안").slice(0, 100);
   if (data.site.file && data.site.file !== originalSite) {
     buildSite("empty");
@@ -1264,6 +1394,15 @@ function importSceneConfig(data) {
   camera.position.fromArray(data.camera.position);
   orbit.target.fromArray(data.camera.target);
   orbit.update();
+  // Apply render settings while the scene is temporarily unlocked so only
+  // the user-authored material override is restored; original assets survive.
+  const originalApproval=approvedMaster;
+  approvedMaster=false;
+  restoreRenderConfig(data.render);
+  approvedMaster=originalApproval;
+  if(data.render?.environmentMode==="hdr" && !hdrTexture){
+    $("env-filename").textContent="재업로드 필요: "+data.render.environmentFile;
+  }
   if (Array.isArray(data.masterSnapshots)) {
     masterSnapshots = structuredClone(data.masterSnapshots);
   } else {
@@ -1291,6 +1430,7 @@ async function exportProjectArchive() {
     if (siteSourceFile) zip.file("assets/site", siteSourceFile);
     if (artSourceFile) zip.file("assets/artwork", artSourceFile);
     if (planSourceFile) zip.file("assets/plan", planSourceFile);
+    if (hdrSourceFile) zip.file("assets/environment", hdrSourceFile);
     $("save-status").textContent = "프로젝트 패키지 저장 중…";
     const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
     download(safeFileName() + "-project.zip", blob);
@@ -1325,7 +1465,7 @@ async function importProjectArchive(file) {
   if (file.size > MAX_ZIP_BYTES) return notify("ZIP 파일은 200MB 이하여야 합니다.");
   const op = ++activeProjectOperation;
   $("save-status").textContent = "프로젝트 파일 검증 중…";
-  let planTexture = null;
+  let planTexture = null, preparedHDR=null, recoveredHDRFile=null;
   try {
     const zip = await JSZip.loadAsync(file);
     if (Object.keys(zip.files).length > 10) throw new Error("허용되지 않는 파일이 너무 많습니다.");
@@ -1339,12 +1479,14 @@ async function importProjectArchive(file) {
     const siteEntry = checkedArchiveEntry(zip, "assets/site", MAX_MODEL_BYTES, !!data.site.file);
     const artEntry = checkedArchiveEntry(zip, "assets/artwork", MAX_MODEL_BYTES, data.artwork.source !== "Sample Artwork");
     const planEntry = checkedArchiveEntry(zip, "assets/plan", MAX_MAP_BYTES, !!data.site.planFile);
+    const hdrEntry = checkedArchiveEntry(zip,"assets/environment",MAX_MAP_BYTES,!!data.render?.environmentFile);
     const siteFile = await recoverArchiveAsset(siteEntry, data.site.file, MAX_MODEL_BYTES);
     const artFile = await recoverArchiveAsset(artEntry, data.artwork.source, MAX_MODEL_BYTES);
     const planName = String(data.site.planFile || "");
     const planType = /\.png$/i.test(planName) ? "image/png" :
       /\.webp$/i.test(planName) ? "image/webp" : "image/jpeg";
     const planFile = await recoverArchiveAsset(planEntry, planName, MAX_MAP_BYTES, planType);
+    recoveredHDRFile=await recoverArchiveAsset(hdrEntry,data.render?.environmentFile || "",MAX_MAP_BYTES,"image/vnd.radiance");
     const [siteModel, artModel] = await Promise.all([
       siteFile ? decodeModel(siteFile, true) : Promise.resolve(null),
       artFile ? decodeModel(artFile, false) : Promise.resolve(null)
@@ -1357,8 +1499,10 @@ async function importProjectArchive(file) {
       }
     }
     if (planFile) planTexture = await decodePlanTexture(planFile);
+    if(recoveredHDRFile) preparedHDR=await decodeHDR(recoveredHDRFile);
     if (approvedMaster || op !== activeProjectOperation) {
       if (planTexture) planTexture.dispose();
+      if(preparedHDR)preparedHDR.dispose();
       return notify("작업 상태가 변경되어 이전 파일 로딩을 취소했습니다.");
     }
     // Commit an already validated package. No user's original file is uploaded.
@@ -1392,11 +1536,17 @@ async function importProjectArchive(file) {
       planPlane.visible = false;
       $("map-name").textContent = "배치도 없음";
     }
+    // Cancel an older asynchronous upload before switching archived lighting.
+    activeHDRIOperation++;
+    if(hdrTexture)hdrTexture.dispose();
+    hdrTexture=preparedHDR;hdrSourceFile=recoveredHDRFile;
+    preparedHDR=null;
     importSceneConfig(data);
     pendingArtwork = null;
     notify("전체 프로젝트 복원 완료 · 원본 모델과 MASTER 승인 이력 적용");
   } catch (err) {
     if (planTexture) planTexture.dispose();
+    if(preparedHDR)preparedHDR.dispose();
     console.error(err);
     notify("전체 프로젝트 불러오기 실패: " + (err.message || "파일 확인 필요"));
   } finally {
@@ -1405,44 +1555,48 @@ async function importProjectArchive(file) {
 }
 
 function exportImage() {
-  const width = Math.max(1, Math.floor(viewport.clientWidth));
-  const height = Math.max(1, Math.floor(viewport.clientHeight));
-  const originalRatio = renderer.getPixelRatio();
-  const originalGrid = grid.visible;
-  const originalHelper = transform.getHelper().visible;
-  const originalSun = sunGuide.visible;
-  const originalHighlight = siteHighlight?.visible;
-  const originalEditorGizmos = true;
+  const w=Math.max(1,Math.round(viewport.clientWidth));
+  const h=Math.max(1,Math.round(viewport.clientHeight));
+  const originalRatio=renderer.getPixelRatio();
+  const originalAspect=camera.aspect;
+  const originalGrid=grid.visible;
+  const originalHelper=transform.getHelper().visible;
+  const originalSun=sunGuide.visible;
+  const originalHighlight=siteHighlight?.visible;
   try {
-    const targetMultiplier = safeNumber($("render-resolution").value, 2, 2, 4);
-    const maxPixels = renderer.capabilities.maxTextureSize;
-    const scale = Math.min(targetMultiplier, maxPixels / width, maxPixels / height);
+    const size=targetSize(w,h,$("render-aspect").value,
+      Number($("render-resolution").value),renderer.capabilities.maxTextureSize);
     renderer.setPixelRatio(1);
-    renderer.setSize(Math.round(width * scale), Math.round(height * scale), false);
-    grid.visible = false;
-    transform.getHelper().visible = false;
-    sunGuide.visible = false;
-    if(siteHighlight) siteHighlight.visible = false;
-    setEditorGizmosVisible(extrasRoot, false);
-    renderer.render(scene, camera);
-    const data = renderer.domElement.toDataURL("image/png");
-    const link = document.createElement("a");
-    link.href = data;
-    link.download = safeFileName() + "-high-quality.png";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    notify("편집 보조물 없는 " + scale.toFixed(1) + "배 해상도 PNG 렌더를 저장했습니다.");
-  } catch (err) {
-    notify("렌더 저장 실패: " + (err.message || "그래픽 메모리 부족"));
-  } finally {
-    grid.visible = originalGrid;
-    transform.getHelper().visible = originalHelper;
-    sunGuide.visible = originalSun;
-    if(siteHighlight) siteHighlight.visible = originalHighlight;
-    setEditorGizmosVisible(extrasRoot, originalEditorGizmos);
+    renderer.setSize(size.width,size.height,false);
+    camera.aspect=size.width/size.height;
+    camera.updateProjectionMatrix();
+    grid.visible=false;
+    transform.getHelper().visible=false;
+    sunGuide.visible=false;
+    if(siteHighlight)siteHighlight.visible=false;
+    setEditorGizmosVisible(extrasRoot,false);
+    renderer.render(scene,camera);
+    const png=renderer.domElement.toDataURL("image/png");
+    if(!png.startsWith("data:image/png;base64,"))throw Error("PNG 데이터를 만들지 못했습니다.");
+    const link=document.createElement("a");
+    link.href=png;
+    link.download=safeFileName()+"-"+size.width+"x"+size.height+".png";
+    document.body.appendChild(link);link.click();link.remove();
+    notify("작품·현장 변형 없이 "+size.width+" × "+size.height+" PNG를 저장했습니다."+
+      (size.limited?" (GPU 한도에 맞춰 축소)":""));
+  }catch(error){
+    console.error(error);
+    notify("고해상도 렌더 실패: "+(error.message||"GPU 메모리/출력 설정 확인"));
+  }finally{
+    grid.visible=originalGrid;
+    transform.getHelper().visible=originalHelper;
+    sunGuide.visible=originalSun;
+    if(siteHighlight)siteHighlight.visible=originalHighlight;
+    setEditorGizmosVisible(extrasRoot,true);
+    camera.aspect=originalAspect;
+    camera.updateProjectionMatrix();
     renderer.setPixelRatio(originalRatio);
-    renderer.setSize(width, height, false);
+    renderer.setSize(w,h,false);
   }
 }
 async function exportGLB() {
@@ -1530,6 +1684,37 @@ $("nav-speed").addEventListener("input", e => {
   orbit.zoomSpeed = Math.max(.5, speed * .62);
   $("nav-speed-value").textContent = speed.toFixed(1) + "×";
 });
+$("env-mode").addEventListener("change", () => {
+  if($("env-mode").value==="hdr"&&!hdrTexture){
+    $("env-mode").value="neutral";
+    return notify("먼저 Radiance .HDR 환경 이미지를 업로드하세요.");
+  }
+  applyEnvironment();
+});
+$("env-file").addEventListener("change",e=>{
+  loadHDR(e.target.files[0]);
+  e.target.value="";
+});
+$("clear-hdr").addEventListener("click",()=>{
+  clearHDR();
+  notify("사용자 HDRI 파일이 현재 렌더링 장면에서 해제됐습니다.");
+});
+$("env-strength").addEventListener("input",applyEnvironment);
+$("apply-material").addEventListener("click",()=>{
+  if(approvedMaster)return notify("MASTER LOCK 해제 후 작품 재질을 변경하세요.");
+  setArtworkMaterial({preset:$("art-material").value,color:$("art-material-color").value},{recordUndo:true});
+});
+$("reset-material").addEventListener("click",()=>{
+  if(approvedMaster)return;
+  setArtworkMaterial({preset:"original",color:"#d0d6db"},{recordUndo:true});
+});
+$("camera-focal").addEventListener("input",e=>{
+  camera.setFocalLength(Number(e.target.value));
+  camera.updateProjectionMatrix();
+  $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
+});
+$("render-aspect").addEventListener("change",updateRenderSizeLabel);
+$("render-resolution").addEventListener("change",updateRenderSizeLabel);
 $("light-preset").addEventListener("change", e => {
   const presets = {
     clear: {az:45, el:45, sun:2, ambient:1.3, exposure:1},
@@ -1685,6 +1870,8 @@ updateGround();
 syncLock();
 snapSetting();
 updateLight();
+applyEnvironment();
+restoreRenderConfig(null);
 fitCamera();
 resize();
 animate();

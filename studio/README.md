@@ -1,6 +1,14 @@
-# AXOO Public Art 3D Studio — v0.6
+# AXOO Public Art 3D Studio — v0.7
 
 Static, browser-based interactive editor for public-art proposal staging. Version 0.3 expands site model imports. It is a companion to the existing prompt generator: `/studio/` leaves the legacy app unchanged.
+
+## v0.7 architectural visualization / render controls
+
+- **Photo-based environment reflection:** Load a local Radiance **.HDR** panorama (maximum 20MB) as an equirectangular environment for the WebGL PBR rendering. A ZIP package embeds the original HDR binary as `assets/environment` and restores it on reopen. Built-in "Neutral / Bright / Overcast" presets are **procedural studio reflection variations, not actual outdoor photographs or HDRIs**. Lighting intensity slider controls environment reflections. HDR does not upload to a web server.
+- **Artwork material overrides are explicitly opt-in:** Default is **원본 유지**. The user can select and **Apply** painted metal, brushed or polished stainless steel, stone, clear or frosted glass. Override applies only to artwork meshes, not to the imported site or landscape. Original material references, textures and source asset files are preserved for an exact reset. Override and optional chosen color save in ZIP/JSON and Undo. **MASTER LOCK prevents changing artwork material** after approval; release requires an explicit new revision.
+- **Lens and output framing:** Camera lens control is 16–120 mm equivalent for a 36mm gate. Output options include viewport, 16:9, 4:3, 3:2, 1:1, 4:5 and 9:16. Screenshot temporarily uses the specified target aspect and renders at 2–4× dimensions while respecting the maximum render texture size and safety budget; the **interactive camera position, aspect and field of view are restored** immediately. Helper grid, selection outlines, sun-position helper and editing gizmos are excluded from the PNG.
+- **Persistence / backwards compatibility:** `render` property (settings-only JSON and complete ZIP) covers HDR filename, reflected intensity/mode, lens, framing and material override. Older v0.6 ZIPs with no `render` reopen with original artwork materials and default camera/environment. Render settings are applied without modifying geometry or scale. A settings-only JSON does not include the actual HDR file; upload the original .HDR again if needed.
+- **Accuracy limits:** This remains Three.js WebGL **rasterized PBR imagery**, not path-traced/offline photorealism. Switching material can change the visual appearance of an artist-approved work, so apply only where the user expressly requests a revision. Complex transparency and custom textures may be approximated by simple preview presets. Physically accurate daylight, surveyed vegetation, photometric IES lights and AI reconstruction need separate validated workflows.
 
 ## v0.6 visual layers / scene object browser
 

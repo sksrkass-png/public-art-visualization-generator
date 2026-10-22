@@ -104,3 +104,10 @@
 .site-mesh-item select{padding:5px 2px;border:1px solid #dce0e2;border-radius:3px;font-size:10px;background:white;max-width:75px}
 .site-mesh-item input,.extra-layer-item input{justify-self:center;accent-color:#33383a}
 .site-mesh-item button:disabled,.extra-layer-item button:disabled{opacity:.44;cursor:not-allowed}
+
+/* v0.7 studio material and render settings */
+#render-look,#render-materials{background:linear-gradient(180deg,#fff,#fafbfc);border-left:2px solid #e3e8ec}
+#render-look .file-button,#render-materials button{margin-top:7px}
+#art-material-color{height:37px;width:100%;border-radius:5px;border:1px solid #d5d9dc;padding:3px;background:#fff}
+#render-size-label{font-variant-numeric:tabular-nums;font-weight:700;color:#465360}
+#env-filename,#material-status{word-break:break-word}

@@ -512,8 +512,99 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(await page.locator('[data-layer-visible="buildings"]').isDisabled(),true);
     assert.equal(await page.locator(".site-mesh-item").first().locator("select").isDisabled(),true);
     assert.equal(await page.locator("#layer-extra-list .extra-layer-item").first().locator('[data-extra-visible]').isDisabled(),true);
+
+    // v0.7: never permit surface/matte alteration on an approved MASTER.
+    assert.equal(await page.locator("#apply-material").isDisabled(),true);
+    assert.equal(await page.locator("#reset-material").isDisabled(),true);
+    page.once("dialog", dialog => dialog.accept());
+    await page.locator("#master-lock").click();
+    await page.locator("#art-material").selectOption("stainless");
+    await page.locator("#art-material-color").fill("#cbd3d9");
+    await page.locator("#apply-material").click();
+    assert.match(await page.locator("#material-status").textContent(), /브러시드 스테인리스/);
+    const matJSONEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const matJSON=JSON.parse(fs.readFileSync(await (await matJSONEvent).path(),"utf8"));
+    assert.equal(matJSON.render.artworkMaterial.preset,"stainless");
+    assert.equal(matJSON.render.artworkMaterial.color,"#cbd3d9");
+
+    await page.locator("#undo").click();
+    assert.match(await page.locator("#material-status").textContent(), /원본 작품 재질/,"Undo restores source materials");
+    await page.locator("#redo").click();
+    assert.match(await page.locator("#material-status").textContent(), /브러시드 스테인리스/);
+    await page.locator("#reset-material").click();
+    assert.match(await page.locator("#material-status").textContent(), /원본 작품 재질/);
+    await page.locator("#art-material").selectOption("stone");
+    await page.locator("#art-material-color").fill("#bdb49e");
+    await page.locator("#apply-material").click();
+
+    // Minimal valid Radiance RGBE HDR (uncompressed 4×2 panorama).
+    const header=Buffer.from("#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 2 +X 4\n","ascii");
+    const pixels=Buffer.alloc(4*2*4);
+    for(let k=0;k<8;k++){
+      pixels[k*4]=160;pixels[k*4+1]=150;pixels[k*4+2]=140;pixels[k*4+3]=129;
+    }
+    await page.locator("#env-file").setInputFiles({
+      name:"studio-light-test.hdr",mimeType:"image/vnd.radiance",buffer:Buffer.concat([header,pixels])
+    });
+    await page.waitForFunction(()=>document.querySelector("#env-mode")?.value==="hdr" &&
+      document.querySelector("#env-filename")?.textContent.includes("studio-light-test.hdr"),
+      null,{timeout:15000});
+    await page.locator("#env-strength").evaluate(el=>{
+      el.value="1.8";el.dispatchEvent(new Event("input",{bubbles:true}));
+    });
+    assert.equal(await page.locator("#env-strength-value").textContent(),"1.8");
+
+    // A portrait browser viewport still supports exact 16:9 image export.
+    await page.locator("#render-aspect").selectOption("landscape16x9");
+    await page.locator("#render-resolution").selectOption("2");
+    await page.locator("#camera-focal").evaluate(el=>{
+      el.value="50";el.dispatchEvent(new Event("input",{bubbles:true}));
+    });
+    assert.equal(await page.locator("#camera-focal-value").textContent(),"50 mm");
+    const renderDownload=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#shot-export").click();
+    const image=fs.readFileSync(await (await renderDownload).path());
+    assert.equal(image.toString("hex",0,8),"89504e470d0a1a0a");
+    const outWidth=image.readUInt32BE(16),outHeight=image.readUInt32BE(20);
+    assert.ok(Math.abs(outWidth/outHeight-16/9)<.003,
+      "render PNG dimensions must follow selected 16:9 ratio, not viewport");
+    const restoreJSONDownload=page.waitForEvent("download",{timeout:30000});
+    await page.locator("#export-json").click();
+    const beforeRestoreJSON=JSON.parse(fs.readFileSync(await (await restoreJSONDownload).path(),"utf8"));
+    assert.equal(beforeRestoreJSON.render.focalLength,50,"temporary output aspect must not alter focal length");
+    assert.equal(beforeRestoreJSON.render.aspect,"landscape16x9");
+
+    // Complete portable ZIP must contain both user HDR asset and optional
+    // material override settings. Imported file content remains untouched.
+    const hdrZipEvent=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#export-project").click();
+    const hdrArchive=fs.readFileSync(await (await hdrZipEvent).path());
+    assert.ok(hdrArchive.toString("latin1").includes("assets/environment"),
+      "original Radiance HDR binary must be embedded in archive");
+    await page.locator("#reset-material").click();
+    await page.locator("#env-mode").selectOption("neutral");
+    await page.locator("#camera-focal").evaluate(el=>{
+      el.value="35";el.dispatchEvent(new Event("input",{bubbles:true}));
+    });
+    await page.locator("#render-aspect").selectOption("square");
+    await page.locator("#import-project").setInputFiles({
+      name:"render-v07.zip",mimeType:"application/zip",buffer:hdrArchive
+    });
+    await page.waitForFunction(()=>
+      document.querySelector("#material-status")?.textContent.includes("석재") &&
+      document.querySelector("#env-mode")?.value==="hdr" &&
+      document.querySelector("#camera-focal-value")?.textContent==="50 mm" &&
+      document.querySelector("#render-aspect")?.value==="landscape16x9",
+      null,{timeout:45000});
+    assert.equal(await page.locator("#env-strength-value").textContent(),"1.8");
+    assert.equal(await page.locator("#env-filename").textContent(),"HDRI: studio-light-test.hdr · 반사 적용");
+
+    await page.locator("#master-lock").click();
+    assert.equal(await page.locator("#apply-material").isDisabled(),true);
+    assert.equal(await page.locator("#art-material").isDisabled(),true);
     assert.deepEqual(errors, [], "no uncaught runtime errors");
-    console.log("PASS studio browser: v0.6 non-destructive site layer classification, artwork/extra visibility+locks, Undo, ZIP restoration, MASTER approval and legacy ground controls");
+    console.log("PASS studio browser: v0.7 HDRI file, PBR override/reset/Undo, exact 16:9 PNG, 50mm lens, ZIP recovery and previous MASTER/site controls");
   } finally {
     await browser.close();
   }

@@ -68,6 +68,18 @@ assert.match(layerModule,/enumerateSiteMeshes/, "stable source geometry paths");
 assert.match(layerModule,/canEditObject/, "selection lock gate");
 assert.match(js,/layers:structuredClone\(layerState\)/, "layer state is saved in scene archives");
 assert.match(js,/function clearSiteHighlight/, "source selection helper managed separately");
+for(const id of ["env-mode","env-file","env-strength","art-material","art-material-color",
+  "apply-material","reset-material","camera-focal","render-aspect","render-size-label"])
+  assert.ok(unique.has(id), "v0.7 render setting absent: "+id);
+for(const token of ["new RGBELoader","function setArtworkMaterial","function restoreOriginalArtworkMaterials",
+  "function restoreRenderConfig","function currentRenderConfig","function updateRenderSizeLabel"])
+  assert.ok(js.includes(token),"render system wiring missing: "+token);
+assert.match(js,/render:currentRenderConfig\(\)/,"render state saved in project JSON/ZIP");
+assert.match(js,/assets\/environment/,"HDRI binary included in project ZIP");
+const renderModule=fs.readFileSync(path.join(base,"studio/rendering.js"),"utf8");
+for(const token of ["validMaterialConfig","validRenderConfig","targetSize","makeMaterial"])
+  assert.ok(renderModule.includes(token),"render module contract missing: "+token);
+
 
 assert.match(js, /function createPlacedExtra/, "mouse placement for new objects");
 assert.match(js, /function groundSelected/, "selected surface grounding required");
@@ -79,8 +91,8 @@ for (const id of ["plan-visible","plan-x","plan-z","plan-rotation","plan-elevati
   assert.ok(unique.has(id), "v0.5 precision control missing: " + id);
 }
 assert.match(js, /function deleteSelectedExtra/, "selected object delete control");
-assert.match(js, /sunGuide\.visible = false/, "sun sphere must not appear in render");
-assert.match(js, /setEditorGizmosVisible\(extrasRoot, false\)/, "light marker must not appear in render");
+assert.match(js, /sunGuide\.visible\s*=\s*false/, "sun sphere must not appear in render");
+assert.match(js, /setEditorGizmosVisible\(extrasRoot,\s*false\)/, "light marker must not appear in render");
 for(const id of ["site-unit","site-up","nav-speed","placement-hint","extra-count","sun-helper","render-resolution","extra-light-power","delete-selected"]){
   assert.ok(unique.has(id), "v0.4 control missing: "+id);
 }
