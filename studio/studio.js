@@ -299,7 +299,7 @@ function restore(data) {
   artRoot.position.fromArray(data.p);
   artRoot.rotation.set(...data.r);
   artRoot.scale.fromArray(data.s);
-  updateInspector();
+  updateInspector(true);
 }
 function clearUndo() {
   undoStack = [];
@@ -345,11 +345,11 @@ function syncLock() {
   buttons.forEach(el => el.disabled = approvedMaster);
   updateUndoButtons();
 }
-function updateInspector() {
+function updateInspector(force = false) {
   const state = snapshot();
   const values = { position: state.p, rotation: state.r.map(v => THREE.MathUtils.radToDeg(v)), scale: state.s };
   controls.forEach(el => {
-    if (document.activeElement === el) return;
+    if (!force && document.activeElement === el) return;
     const axis = { x: 0, y: 1, z: 2 }[el.dataset.axis];
     el.value = Number(values[el.dataset.transform][axis].toFixed(3));
   });
