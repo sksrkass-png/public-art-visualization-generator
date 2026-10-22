@@ -1,6 +1,7 @@
 const { chromium } = require("playwright");
 const fs = require("node:fs");
 const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
 const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
 
 (async () => {
@@ -16,6 +17,8 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.locator("#viewport canvas").waitFor({ timeout: 60000 });
     await page.waitForFunction(() => document.querySelector("#art-filename")?.textContent.includes("Sample Artwork"), null, { timeout: 30000 });
     assert.equal(await page.locator("#site-status").textContent(), "예시 공간");
+    assert.equal(await page.locator("#export-master-pack").isDisabled(),true,
+      "unapproved scene must not export MASTER batch images");
     await page.locator('[data-mode="rotate"]').click();
     assert.match(await page.locator('[data-mode="rotate"]').getAttribute("class"), /active/);
     await page.locator('[data-mode="translate"]').click();
@@ -603,8 +606,64 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.locator("#master-lock").click();
     assert.equal(await page.locator("#apply-material").isDisabled(),true);
     assert.equal(await page.locator("#art-material").isDisabled(),true);
+
+    // v0.8: accepted MASTER is required; all eight 16:9 frames, optional
+    // contact sheet, immutable-geometry QA manifest and review notes ship
+    // in a single portable browser-generated ZIP.
+    assert.equal(await page.locator("#export-master-pack").isEnabled(),true);
+    const projectBefore=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const approvedBefore=JSON.parse(fs.readFileSync(await (await projectBefore).path(),"utf8"));
+    await page.locator("#batch-quality").selectOption("1");
+    assert.equal(await page.locator("#batch-contact").isChecked(),true);
+    const batchEvent=page.waitForEvent("download",{timeout:90000});
+    await page.locator("#export-master-pack").click();
+    const batch=await batchEvent;
+    assert.match(batch.suggestedFilename(),/MASTER-REV\d+-8views\.zip$/);
+    const batchPath=await batch.path();
+    const inspectScript=[
+      "import json,sys,zipfile,struct",
+      "with zipfile.ZipFile(sys.argv[1]) as z:",
+      "  files=z.namelist()",
+      "  m=json.loads(z.read('render-manifest.json'))",
+      "  assert m['schema']=='axoo-master-render-pack-v1'",
+      "  assert m['qa']['approvedMaster']",
+      "  assert m['qa']['unchangedSceneAfter']",
+      "  assert m['qa']['sceneSignaturePreserved']",
+      "  assert len(m['views'])==8",
+      "  assert 'REVIEW_NOTES.txt' in files",
+      "  assert '00-contact-sheet.png' in files",
+      "  shots=[]",
+      "  for item in m['views']:",
+      "    name=item['filename']",
+      "    assert name in files",
+      "    png=z.read(name)",
+      "    assert png[:8]==b'\\x89PNG\\r\\n\\x1a\\n'",
+      "    w,h=struct.unpack('>II',png[16:24])",
+      "    assert abs(w/h-16/9)<0.003",
+      "    assert w==item['width'] and h==item['height']",
+      "    assert len(item['position'])==3 and len(item['target'])==3",
+      "    shots.append((name,w,h))",
+      "  print(json.dumps({'files':len(files),'shots':shots,'qa':m['qa']}))"
+    ].join("\n");
+    const inspected=JSON.parse(execFileSync("python3",["-c",inspectScript,batchPath],
+      {encoding:"utf8",timeout:30000}).trim());
+    assert.equal(inspected.shots.length,8,"all standard viewpoints must be exported");
+    assert.match(await page.locator("#batch-status").textContent(),/장면 일치 검사 통과/);
+
+    const projectAfter=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const approvedAfter=JSON.parse(fs.readFileSync(await (await projectAfter).path(),"utf8"));
+    assert.deepEqual(approvedAfter.artwork,approvedBefore.artwork,"batch export cannot change approved artwork");
+    assert.deepEqual(approvedAfter.site,approvedBefore.site,"batch export cannot change original site");
+    assert.deepEqual(approvedAfter.extras,approvedBefore.extras,"batch export cannot move/retint landscape objects");
+    assert.deepEqual(approvedAfter.layers,approvedBefore.layers,"batch export cannot alter site layers");
+    assert.deepEqual(approvedAfter.camera,approvedBefore.camera,"batch export must restore exact viewing camera");
+    assert.deepEqual(approvedAfter.lighting,approvedBefore.lighting,"batch export must restore light controls");
+    assert.deepEqual(approvedAfter.render,approvedBefore.render,"batch export cannot change material/lens");
+    assert.equal(approvedAfter.artwork.locked,true,"master remains approved after render");
     assert.deepEqual(errors, [], "no uncaught runtime errors");
-    console.log("PASS studio browser: v0.7 HDRI file, PBR override/reset/Undo, exact 16:9 PNG, 50mm lens, ZIP recovery and previous MASTER/site controls");
+    console.log("PASS studio browser: v0.8 approved eight-view batch ZIP, 8 real 16:9 PNGs, contact sheet, QA integrity manifest, immutable scene restoration plus existing editor regression suite");
   } finally {
     await browser.close();
   }
