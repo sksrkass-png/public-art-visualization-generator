@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>BETA 0.4</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>BETA 0.5</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -63,12 +63,29 @@
           <option value="asphalt">아스팔트</option>
           <option value="white">화이트 매스</option>
         </select>
-        <label class="file-button secondary" for="map-file"><span>+ 배치도 이미지 깔기</span><small>PNG · JPG (수평면 참조)</small></label>
-        <input id="map-file" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp">
-        <label for="map-width">배치도 가로 실측 폭 (m)</label>
-        <input id="map-width" type="number" min="1" max="1000" step="1" value="40">
-        <p id="map-name" class="asset-caption">이미지 없음 · 자동으로 3D 지형을 만들지는 않습니다.</p></div>
-        <p id="site-ground-note" class="hint" hidden>가져온 3D 현장에 바닥·재질이 포함되어 있어 기본 바닥 매핑은 숨겼습니다.</p>
+        </div>
+        <p id="site-ground-note" class="hint" hidden>실제 현장 모델의 바닥·마감을 우선 표시합니다. 예시 바닥만 숨겨집니다.</p>
+        <div class="site-plan-controls">
+          <h2>배치도 위치 정렬 <span class="small-muted">OPTIONAL</span></h2>
+          <label class="file-button secondary" for="map-file"><span>+ 배치도 이미지 불러오기</span><small>PNG · JPG · WEBP</small></label>
+          <input id="map-file" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp">
+          <p id="map-name" class="asset-caption">배치도 없음 · 실제 현장과 독립적으로 표시 가능</p>
+          <label class="toggle"><input id="plan-visible" type="checkbox" checked> 배치도 오버레이 표시</label>
+          <label for="map-width">배치도 가로 실측 폭 (m)</label>
+          <input id="map-width" type="number" min="1" max="1000" step=".1" value="40">
+          <div class="inline">
+            <div class="half"><label for="plan-x">중심 X (m)</label><input id="plan-x" type="number" step=".1" value="0"></div>
+            <div class="half"><label for="plan-z">중심 Z (m)</label><input id="plan-z" type="number" step=".1" value="0"></div>
+          </div>
+          <div class="inline">
+            <div class="half"><label for="plan-rotation">회전 (°)</label><input id="plan-rotation" type="number" step="1" value="0"></div>
+            <div class="half"><label for="plan-elevation">높이 (m)</label><input id="plan-elevation" type="number" step=".05" value=".05"></div>
+          </div>
+          <label for="plan-opacity">투명도 <output id="plan-opacity-value">55%</output></label>
+          <input id="plan-opacity" type="range" min="10" max="100" step="5" value="55">
+          <button id="plan-pick-center" class="outline full" type="button">현장 클릭해서 배치도 중심점 맞추기</button>
+          <p class="hint">배치도 폭·좌표·회전으로 수동 정렬합니다. 사진을 자동 측량하거나 도면의 좌표를 추정하지 않습니다.</p>
+        </div>
       </section>
       <section class="section">
         <div class="section-title"><h2>02. 설치 작품</h2><span id="art-status" class="tag">샘플</span></div>
@@ -108,6 +125,15 @@
         <p class="hint">작품·식재·조명을 화면에서 클릭해 선택하고 이동(G)·회전(R)·크기(S)를 조정하세요.</p>
         <button class="outline full" id="select-artwork" type="button">작품 선택</button>
         <button class="outline full" id="delete-selected" type="button" disabled>선택한 추가 오브제 삭제 (Delete)</button>
+        <div class="section-subtitle">정밀 지면 배치</div>
+        <label class="toggle"><input id="auto-ground" type="checkbox"> 이동 완료 시 지면 자동 밀착</label>
+        <label for="ground-offset">지면 위 간격 (m)</label>
+        <input id="ground-offset" type="number" step=".05" value="0">
+        <div class="inline">
+          <button id="ground-selected" class="outline full" type="button">선택 오브제 지면 밀착</button>
+          <button id="pick-selected-site" class="outline full" type="button">현장 클릭 재배치</button>
+        </div>
+        <p id="ground-status" class="hint" aria-live="polite">실측 3D 현장의 위쪽 표면을 기준으로 배치합니다. 지면 여부는 직접 확인하세요.</p>
         <p id="object-name" class="object-name">Sample Artwork</p>
         <div class="tr-head">POSITION / 위치 (m)</div>
         <div class="xyz" id="position-fields">
