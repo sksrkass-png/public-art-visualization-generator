@@ -115,5 +115,14 @@ for(const marker of ["createStandardCameras","captureSceneIntegrity","masterCons
 
 for (const id of ["export-project", "import-project", "source-dimensions", "master-summary", "master-history", "restore-master-camera"])
   assert.ok(unique.has(id), "v0.2 safety control missing: " + id);
+for(const id of ["render-review","review-batch-file","review-view","review-candidate-file",
+  "review-slider","review-overlay","review-artwork","review-site","review-scale",
+  "review-materials","review-note","review-approve","review-export","review-status"])
+  assert.ok(unique.has(id),"v0.9 review control missing: "+id);
+const reviewSource=fs.readFileSync(path.join(base,"studio/review.js"),"utf8");
+for(const marker of ["initVisualReview","validManifest","humanApprovedCount","incomplete-review",
+  "verifiedMaster","visual-review.json"])
+  assert.ok(reviewSource.includes(marker),"v0.9 review data safeguard missing: "+marker);
+assert.match(js,/initVisualReview\(/,"render reviewer must be initialized");
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");

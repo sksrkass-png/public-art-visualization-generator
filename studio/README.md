@@ -1,6 +1,14 @@
-# AXOO Public Art 3D Studio — v0.8
+# AXOO Public Art 3D Studio — v0.9
 
 Static, browser-based interactive editor for public-art proposal staging. Version 0.3 expands site model imports. It is a companion to the existing prompt generator: `/studio/` leaves the legacy app unchanged.
+
+## v0.9 — original vs enhanced-image visual QA (not image generation)
+
+- **Input:** First approve a current MASTER, export its v0.8 eight-view ZIP, then import that render ZIP into the new `REALISM REVIEW` section. The uploader checks the archive schema, eight PNG dimensions, MASTER revision, site file and artwork identity **before** showing source views. It does not upload files to any cloud.
+- **Comparison:** Choose one of the eight view IDs and import an externally enhanced PNG/JPEG with a matching aspect ratio (28 MB per image limit). A slider compares the original deterministic 3D shot against that externally produced candidate. No change is made to the 3D model, approved material, or source file.
+- **Human gate:** The reviewer must explicitly confirm artwork geometry, architecture/landscape, location/scale/orientation and materials separately for every view. Each view has a note and timestamp. The interface **does not automatically prove** that any candidate preserves the MASTER; pixel similarity alone cannot establish scale or artist intent.
+- **Review package:** Export all eight references, any user-supplied candidates and `visual-review.json`. Files with even one unreviewed frame are marked **DRAFT**; `APPROVED` requires manual signoff of all eight. This review ZIP is separate from the editable full-project ZIP and from the original v0.8 render ZIP. Review session is kept in memory until exported; users should export before reloading.
+- **Limits:** The software **does not yet contain or call an image-generation AI** and must not be described as generating photorealistic images. Enhanced candidates are supplied by the user from a separately authorized process; use caution with private/client source material.
 
 ## v0.8 approved MASTER 8-view render package
 

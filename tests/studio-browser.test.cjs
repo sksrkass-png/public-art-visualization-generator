@@ -662,6 +662,59 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.deepEqual(approvedAfter.lighting,approvedBefore.lighting,"batch export must restore light controls");
     assert.deepEqual(approvedAfter.render,approvedBefore.render,"batch export cannot change material/lens");
     assert.equal(approvedAfter.artwork.locked,true,"master remains approved after render");
+
+    // v0.9 review: use the actual v0.8 eight-PNG ZIP as baseline, then
+    // a byte-for-byte image as a harmless mock of user-provided enhancement.
+    await page.locator("#review-batch-file").setInputFiles({
+      name:"master-eight-views.zip",mimeType:"application/zip",buffer:fs.readFileSync(batchPath)
+    });
+    await page.waitForFunction(()=>document.querySelector("#review-status")?.textContent.includes("8컷 불러오기 완료"),
+      null,{timeout:45000});
+    assert.equal(await page.locator("#review-export").isEnabled(),true);
+    assert.equal(await page.locator("#review-approve").isDisabled(),true);
+    const basePNG=execFileSync("python3",["-c",
+      "import zipfile,sys;sys.stdout.buffer.write(zipfile.ZipFile(sys.argv[1]).read('01-main.png'))",
+      batchPath],{timeout:20000});
+    await page.locator("#review-candidate-file").setInputFiles({
+      name:"artist-enhanced.png",mimeType:"image/png",buffer:basePNG
+    });
+    await page.waitForFunction(()=>document.querySelector("#review-candidate-name")?.textContent==="artist-enhanced.png",
+      null,{timeout:20000});
+    assert.equal(await page.locator("#review-overlay").isVisible(),true);
+    await page.locator("#review-slider").evaluate(el=>{
+      el.value="66";el.dispatchEvent(new Event("input",{bubbles:true}));
+    });
+    assert.equal(await page.locator("#review-slider-value").textContent(),"66%");
+    for(const id of ["review-artwork","review-site","review-scale","review-materials"])
+      await page.locator("#"+id).check();
+    await page.locator("#review-note").fill("Mock candidate: matches original image exactly.");
+    assert.equal(await page.locator("#review-approve").isEnabled(),true);
+    await page.locator("#review-approve").click();
+    assert.match(await page.locator("#review-counter").textContent(),/1 \/ 8/);
+    const reviewEvent=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#review-export").click();
+    const review=await reviewEvent;
+    assert.match(review.suggestedFilename(),/visual-review-DRAFT.zip$/);
+    const reviewZipPath=await review.path();
+    const audit=JSON.parse(execFileSync("python3",["-c",
+      ["import json,sys,zipfile","with zipfile.ZipFile(sys.argv[1]) as z:",
+       "  r=json.loads(z.read('visual-review.json'))",
+       "  assert r['schema']=='axoo-visual-review-v1'",
+       "  assert r['humanApprovedCount']==1",
+       "  assert r['overallStatus']=='incomplete-review'",
+       "  assert len(r['items'])==8",
+       "  assert 'reference/01-main.png' in z.namelist()",
+       "  assert 'candidate/01-main.png' in z.namelist()",
+       "  print(json.dumps({'approved':r['humanApprovedCount'],'status':r['overallStatus']}))"].join("\n"),
+       reviewZipPath],{encoding:"utf8",timeout:20000}).trim());
+    assert.equal(audit.approved,1);
+    const afterReviewEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const afterReview=JSON.parse(fs.readFileSync(await (await afterReviewEvent).path(),"utf8"));
+    // createdAt belongs to the export operation, not to the editable scene.
+    delete afterReview.createdAt;
+    delete approvedAfter.createdAt;
+    assert.deepEqual(afterReview,approvedAfter,"enhanced-image review must not mutate MASTER 3D scene");
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v0.8 approved eight-view batch ZIP, 8 real 16:9 PNGs, contact sheet, QA integrity manifest, immutable scene restoration plus existing editor regression suite");
   } finally {
