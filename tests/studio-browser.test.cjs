@@ -315,6 +315,22 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(img.toString("hex",0,8),"89504e470d0a1a0a");
     assert.ok(img.readUInt32BE(16)>bounds.width,"high resolution export increases image width");
 
+    // A finished scene with planted trees and local lights must still
+    // export as a real Blender-compatible glTF binary.
+    const sceneGlbEvent = page.waitForEvent("download", {timeout:60000});
+    await page.locator("#export-glb").click();
+    const sceneGlb = fs.readFileSync(await (await sceneGlbEvent).path());
+    assert.equal(sceneGlb.toString("ascii",0,4), "glTF");
+    assert.ok(sceneGlb.length > 5000, "GLB must contain expanded scene geometry");
+
+    await page.locator("#master-lock").click();
+    assert.equal(await page.locator('[data-add-extra="shrub"]').isDisabled(), true,
+      "approved master must prevent planting more objects");
+    assert.equal(await page.locator("#site-unit").isDisabled(), true,
+      "approved master must prevent site unit changes");
+    assert.equal(await page.locator("#extra-list button").first().isDisabled(), true,
+      "approved master must prevent selecting editable extras");
+
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: WebGL, edit, undo/redo, lights, views, lock, PNG, JSON roundtrip, GLB export, source scale, master snapshot, ZIP recovery, multi-format site models, site units, foliage/lights, high-res render, and locks");
   } finally {
