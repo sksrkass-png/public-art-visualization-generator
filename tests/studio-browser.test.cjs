@@ -907,8 +907,101 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.match(await page.locator("#library-status").textContent(),/등록 1 \/ 6/);
     await page.locator("#extra-list button").last().click();
     assert.match(await page.locator("#object-name").textContent(),/licensed-urban-seat/);
+
+    // v1.3 repeat the true source artwork as a new editable installation.
+    const beforeCopies=await page.locator("#extra-list button").count();
+    await page.locator("#select-artwork").click();
+    await page.locator("#precision-duplicate").click();
+    await page.waitForFunction(n=>document.querySelectorAll("#extra-list button").length===n,
+      beforeCopies+1,{timeout:15000});
+    assert.match(await page.locator("#object-name").textContent(),/작품 복제/);
+    assert.equal(await page.locator("#precision-ungroup").isDisabled(),true);
+
+    const stateEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const beforeState=JSON.parse(fs.readFileSync(await (await stateEvent).path(),"utf8"));
+    const originalCopy=beforeState.extras.at(-1);
+    const preceding=beforeState.extras.at(-2);
+    assert.equal(originalCopy.kind,"artwork-copy");
+    assert.equal(originalCopy.assetId,undefined);
+    assert.ok(originalCopy.transform.p[0]>=2,"copy offset +2m from source");
+
+    // Group the freshly duplicated sculpture with another editable contextual
+    // object. Only translation is grouped; original source site is untouched.
+    await page.locator('[data-precision-group-id="'+originalCopy.id+'"]').check();
+    await page.locator('[data-precision-group-id="'+preceding.id+'"]').check();
+    await page.locator("#precision-group").click();
+    const groupedEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const groupedJSON=JSON.parse(fs.readFileSync(await (await groupedEvent).path(),"utf8"));
+    const a1=groupedJSON.extras.find(x=>x.id===originalCopy.id);
+    const b1=groupedJSON.extras.find(x=>x.id===preceding.id);
+    assert.ok(a1.groupId>0);
+    assert.equal(a1.groupId,b1.groupId);
+    await page.locator("#measure-first").selectOption(String(originalCopy.id));
+    await page.locator("#measure-second").selectOption(String(preceding.id));
+    await page.locator("#measure-objects").click();
+    assert.match(await page.locator("#measure-objects-status").textContent(),/외접 박스 간격/);
+
+    const originalX=Number(await page.locator('[data-transform="position"][data-axis="x"]').inputValue());
+    await page.locator('[data-transform="position"][data-axis="x"]').fill(String(originalX+3));
+    await page.locator('[data-transform="position"][data-axis="x"]').dispatchEvent("change");
+    const movedEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const movedJSON=JSON.parse(fs.readFileSync(await (await movedEvent).path(),"utf8"));
+    const a2=movedJSON.extras.find(x=>x.id===originalCopy.id);
+    const b2=movedJSON.extras.find(x=>x.id===preceding.id);
+    assert.ok(Math.abs(a2.transform.p[0]-a1.transform.p[0]-3)<.0001);
+    assert.ok(Math.abs(b2.transform.p[0]-b1.transform.p[0]-3)<.0001,
+      "logical group members translate by same displacement");
+    await page.locator("#undo").click();
+    const unmoveEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const unmoveJSON=JSON.parse(fs.readFileSync(await (await unmoveEvent).path(),"utf8"));
+    assert.ok(Math.abs(unmoveJSON.extras.find(x=>x.id===preceding.id).transform.p[0]-b1.transform.p[0])<.0001,
+      "Undo restores all grouped positions");
+
+    // Read-only AABB audit and optional two site-surface point distances.
+    await page.locator("#precision-collision").click();
+    assert.match(await page.locator("#precision-collision-status").textContent(),/중첩|박스/);
+    await page.locator('[data-view="aerial"]').click();
+    const capture=await page.locator("#viewport canvas").boundingBox();
+    await page.locator("#measure-site-start").click();
+    await page.mouse.click(capture.x+capture.width*.45,capture.y+capture.height*.76);
+    await page.mouse.click(capture.x+capture.width*.63,capture.y+capture.height*.78);
+    assert.match(await page.locator("#measure-site-status").textContent(),/3D 거리/);
+    const precisionDownload=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#precision-report").click();
+    const precisionJSON=JSON.parse(fs.readFileSync(await (await precisionDownload).path(),"utf8"));
+    assert.equal(precisionJSON.schema,"axoo-modeling-precision-v1");
+    assert.equal(precisionJSON.measuredPoints.length,2);
+    assert.ok(precisionJSON.interference.warning.includes("AABB"));
+    assert.ok(precisionJSON.logicalGroups.length>=2);
+
+    // Only movable/selected copies are in the artwork layer. MASTER locks
+    // duplication and grouping; ZIP must restore the approved copy geometry.
+    await page.locator("#master-lock").click();
+    assert.equal(await page.locator("#precision-duplicate").isDisabled(),true);
+    const multiZIPEvent=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#export-project").click();
+    const multiZip=fs.readFileSync(await (await multiZIPEvent).path());
+    page.once("dialog",dialog=>dialog.accept());
+    await page.locator("#master-lock").click();
+    await page.locator("#site-preset").selectOption("empty");
+    await page.locator("#import-project").setInputFiles({
+      name:"precision-v13.zip",mimeType:"application/zip",buffer:multiZip
+    });
+    await page.waitForFunction(n=>
+      document.querySelectorAll("#extra-list button").length===n &&
+      document.querySelector("#object-state")?.textContent==="MASTER LOCK",
+      beforeCopies+1,{timeout:45000});
+    const restoredEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const restoredJSON=JSON.parse(fs.readFileSync(await (await restoredEvent).path(),"utf8"));
+    assert.equal(restoredJSON.extras.find(x=>x.id===originalCopy.id).kind,"artwork-copy");
+    assert.equal(restoredJSON.extras.find(x=>x.id===preceding.id).groupId,a1.groupId);
     assert.deepEqual(errors, [], "no uncaught runtime errors");
-    console.log("PASS studio browser: v1.2 seasonal trees, person, bench, planter, source GLB import, placement, undo/redo, signed asset ZIP roundtrip and previous regressions");
+    console.log("PASS studio browser: v1.3 real sculpture duplicate, group translation/Undo, object and surface measurement, AABB report, MASTER lock, source-consistent ZIP restoration + legacy regressions");
   } finally {
     await browser.close();
   }
