@@ -254,6 +254,10 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(await page.locator("#sun-elevation").inputValue(), "17");
     assert.equal(await page.locator("#sun-helper").isChecked(), true);
 
+    // A vertical-only imported mesh is not a verified ground surface.
+    // Switch to the original demonstration plaza for legacy v0.4 free placement.
+    // v0.5 separately tests grounding against a surveyed horizontal site mesh.
+    await page.locator("#site-preset").selectOption("plaza");
     // Add two distinct foliage presets, a shrub, and two physically working lights.
     const canvas = page.locator("#viewport canvas");
     await page.locator('[data-view="aerial"]').click();
@@ -264,9 +268,23 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     ]) {
       await page.locator('[data-add-extra="'+kind+'"]').click();
       await page.mouse.click(bounds.x+bounds.width*.65,bounds.y+bounds.height*.82);
-      await page.waitForFunction(expectedCount =>
-        document.querySelectorAll("#extra-list button").length === expectedCount,
-        expected, {timeout:10000});
+      try {
+        await page.waitForFunction(expectedCount =>
+          document.querySelectorAll("#extra-list button").length === expectedCount,
+          expected, {timeout:10000});
+      } catch (error) {
+        const state = await page.evaluate(() => ({
+          displayed: document.querySelector("#extra-count")?.textContent,
+          count: document.querySelectorAll("#extra-list button").length,
+          placement: document.querySelector("#placement-hint")?.textContent,
+          placementHidden: document.querySelector("#placement-hint")?.hidden,
+          toast: document.querySelector("#toast")?.textContent,
+          site: document.querySelector("#site-filename")?.textContent,
+          viewport: document.querySelector("#viewport")?.getBoundingClientRect()?.toJSON()
+        }));
+        throw new Error(kind + " failed to place: " + JSON.stringify(state) +
+          " / JS errors: " + JSON.stringify(errors) + " / " + error.message);
+      }
     }
     assert.match(await page.locator("#extra-count").textContent(), /5개/);
     assert.equal(await page.locator("#delete-selected").isEnabled(), true);
@@ -288,6 +306,10 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     });
     assert.equal(await page.locator("#extra-light-power-value").textContent(), "8.0");
 
+    // Source site model can be reloaded without altering the placed trees.
+    await page.locator("#site-file").setInputFiles(objFile);
+    await page.waitForFunction(() => document.querySelector("#site-filename")?.textContent === "test-site.obj",
+      null, {timeout:15000});
     // Light and foliage transforms persist through full project ZIP recovery.
     await page.locator("#select-artwork").click();
     const extraZipEvent = page.waitForEvent("download", {timeout:60000});
@@ -331,8 +353,94 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(await page.locator("#extra-list button").first().isDisabled(), true,
       "approved master must prevent selecting editable extras");
 
+    // V0.5: a surveyed Y-up floor at exactly Y=1m. Its face normals point up.
+    page.once("dialog", dialog => dialog.accept());
+    await page.locator("#master-lock").click();
+    const terrainOBJ = [
+      "o surveyed_ground","v -10 1 -10","v 10 1 10",
+      "v 10 1 -10","v -10 1 10",
+      "f 1 2 3","f 1 4 2",""
+    ].join("\n");
+    await page.locator("#site-file").setInputFiles({
+      name:"surveyed-ground.obj", mimeType:"text/plain", buffer:Buffer.from(terrainOBJ)
+    });
+    await page.waitForFunction(() => document.querySelector("#site-filename")?.textContent==="surveyed-ground.obj",
+      null,{timeout:15000});
+    await page.locator("#select-artwork").click();
+    const artY=page.locator('[data-transform="position"][data-axis="y"]');
+    const artX=page.locator('[data-transform="position"][data-axis="x"]');
+    const artZ=page.locator('[data-transform="position"][data-axis="z"]');
+    for(const [el,value] of [[artX,"0"],[artZ,"0"],[artY,"8"]]) {
+      await el.fill(value); await el.dispatchEvent("change");
+    }
+    await page.locator("#ground-offset").fill("0.25");
+    await page.locator("#ground-selected").click();
+    assert.match(await page.locator("#ground-status").textContent(), /1\.00m/,
+      "3D grounding must raycast actual terrain elevation");
+    const groundedY=Number(await artY.inputValue());
+    assert.ok(groundedY>1.0 && groundedY<2.0,"artwork base must rest 0.25m above real terrain, not y=0");
+    await page.locator("#undo").click();
+    assert.equal(Number(await artY.inputValue()),8,"undo must restore original ungrounded height");
+    await page.locator("#redo").click();
+    assert.ok(Math.abs(Number(await artY.inputValue())-groundedY)<.01);
+
+    // No invented floor when off the imported site footprint.
+    await artX.fill("30"); await artX.dispatchEvent("change");
+    const oldY=Number(await artY.inputValue());
+    await page.locator("#ground-selected").click();
+    assert.equal(Number(await artY.inputValue()),oldY, "do not snap to fabricated y=0 outside real site");
+    await artX.fill("0"); await artX.dispatchEvent("change");
+
+    // X/Z movement snaps after editing when requested.
+    await page.locator("#auto-ground").check();
+    await artY.fill("7");await artY.dispatchEvent("change");
+    await artZ.fill("1");await artZ.dispatchEvent("change");
+    assert.ok(Math.abs(Number(await artY.inputValue())-groundedY)<.03,
+      "auto-ground follows surveyed height on X/Z edits");
+    await page.locator("#auto-ground").uncheck();
+
+    // Plan can remain visible over a real loaded site; orientation and
+    // opacity are manually adjustable and saved with portable ZIP files.
+    await page.locator("#plan-visible").check();
+    await page.locator("#map-width").fill("24");
+    await page.locator("#map-width").dispatchEvent("change");
+    for(const [id,val] of [["plan-x","3.5"],["plan-z","-1.5"],["plan-rotation","32"],
+      ["plan-elevation","1.1"],["plan-opacity","45"]]) {
+      const input=page.locator("#"+id);
+      await input.fill(val);
+      await input.dispatchEvent(id==="plan-opacity"?"input":"change");
+    }
+    assert.equal(await page.locator("#plan-opacity-value").textContent(),"45%");
+    assert.equal(await page.locator("#fallback-ground").isHidden(),true);
+    const planEvent=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#export-project").click();
+    const savedPlanZip=fs.readFileSync(await (await planEvent).path());
+
+    // Wipe scene then reopen model+plan alignment; location, geometry and
+    // master-safe overlay flags must survive a complete round-trip.
+    await page.locator("#site-preset").selectOption("empty");
+    await page.locator("#plan-x").fill("0");await page.locator("#plan-x").dispatchEvent("change");
+    await page.locator("#import-project").setInputFiles({
+      name:"surveyed-plan.zip",mimeType:"application/zip",buffer:savedPlanZip
+    });
+    await page.waitForFunction(() =>
+      document.querySelector("#site-filename")?.textContent==="surveyed-ground.obj" &&
+      Number(document.querySelector("#plan-x")?.value)===3.5,
+      null,{timeout:45000});
+    assert.equal(Number(await page.locator("#plan-rotation").inputValue()),32);
+    assert.equal(Number(await page.locator("#plan-z").inputValue()),-1.5);
+    assert.equal(await page.locator("#plan-opacity").inputValue(),"45");
+    assert.equal(await page.locator("#plan-elevation").inputValue(),"1.1");
+    assert.equal(await page.locator("#plan-visible").isChecked(),true);
+    assert.equal(await page.locator("#fallback-ground").isHidden(),true);
+
+    // Approving MASTER disables both plan registration and ground placement.
+    await page.locator("#master-lock").click();
+    for(const id of ["plan-pick-center","plan-visible","ground-selected","pick-selected-site","ground-offset"]) {
+      assert.equal(await page.locator("#"+id).isDisabled(),true,id+" must respect MASTER LOCK");
+    }
     assert.deepEqual(errors, [], "no uncaught runtime errors");
-    console.log("PASS studio browser: WebGL, edit, undo/redo, lights, views, lock, PNG, JSON roundtrip, GLB export, source scale, master snapshot, ZIP recovery, multi-format site models, site units, foliage/lights, high-res render, and locks");
+    console.log("PASS studio browser: V0.5 ground raycast, imported site no-fallback, undo, auto-ground, plan alignment/ZIP recovery, MASTER LOCK and legacy scene controls");
   } finally {
     await browser.close();
   }

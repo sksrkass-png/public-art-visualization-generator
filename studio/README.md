@@ -1,6 +1,15 @@
-# AXOO Public Art 3D Studio — v0.4
+# AXOO Public Art 3D Studio — v0.5
 
 Static, browser-based interactive editor for public-art proposal staging. Version 0.3 expands site model imports. It is a companion to the existing prompt generator: `/studio/` leaves the legacy app unchanged.
+
+## v0.5 precision placement & plan registration
+
+- **Ground selected object:** Select the artwork, one of the three vegetation forms, or another editable scene object and click **선택 오브제 지면 밀착**. A downward world-space ray from the site finds a **generally upward-facing mesh surface** under the object's X/Z coordinates and adjusts the object's lowest bounding-box point to the mesh height plus an explicit offset. This preserves the artwork's geometry, material, rotation and relative scale. If the actual imported site has **no hit**, do not invent a zero-height ground plane.
+- **Click-to-place:** Click **현장 클릭 재배치** then an upward-facing site mesh to move the chosen artwork or tree. Lights remain adjustable and are intentionally placed 3m above the selected point by default. **이동 완료 시 지면 자동 밀착** also grounds non-light objects after G moves and X/Z inspector edits. Undo/redo restores placements. SITE LOCK and MASTER LOCK remain in effect.
+- **Plan overlay independent of ground mapping:** Loading a real site hides fallback ground material choices but **does not hide the separate optional 2D plan overlay**. User controls plan width (actual metres), center X/Z, rotation, vertical elevation, alpha, and visibility. Pick a site spot to set plan center. These are **manual registration tools**, not survey transformations, control points, auto-CAD conversion, or georeferencing.
+- **Vegetation:** Newly added foliage uses deterministic trunk/branch and varied-tone leaf geometry, improving on the v0.4 broad polygon blobs while remaining lightweight schematic vegetation. **Old v0.4 project ZIPs without an appearance version continue to recreate their original vegetation shapes**, including approved MASTER layouts; newly placed assets are versioned separately. For competition-grade botanical realism, an external detailed/photogrammetry vegetation model or specialized rendering is still required.
+- **Persistence:** Plan registration and grounding preferences save in existing settings JSON and full-project ZIP; prior v0.4 packages remain readable. Approval saves the plan alignment in its master snapshot and locks registration inputs.
+- **Accuracy warning:** An upward-facing triangle can be a **roof, podium, raised slab or staircase landing**, not necessarily a surveyed pedestrian ground surface. Visually verify ground target before approving a MASTER VIEW; automatic ground detection cannot infer site semantics from an arbitrary mesh.
 
 ## v0.4 additions
 

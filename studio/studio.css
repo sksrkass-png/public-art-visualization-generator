@@ -72,3 +72,13 @@
   color:#50555b;background:#f9faf9;font-size:11px;font-weight:600;cursor:pointer}
 .extra-list button.active{background:#23272c;color:white;border-color:#23272c}
 .extra-list button:disabled{opacity:.5;cursor:not-allowed}
+
+/* v0.5: measured plan overlay and precise surface positioning */
+.site-plan-controls{margin-top:15px;padding:13px 12px;background:#f7f8f7;border:1px solid #e5e7e6;border-radius:7px}
+.site-plan-controls h2{font-size:12px!important;margin:0 0 10px!important}
+.site-plan-controls .file-button{margin:9px 0!important}
+.small-muted{color:#999fa2;font-size:9px;letter-spacing:.12em;font-weight:650}
+.section-subtitle{margin-top:14px;font-size:10px;color:#555f60;letter-spacing:.04em;font-weight:800}
+#ground-status{background:#f6f7f7;padding:8px 10px;border-left:2px solid #bbbfc3;border-radius:2px}
+#ground-selected,#pick-selected-site{font-size:10.5px;line-height:1.25}
+.site-plan-controls input[type=range]{margin-bottom:5px}

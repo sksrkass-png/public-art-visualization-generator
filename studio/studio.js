@@ -12,6 +12,7 @@ import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
+import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
 
 const $ = id => document.getElementById(id);
 const viewport = $("viewport");
@@ -212,7 +213,7 @@ function syncGroundAvailability() {
   $("fallback-ground").hidden = imported;
   $("site-ground-note").hidden = !imported;
   floor.visible = !imported;
-  if (imported) planPlane.visible = false;
+  syncPlanOverlay();
 }
 function applySiteUnits() {
   if (approvedMaster) return;
@@ -333,11 +334,26 @@ function updateGround() {
   if (old) old.dispose();
 }
 function syncPlanWidth() {
-  if (approvedMaster || !planPlane.visible || !loadedPlanTexture) return;
+  if (!loadedPlanTexture) return;
   const img = loadedPlanTexture.image;
   if (!img || !img.width || !img.height) return;
   const w = safeNumber($("map-width").value, 40, 1, 1000);
   planPlane.scale.set(w, w * img.height / img.width, 1);
+  syncPlanOverlay();
+}
+function syncPlanOverlay() {
+  planPlane.visible = !!loadedPlanTexture && $("plan-visible").checked;
+  planPlane.position.set(
+    toFinite($("plan-x").value, 0),
+    toFinite($("plan-elevation").value, .05, -50, 1000),
+    toFinite($("plan-z").value, 0)
+  );
+  // Rotation about the plane's local normal maps to world Y after X=-90°.
+  planPlane.rotation.set(-Math.PI / 2, 0, THREE.MathUtils.degToRad(toFinite($("plan-rotation").value, 0, -36000, 36000)));
+  const alpha = toFinite($("plan-opacity").value, 55, 10, 100);
+  planPlane.material.opacity = alpha / 100;
+  planPlane.material.transparent = true;
+  $("plan-opacity-value").textContent = Math.round(alpha) + "%";
 }
 function decodePlanTexture(file) {
   return new Promise((resolve, reject) => {
@@ -374,7 +390,7 @@ async function loadPlan(file) {
     const texture = await decodePlanTexture(file);
     if (approvedMaster || token !== activePlanOperation) { texture.dispose(); return; }
     applyPlanTexture(texture, file);
-    notify("배치도 이미지를 현장의 수평면에 배치했습니다.");
+    notify("배치도 이미지를 불러왔습니다. 폭·좌표·회전·투명도를 조정할 수 있습니다.");
   } catch (error) {
     notify("배치도 불러오기 실패: " + (error.message || "알 수 없는 오류"));
   }
@@ -443,7 +459,8 @@ function masterSnapshot() {
     lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"]
       .map(id => [id, Number($(id).value)])),
     shadows: $("shadows").checked,
-    extras: serializeExtras(extrasRoot)
+    extras: serializeExtras(extrasRoot),
+    planAlignment: planAlignmentSnapshot()
   };
 }
 function validMasterSnapshot(entry) {
@@ -509,7 +526,10 @@ function syncLock() {
     transform.detach();
   }
   else if (selectedRoot) transform.attach(selectedRoot);
-  ["site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color"]
+  ["site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
+    "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
+    "plan-pick-center", "plan-visible", "map-file", "map-width", "plan-x", "plan-z",
+    "plan-rotation", "plan-elevation", "plan-opacity"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   document.querySelectorAll("[data-add-extra]").forEach(btn => { btn.disabled = approvedMaster; });
   updateExtrasStatus();
@@ -667,6 +687,10 @@ function createPlacedExtra(kind, position) {
   root.position.copy(position);
   if (kind.includes("light")) root.position.y += 3;
   extrasRoot.add(root);
+  if (!kind.includes("light")) {
+    snapRootToSurface(root, siteRoot, { allowFallback: !siteSourceFile,
+      offset: toFinite($("ground-offset").value, 0, -20, 50) });
+  }
   selectRoot(root);
   updateExtrasStatus();
   commit(before);
@@ -680,28 +704,81 @@ function deleteSelectedExtra() {
   commit(before);
   notify("선택한 오브제를 삭제했습니다. Ctrl+Z로 복원할 수 있습니다.");
 }
+function groundSelected({ silent = false } = {}) {
+  if (approvedMaster) return null;
+  if (selectedRoot !== artRoot && extraLight(selectedRoot)) {
+    if (!silent) notify("조명은 공중 설치가 가능하므로 자동 밀착하지 않습니다. 현장 클릭 재배치에서 높이를 조정하세요.");
+    return null;
+  }
+  const before = editSnapshot();
+  const result = snapRootToSurface(selectedRoot, siteRoot, {
+    allowFallback: !siteSourceFile,
+    offset: toFinite($("ground-offset").value, 0, -20, 50)
+  });
+  if (result) {
+    commit(before);
+    updateInspector(true);
+    $("ground-status").textContent = "밀착 완료 · 표면 높이 " + result.surfaceHeight.toFixed(2) +
+      "m · 이동량 " + result.deltaY.toFixed(2) + "m";
+    if (!silent) notify("선택 오브제의 최하단을 감지한 표면에 맞췄습니다.");
+  } else if (!silent) {
+    $("ground-status").textContent = "현장 표면을 찾지 못했습니다. 지면이 포함된 3D 모델인지 확인하세요.";
+    notify("해당 좌표에서 위쪽을 향한 3D 표면을 찾지 못했습니다. 높이를 임의로 변경하지 않았습니다.");
+  }
+  return result;
+}
+function placeSelectedOnSite(hit) {
+  if (approvedMaster || !hit) return;
+  const before = editSnapshot();
+  selectedRoot.position.x = hit.point.x;
+  selectedRoot.position.z = hit.point.z;
+  if (selectedRoot !== artRoot && extraLight(selectedRoot)) {
+    selectedRoot.position.y = hit.point.y + 3 + toFinite($("ground-offset").value, 0, -20, 50);
+  } else {
+    const box = new THREE.Box3().setFromObject(selectedRoot);
+    selectedRoot.position.y += hit.point.y + toFinite($("ground-offset").value, 0, -20, 50) - box.min.y;
+  }
+  commit(before);
+  updateInspector(true);
+  $("ground-status").textContent = "현장 클릭 배치 완료 · X " + hit.point.x.toFixed(2) +
+    " / Z " + hit.point.z.toFixed(2) + " / 지면 Y " + hit.point.y.toFixed(2);
+  notify("클릭한 현장 표면으로 선택 오브제를 이동했습니다.");
+}
 function pickPlacement(event) {
-  const rect = viewport.getBoundingClientRect();
-  mouse.x = (event.clientX - rect.left) / rect.width * 2 - 1;
-  mouse.y = -(event.clientY - rect.top) / rect.height * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(siteRoot.children, true);
-  const planeHits = raycaster.intersectObject(floor);
-  const hit = hits.length ? hits[0] : (planeHits.length ? planeHits[0] : null);
-  if (hit) return hit.point.clone();
-  const ground = new THREE.Plane(new THREE.Vector3(0,1,0),0);
-  const intersection = new THREE.Vector3();
-  return raycaster.ray.intersectPlane(ground, intersection) ? intersection : null;
+  if (!siteSourceFile) {
+    // Preserve the original v0.4 picking behavior for schematic demonstration
+    // sites (buildings / trees / placeholder ground may be arbitrary meshes).
+    const rect = viewport.getBoundingClientRect();
+    mouse.x = (event.clientX - rect.left) / rect.width * 2 - 1;
+    mouse.y = -(event.clientY - rect.top) / rect.height * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(siteRoot.children, true);
+    const groundHits = raycaster.intersectObject(floor);
+    const hit = hits[0] || groundHits[0];
+    if (hit) return { point: hit.point.clone(), mesh: hit.object, source: "preset" };
+  }
+  // Real imported sites require a verified, upward-facing 3D mesh triangle;
+  // avoid manufacturing a ground surface when only a facade/sky is clicked.
+  return surfaceAtPointer(event, camera, viewport, siteRoot, !siteSourceFile);
 }
 function handleSelection(event) {
   if (mouseMoved || approvedMaster || transform.dragging || event.button !== 0) return;
   if (placementMode) {
-    const point = pickPlacement(event);
-    if (!point) { notify("선택한 방향에서 바닥을 찾지 못했습니다."); return; }
+    const hit = pickPlacement(event);
+    if (!hit) { notify("해당 지점에서 위쪽 표면을 찾을 수 없습니다. 현장 메시와 각도를 확인하세요."); return; }
     const kind = placementMode;
     placementMode = null;
     $("placement-hint").hidden = true;
-    createPlacedExtra(kind, point);
+    if (kind === "plan-center") {
+      $("plan-x").value = hit.point.x.toFixed(3);
+      $("plan-z").value = hit.point.z.toFixed(3);
+      syncPlanOverlay();
+      notify("배치도 중심점의 X/Z를 현장 클릭 위치로 맞췄습니다.");
+    } else if (kind === "selected-ground") {
+      placeSelectedOnSite(hit);
+    } else {
+      createPlacedExtra(kind, hit.point);
+    }
     return;
   }
   const rect = viewport.getBoundingClientRect();
@@ -730,6 +807,13 @@ function setTransformFromField(el) {
     if (Math.abs(previousAxis) > 1e-8) selectedRoot.scale.multiplyScalar(next / previousAxis);
   }
   else selectedRoot[el.dataset.transform][el.dataset.axis] = next;
+  if ($("auto-ground").checked && el.dataset.transform === "position" &&
+      ["x","z"].includes(el.dataset.axis) && !extraLight(selectedRoot)) {
+    snapRootToSurface(selectedRoot, siteRoot, {
+      allowFallback: !siteSourceFile,
+      offset: toFinite($("ground-offset").value, 0, -20, 50)
+    });
+  }
   commit(before);
   updateInspector();
 }
@@ -828,6 +912,34 @@ async function importModel(file, isSite) {
     notify("불러오기 실패: " + (error.message || "파일 형식 확인 필요"));
   }
 }
+function planAlignmentSnapshot() {
+  return {
+    visible: $("plan-visible").checked,
+    x: +$("plan-x").value,
+    z: +$("plan-z").value,
+    rotation: +$("plan-rotation").value,
+    elevation: +$("plan-elevation").value,
+    opacity: +$("plan-opacity").value
+  };
+}
+function validPlanAlignment(value) {
+  return value && typeof value.visible === "boolean" &&
+    ["x","z","rotation","elevation","opacity"].every(field =>
+      typeof value[field] === "number" && Number.isFinite(value[field])) &&
+    value.opacity >= 10 && value.opacity <= 100 &&
+    Math.abs(value.x) <= 10000 && Math.abs(value.z) <= 10000 &&
+    value.elevation >= -50 && value.elevation <= 1000 &&
+    Math.abs(value.rotation) <= 36000;
+}
+function restorePlanAlignment(value) {
+  const plan = validPlanAlignment(value) ? value :
+    {visible:true, x:0, z:0, rotation:0, elevation:.05, opacity:55};
+  $("plan-visible").checked = plan.visible;
+  for (const id of ["x","z","rotation","elevation","opacity"]) {
+    $("plan-"+id).value = String(plan[id]);
+  }
+  syncPlanOverlay();
+}
 function sceneConfig() {
   return {
     schema: "axoo-public-art-3d-studio-v1",
@@ -835,7 +947,9 @@ function sceneConfig() {
     createdAt: new Date().toISOString(),
     site: { file: siteFileName, preset: $("site-preset").value, floor: $("floor-map").value,
       unit: $("site-unit").value, up: $("site-up").value,
-      planFile: planFileName, planWidth: +$("map-width").value },
+      planFile: planFileName, planWidth: +$("map-width").value,
+      planAlignment: planAlignmentSnapshot() },
+    groundPlacement: { auto: $("auto-ground").checked, offset: +$("ground-offset").value },
     extras: serializeExtras(extrasRoot),
     navSpeed: +$("nav-speed").value,
     lightPreset: $("light-preset").value,
@@ -862,6 +976,12 @@ function validateProjectConfig(data) {
       (data.extras !== undefined && !validateExtras(data.extras)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
       (data.site.up !== undefined && !["y","z"].includes(data.site.up)) ||
+      (data.site.planAlignment !== undefined && !validPlanAlignment(data.site.planAlignment)) ||
+      (data.groundPlacement !== undefined &&
+        (!data.groundPlacement || typeof data.groundPlacement.auto !== "boolean" ||
+          typeof data.groundPlacement.offset !== "number" ||
+          !Number.isFinite(data.groundPlacement.offset) ||
+          data.groundPlacement.offset < -20 || data.groundPlacement.offset > 50)) ||
       (data.masterSnapshots !== undefined &&
         (!Array.isArray(data.masterSnapshots) || data.masterSnapshots.length > 40 ||
           !data.masterSnapshots.every(validMasterSnapshot)))) {
@@ -892,6 +1012,9 @@ function importSceneConfig(data) {
     $("floor-map").value = data.site.floor; updateGround();
   }
   $("map-width").value = safeNumber(data.site.planWidth, 40, 1, 1000);
+  restorePlanAlignment(data.site.planAlignment);
+  $("auto-ground").checked = !!data.groundPlacement?.auto;
+  $("ground-offset").value = toFinite(data.groundPlacement?.offset, 0, -20, 50);
   syncPlanWidth();
   if (data.site.planFile && data.site.planFile !== planFileName) {
     $("map-name").textContent = "배치도 다시 업로드 필요: " + data.site.planFile;
@@ -1148,6 +1271,25 @@ $("site-file").addEventListener("change", e => importModel(e.target.files[0], tr
 $("art-file").addEventListener("change", e => importModel(e.target.files[0], false));
 $("map-file").addEventListener("change", e => loadPlan(e.target.files[0]));
 $("map-width").addEventListener("change", () => { if (!approvedMaster) syncPlanWidth(); });
+["plan-x","plan-z","plan-rotation","plan-elevation","plan-opacity","plan-visible"].forEach(id=>{
+  $(id).addEventListener(id === "plan-opacity" ? "input" : "change", () => {
+    if (!approvedMaster) syncPlanOverlay();
+  });
+});
+$("ground-selected").addEventListener("click", () => groundSelected());
+$("pick-selected-site").addEventListener("click", () => {
+  if (approvedMaster) return;
+  placementMode = "selected-ground";
+  $("placement-hint").textContent = "대상 오브제를 옮길 실제 현장 바닥을 클릭하세요 · Esc 취소";
+  $("placement-hint").hidden = false;
+});
+$("plan-pick-center").addEventListener("click", () => {
+  if (approvedMaster) return;
+  if (!loadedPlanTexture) return notify("먼저 배치도 이미지를 불러오세요.");
+  placementMode = "plan-center";
+  $("placement-hint").textContent = "배치도 중심을 정렬할 현장 위치를 클릭하세요 · Esc 취소";
+  $("placement-hint").hidden = false;
+});
 $("floor-map").addEventListener("change", () => { if (!approvedMaster) updateGround(); });
 $("grid").addEventListener("change", e => { grid.visible = e.target.checked; });
 $("sun-helper").addEventListener("change", e => { sunGuide.visible = e.target.checked; });
@@ -1251,7 +1393,16 @@ $("import-json").addEventListener("change", async e => {
 });
 transform.addEventListener("dragging-changed", e => { orbit.enabled = !e.value; });
 transform.addEventListener("mouseDown", () => { lastDrag = editSnapshot(); });
-transform.addEventListener("mouseUp", () => { if (lastDrag) commit(lastDrag); lastDrag = null; updateInspector(); });
+transform.addEventListener("mouseUp", () => {
+  if (lastDrag && !approvedMaster && selectedMode === "translate" && $("auto-ground").checked &&
+      !extraLight(selectedRoot)) {
+    snapRootToSurface(selectedRoot, siteRoot, { allowFallback: !siteSourceFile,
+      offset: toFinite($("ground-offset").value, 0, -20, 50) });
+  }
+  if (lastDrag) commit(lastDrag);
+  lastDrag = null;
+  updateInspector();
+});
 transform.addEventListener("objectChange", () => {
   // Keep size proportional by default, including direct gizmo manipulation.
   // The axis with the strongest deviation from the drag's starting scale wins.
