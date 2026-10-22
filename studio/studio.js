@@ -414,7 +414,7 @@ function currentRenderConfig(){
   return {
     aspect:$("render-aspect").value,environmentMode:$("env-mode").value,
     environmentFile:hdrSourceFile?.name || "",envIntensity:Number($("env-strength").value),
-    focalLength:camera.getFocalLength(),multiplier:Number($("render-resolution").value),
+    focalLength:Number(camera.getFocalLength().toFixed(3)),multiplier:Number($("render-resolution").value),
     artworkMaterial:structuredClone(artworkMaterialState)
   };
 }
