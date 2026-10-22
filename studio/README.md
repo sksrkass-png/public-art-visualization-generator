@@ -1,6 +1,15 @@
-# AXOO Public Art 3D Studio — v1.2
+# AXOO Public Art 3D Studio — v1.3
 
 Static, browser-based interactive editor for public-art proposal staging. Version 0.3 expands site model imports. It is a companion to the existing prompt generator: `/studio/` leaves the legacy app unchanged.
+
+## v1.3 — Advanced Modeling / measured scene edits
+
+- **Non-destructive sculpture duplication:** Choose the main artwork and click Duplicate to create another **editable installation** using the same original 3D mesh geometry, textures and materials, initially shifted 2m along world X. Existing context objects and GLB assets can also be duplicated. The main artwork always remains the original, and copies belong to the protected **artwork** layer, not decorative landscaping. Changing the base artwork while copies remain is blocked. Undo/Redo and full-project ZIP restore both preserve copies using the original artwork source binary; settings-only JSON requires the matching source to already be present. The current primary material preset synchronizes to duplicate materials.
+- **Logical move-only groups:** Select at least two added objects with the checkboxes and choose **그룹 묶기**. Moving a grouped member by numeric XYZ or by releasing the translate gizmo moves the other editable group members by exactly the same translation. Rotation, scaling, source meshes and surface-snap behavior remain **individual**, not a rigid-transform Group hierarchy. The imported building/site cannot be grouped or edited. Group IDs are restored in Undo/Redo, scene JSON and ZIP.
+- **Two-point surveyed-site-distance readout:** Click **현장 두 점 클릭해 거리 측정**, then two accessible site surface points. The panel displays 3D Euclidean distance, horizontal XZ distance and vertical height difference in **viewer metres** based on the current coordinate/unit conventions. No guessing of real-world survey measurements.
+- **Object spacing:** Select two visible scene actors (artwork, duplicates or added context objects) to see world anchor-center separation, conservative axis-aligned 3D bounding-box gap, and whether their bounding-box volumes overlap. This is not a triangle-accurate minimum clearance solver.
+- **AABB interference scan:** Reports overlapping **object/object** and **object/explicitly classified building** world AABBs for visible objects. Only site meshes manually categorized as `건물` in v0.6 layers are treated as a building. Floor planes, unclassified site geometry and invisible models do not count as building collisions. Bounding-box overlaps may be false positives for thin/rotated geometry. The check is **not** engineering collision detection, a permit or structural clearance validation.
+- **Audit report:** Save `precision-audit.json` including coordinates, measured distances, object pairing, group identifiers, building classification coverage and warnings. MASTER LOCK blocks duplication/group edits but permits read-only measurement/audit. Eight-view exports preserve the artwork-copy meshes, group state and scene positions, with standard MASTER revisions applied.
 
 ## v1.2 — Scene Asset Library / People, planting, furniture and GLB
 
