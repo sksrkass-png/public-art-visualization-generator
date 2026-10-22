@@ -307,6 +307,10 @@ function refreshLayers({redrawSite = false} = {}) {
   $("apply-height").disabled=!canEditObject(artRoot,artRoot,layerState,approvedMaster);
   $("extra-light-power").disabled=!selectedCanEdit();
   $("extra-light-color").disabled=!selectedCanEdit();
+  document.querySelectorAll("[data-add-extra]").forEach(button=>{
+    const group=button.dataset.addExtra.includes("light") ? layerState.groups.lighting : layerState.groups.planting;
+    button.disabled=approvedMaster || !group.visible || group.locked;
+  });
 }
 function setLayerGroupVisible(key, value) {
   if(approvedMaster || !LAYER_KEYS.includes(key))return;
@@ -856,7 +860,8 @@ function selectRoot(object) {
   refreshLayers();
 }
 function setPlacement(kind) {
-  if (approvedMaster) return;
+  const group=kind.includes("light")?layerState.groups.lighting:layerState.groups.planting;
+  if (approvedMaster || group.locked || !group.visible) return notify("잠긴 레이어나 숨겨진 레이어에는 오브제를 추가할 수 없습니다.");
   placementMode = kind;
   $("placement-hint").hidden = false;
   $("placement-hint").textContent = kind.includes("light")
@@ -865,7 +870,8 @@ function setPlacement(kind) {
   notify("현장 위치를 클릭하여 추가하세요.");
 }
 function createPlacedExtra(kind, position) {
-  if (approvedMaster || extrasRoot.children.length >= 120) return null;
+  const group=kind.includes("light")?layerState.groups.lighting:layerState.groups.planting;
+  if (approvedMaster || group.locked || !group.visible || extrasRoot.children.length >= 120) return null;
   const before = editSnapshot();
   const root = makeExtra(kind, nextExtraId++);
   root.position.copy(position);
