@@ -1,6 +1,13 @@
-# AXOO Public Art 3D Studio — v0.9
+# AXOO Public Art 3D Studio — v1.0
 
 Static, browser-based interactive editor for public-art proposal staging. Version 0.3 expands site model imports. It is a companion to the existing prompt generator: `/studio/` leaves the legacy app unchanged.
+
+## v1.0 — internal proposal production hardening
+
+- **SHA-256 checksum packages:** Full-project ZIP now embeds `integrity.json` recording the exact byte lengths and SHA-256 hashes of `project.json`, site model, artwork model, plan and HDR files that are actually present. Before any imported project state is changed, the importer checks *every* archived entry against its saved checksum and refuses missing, extra or tampered source contents. This detects unintentional corruption, **not document authenticity or provenance** (the manifest is not cryptographically signed). Older v0.9 project ZIP archives without hashes remain readable, clearly labeled as legacy.
+- **Production readiness panel:** One-click assessment checks uploaded real site and artwork files, finite artwork dimensions, site unit selection, an approved MASTER and the current edit state matching its saved snapshot. A human must additionally attest to dimensions, original artwork, installation/landscape and all rendered views. The downloaded `readiness.json` distinguishes `ready-for-internal-review` from `needs-human-or-source-review`, and lists unresolved items. It is **not** an engineering permit, certified survey, artist consent, structural safety or official planning approval.
+- **Operational scope:** The studio remains local, browser-based Three.js editing and ZIP exports; v0.9 human-verified comparisons, v0.8 eight-view rendering, and v0.7 reflections/materials are preserved. Back up the editable full-project ZIP, the eight renders and any manual comparison review ZIP separately.
+- **Release validation:** Static module syntax and full Chromium browser regression, including corrupted ZIP rejection, multi-file restoration, all eight image renders, human comparison draft export and readiness-report semantics. **Actual Goyang Changneung field-site and artist-source model visual signoff remains pending until these authoritative project files are supplied/loaded and checked by the operator.**
 
 ## v0.9 — original vs enhanced-image visual QA (not image generation)
 
