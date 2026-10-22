@@ -19,6 +19,7 @@ import { STANDARD_VIEWS, createStandardCameras, captureSceneIntegrity,
 import { initVisualReview } from "./review.js";
 import { makeIntegrityManifest, verifyIntegrityManifest } from "./integrity.js";
 import { initReadiness } from "./readiness.js";
+import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precision.js";
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
 import { decodeSiteBundle, inspectImportedSite, validSiteAlignment } from "./site-import.js";
@@ -135,6 +136,8 @@ let sourceSiteInspection = null;
 let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
 let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
+const groupChecked=new Set();
+let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=null;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
 const assetLibrary=new Map();
 let nextLibraryId=1,activeLibraryOperation=0;
@@ -821,7 +824,7 @@ function restore(data) {
 }
 function restoreEdit(state) {
   restore(state.artwork);
-  restoreExtras(extrasRoot, state.extras,assetLibrary);
+  restoreExtras(extrasRoot, state.extras,assetLibrary,artRoot);
   setArtworkMaterial(state.material || {preset:"original",color:"#d0d6db"});
   if(state.layers) layerState=importLayerState(state.layers);
   refreshLayers({redrawSite:true});
@@ -1125,7 +1128,7 @@ function createPlacedExtra(kind, position) {
   const before = editSnapshot();
   const assetId=kind==="custom-glb"?$("library-asset-select").value:null;
   if(kind==="custom-glb" && !assetLibrary.has(assetId))return notify("에셋을 선택하세요.");
-  const root = makeExtra(kind, nextExtraId++,2,assetId,assetLibrary);
+  const root = makeExtra(kind, nextExtraId++,2,assetId,assetLibrary,artRoot);
   root.position.copy(position);
   if (kind.includes("light")) root.position.y += 3;
   extrasRoot.add(root);
@@ -1329,6 +1332,8 @@ async function importModel(file, isSite) {
   try {
     notify("파일을 읽고 있습니다: " + file.name);
     const model = await decodeModel(file, isSite);
+    if(!isSite && extrasRoot.children.some(o=>o.userData.extraKind==="artwork-copy"))
+      throw Error("작품 복제본이 남아 있습니다. 복제본을 삭제한 뒤 원본 작품을 교체하세요.");
     const siteStats = isSite ? inspectSiteGeometry(model) : null;
     const inspected = isSite ? inspectImportedSite(model) : null;
     if (approvedMaster || op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
@@ -1471,6 +1476,9 @@ function importSceneConfig(data) {
   refreshAssetLibraryUI();
   const originalSite = siteFileName;
   const originalArt = artFileName;
+  if((data.extras||[]).some(x=>x.kind==="artwork-copy") &&
+    data.artwork.source!==artFileName)
+    throw Error("복제 작품 복원에는 원본 작품 파일이 먼저 필요합니다. 전체 프로젝트 ZIP을 사용하세요.");
   if(!data.render?.environmentFile ||
       data.render.environmentFile!==hdrSourceFile?.name)clearHDR();
   $("project-name").value = String(data.projectName || "공공미술 시안").slice(0, 100);
@@ -1511,7 +1519,7 @@ function importSceneConfig(data) {
   $("nav-speed").value = safeNumber(data.navSpeed, 2.6, .5, 5);
   $("nav-speed").dispatchEvent(new Event("input"));
   updateLight();
-  restoreExtras(extrasRoot, data.extras || [],assetLibrary);
+  restoreExtras(extrasRoot, data.extras || [],assetLibrary,artRoot);
   refreshAssetLibraryUI();
   layerState=importLayerState(data.layers);
   if(data.site.file && data.site.file!==siteFileName){
@@ -2174,6 +2182,8 @@ $("extra-light-color").addEventListener("input", e => {
 $("snap").addEventListener("change", snapSetting);
 $("sample-art").addEventListener("click", () => {
   if (approvedMaster) return notify("MASTER LOCK 해제 후 작품을 변경하세요.");
+  if(extrasRoot.children.some(o=>o.userData.extraKind==="artwork-copy"))
+    return notify("기존 복제 작품을 삭제한 뒤 원본을 변경하세요.");
   activeArtOperation++;
   activeProjectOperation++;
   setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 }); changeView("main");
