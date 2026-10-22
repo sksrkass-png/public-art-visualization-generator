@@ -13,7 +13,9 @@ const css = fs.readFileSync(path.join(base, "studio/studio.css"), "utf8");
 const js = fs.readFileSync(path.join(base, "studio/studio.js"), "utf8");
 const legacy = fs.readFileSync(path.join(base, "index.html"), "utf8");
 
-assert.doesNotThrow(() => new Function(js.replace(/^import .*?;\s*$/gm, "")), "studio module parses after stripping top-level static imports");
+// The shipped module has multiline imports; the workflow's node --check
+// is the real syntax check (stripping imports with a line regex is unsound).
+assert.match(js, /from "\.\/layers\.js"/, "v0.6 layer module must be imported");
 assert.match(legacy, /href="studio\/"/, "main application links to studio");
 assert.match(html, /"three":\s*"https:\/\/cdn\.jsdelivr\.net\/npm\/three@0\.186\.1/, "pin exact Three.js version");
 assert.match(html, /type="module" src="\.\/studio\.js"/, "app must be a browser ES module");
@@ -50,6 +52,23 @@ assert.match(js, /if \(approvedMaster\) return notify\("MASTER LOCK/, "locked mo
 assert.match(js, /selectedRoot\.scale\.fromArray\(base\.map/, "proportional scale gizmo enforcement required");
 assert.match(js, /const SITE_UNIT_TO_M/, "site unit conversion must exist");
 assert.match(js, /function syncGroundAvailability/, "hide redundant ground mapping when site imported");
+for (const marker of [
+  "function refreshLayers", "function renderSiteLayerRows",
+  "function renderExtraLayerRows", "function changeSiteMesh",
+  "function changeExtraLayer", "function resetSiteAnnotations"
+]) assert.ok(js.includes(marker), "v0.6 layer engine function missing: "+marker);
+for (const id of ["layer-manager","layer-groups","site-object-search","site-object-list",
+  "site-mesh-count","layer-extra-list","site-selected-name"]) {
+  assert.ok(unique.has(id), "v0.6 DOM control missing: "+id);
+}
+const layerModule=fs.readFileSync(path.join(base,"studio/layers.js"),"utf8");
+assert.doesNotThrow(() => new Function(layerModule.replace(/^export /gm,"")), "layer module parses");
+assert.match(layerModule,/validateLayerState/, "archive validation of layer state");
+assert.match(layerModule,/enumerateSiteMeshes/, "stable source geometry paths");
+assert.match(layerModule,/canEditObject/, "selection lock gate");
+assert.match(js,/layers:structuredClone\(layerState\)/, "layer state is saved in scene archives");
+assert.match(js,/function clearSiteHighlight/, "source selection helper managed separately");
+
 assert.match(js, /function createPlacedExtra/, "mouse placement for new objects");
 assert.match(js, /function groundSelected/, "selected surface grounding required");
 assert.match(js, /function placeSelectedOnSite/, "click-to-place selected objects required");

@@ -1,6 +1,16 @@
-# AXOO Public Art 3D Studio — v0.5
+# AXOO Public Art 3D Studio — v0.6
 
 Static, browser-based interactive editor for public-art proposal staging. Version 0.3 expands site model imports. It is a companion to the existing prompt generator: `/studio/` leaves the legacy app unchanged.
+
+## v0.6 visual layers / scene object browser
+
+- **Layer groups:** Show/hide imported site as a whole; independently show/hide source meshes explicitly classified as **건물/건축**, **기존 조경**, or **미분류 현장**; toggle artwork, newly added planting, and separately placed lights. Source meshes with no user classification remain **미분류**; filenames/names are not treated as reliable semantic survey data.
+- **Site source hierarchy:** Expand the **현장 객체 분류** drawer, search up to the first 80 matching source meshes at once, inspect each mesh by highlighting its bounding box, manually categorize into building/landscape/unclassified and toggle its individual visibility. Imported site models **cannot be moved, deleted, sculpted or unlocked for transforms**. The layer engine only changes visible flags and stores stable index paths. If a source file merges all elements into one mesh, it cannot be individually separated in the browser without revising the 3D source.
+- **Editable groups:** Artwork, added flora and lights may be selection-locked by group. Locks disable selection gizmos, numeric XYZ transformations, ground placement and deletion. The group visible flag filters scene rendering; hiding a layer doesn't remove the data or make it editable.
+- **Individual extras:** Added trees/shrubs/point and spotlights each have eye and selection-lock toggles in their own collapsed layer list. Existing foliage shapes and object transforms remain unchanged. Actions support existing Undo/Redo.
+- **Persistence & approval:** Layer grouping, visibility, selection locks and extra hidden/locked flags persist in settings JSON and complete-project ZIP. Approved MASTER snapshots include the same layer configuration and block changes until an explicitly confirmed revision. Older v0.5 files without layer settings reopen with all layers visible and unlocked where applicable.
+- **Accuracy:** Model materials/geometry and original site architecture are untouched; hiding a mesh in the viewport may exclude it from a **visible-only GLB scene export**. The original uploaded site file is always kept intact inside the complete-project ZIP. Avoid confusing layer visibility with the existence of source geometry in the site.
+- **Scale:** Mesh rows are limited to 80 matching results at a time to keep the inspector responsive; model data itself is never truncated.
 
 ## v0.5 precision placement & plan registration
 

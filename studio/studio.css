@@ -82,3 +82,25 @@
 #ground-status{background:#f6f7f7;padding:8px 10px;border-left:2px solid #bbbfc3;border-radius:2px}
 #ground-selected,#pick-selected-site{font-size:10.5px;line-height:1.25}
 .site-plan-controls input[type=range]{margin-bottom:5px}
+
+/* v0.6: compact SketchUp-style visibility and selection-lock layers */
+.layer-groups{display:flex;flex-direction:column;gap:5px;margin:12px 0}
+.layer-group{display:flex;align-items:center;justify-content:space-between;gap:5px;border:1px solid #e4e6e7;background:#fafbfa;border-radius:5px;padding:8px 7px;font-size:10px}
+.layer-group.muted{opacity:.52}
+.layer-group-title{font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layer-group label{display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;font-size:9px;color:#575f62}
+.layer-group input{margin:0;accent-color:#393c3f}
+.layer-group input:disabled{cursor:not-allowed}
+.site-fixed-lock{font-size:12px;opacity:.52}
+.site-scene-objects,.extra-scene-objects{padding:9px 0;border-top:1px solid #e6e8e9}
+.site-scene-objects summary,.extra-scene-objects summary{font-weight:700;font-size:11px;cursor:pointer}
+.site-scene-objects summary span,.extra-scene-objects summary span{color:#7c8587;font-weight:400}
+#site-object-search{margin:7px 0;font-size:11px}
+.site-object-list,.layer-extra-list{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto}
+.site-mesh-item,.extra-layer-item{display:grid;grid-template-columns:minmax(0,1fr) 75px 24px;align-items:center;gap:5px;background:#f7f9f9;padding:5px 4px;border-radius:4px;border:1px solid #e6e9e8}
+.extra-layer-item{grid-template-columns:minmax(0,1fr) 24px 24px}
+.site-mesh-focus,.extra-layer-item button{min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:none;font-weight:600;font-size:10px;cursor:pointer;color:#3c4043}
+.site-mesh-focus:hover,.extra-layer-item button:hover{text-decoration:underline}
+.site-mesh-item select{padding:5px 2px;border:1px solid #dce0e2;border-radius:3px;font-size:10px;background:white;max-width:75px}
+.site-mesh-item input,.extra-layer-item input{justify-self:center;accent-color:#33383a}
+.site-mesh-item button:disabled,.extra-layer-item button:disabled{opacity:.44;cursor:not-allowed}

@@ -138,6 +138,8 @@ export function serializeExtras(container) {
       id:root.userData.extraId,
       kind:root.userData.extraKind,
       appearanceVersion:root.userData.appearanceVersion || 1,
+      hidden:root.userData.layerHidden === true,
+      selectionLocked:root.userData.layerLocked === true,
       transform:{
         p:root.position.toArray(),
         r:root.rotation.toArray().slice(0,3),
@@ -153,6 +155,8 @@ export function validateExtras(extras) {
   for(const x of extras) {
     if(!x||!EXTRA_TYPES.includes(x.kind)||!Number.isInteger(x.id)||x.id<1||ids.has(x.id))return false;
     if(x.appearanceVersion !== undefined && ![1,2].includes(x.appearanceVersion))return false;
+    if(x.hidden !== undefined && typeof x.hidden !== "boolean")return false;
+    if(x.selectionLocked !== undefined && typeof x.selectionLocked !== "boolean")return false;
     ids.add(x.id);
     const t=x.transform;
     if(!t||!["p","r","s"].every(k=>Array.isArray(t[k])&&t[k].length===3&&
@@ -168,6 +172,8 @@ export function restoreExtras(container,entries) {
   container.clear();
   for(const x of entries){
     const root=makeExtra(x.kind,x.id,x.appearanceVersion || 1);
+    root.userData.layerHidden = x.hidden === true;
+    root.userData.layerLocked = x.selectionLocked === true;
     root.position.fromArray(x.transform.p);
     root.rotation.set(...x.transform.r);
     root.scale.fromArray(x.transform.s);

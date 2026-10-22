@@ -13,6 +13,9 @@ import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
+import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
+  enumerateSiteMeshes, applyLayerVisibility, normalizeSiteAnnotations, canEditObject,
+  layerForObject } from "./layers.js";
 
 const $ = id => document.getElementById(id);
 const viewport = $("viewport");
@@ -120,6 +123,7 @@ let siteSourceFile = null, artSourceFile = null, planSourceFile = null;
 let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
 let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
+let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
 const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048 });
 const MAX_UNDO = 40;
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -175,6 +179,180 @@ function tree(parent, x, z, height = 3.6) {
   crown.position.set(x, height * .7, z);
   parent.add(trunk, crown);
 }
+function clearSiteHighlight() {
+  if (siteHighlight) {
+    scene.remove(siteHighlight);
+    siteHighlight.geometry.dispose();
+    siteHighlight.material.dispose();
+    siteHighlight = null;
+  }
+}
+function siteMeshByPath(path) {
+  return enumerateSiteMeshes(siteRoot).find(entry => entry.path === path);
+}
+function focusSiteMesh(path) {
+  if (approvedMaster) return;
+  const entry = siteMeshByPath(path);
+  if (!entry) return;
+  clearSiteHighlight();
+  siteHighlight = new THREE.BoxHelper(entry.object, 0xb17823);
+  siteHighlight.name = "Editor site selection bounds — not exported";
+  scene.add(siteHighlight);
+  $("site-selected-name").textContent = "보기 선택: " + entry.name + " · 원본 현장은 편집할 수 없습니다.";
+  const bounds = new THREE.Box3().setFromObject(entry.object);
+  if (!bounds.isEmpty()) {
+    const newTarget = bounds.getCenter(new THREE.Vector3());
+    camera.position.add(newTarget.clone().sub(orbit.target));
+    orbit.target.copy(newTarget);
+    orbit.update();
+  }
+}
+function siteLayerCounts(entries) {
+  return entries.reduce((acc, entry) => {
+    const category = layerState.siteNodes[entry.path]?.category || "unassigned";
+    acc[category]++;return acc;
+  },{buildings:0,landscape:0,unassigned:0});
+}
+function renderSiteLayerRows(entries) {
+  const root = $("site-object-list");
+  const query = $("site-object-search").value.trim().toLocaleLowerCase("ko-KR");
+  const matched = entries.filter(e => e.name.toLocaleLowerCase("ko-KR").includes(query) || e.path.includes(query));
+  root.replaceChildren();
+  for (const entry of matched.slice(0, 80)) {
+    const state = layerState.siteNodes[entry.path] || {category:"unassigned",hidden:false};
+    const item = document.createElement("div");
+    item.className = "site-mesh-item";
+    item.dataset.meshPath = entry.path;
+    const focus = document.createElement("button");
+    focus.type = "button";focus.className = "site-mesh-focus";
+    focus.title = "이 메시의 위치 보기 · 구조 편집 불가";
+    focus.textContent = entry.name;
+    focus.disabled = approvedMaster; // Approved camera stays locked to master unless user changes view preset.
+    focus.addEventListener("click", () => focusSiteMesh(entry.path));
+    const select = document.createElement("select");
+    select.setAttribute("aria-label",entry.name+" 분류");
+    select.dataset.siteMeshCategory = entry.path;
+    for(const [key,label] of [["unassigned","미분류"],["buildings","건물"],["landscape","조경"]]){
+      const option = document.createElement("option");
+      option.value=key;option.textContent=label;select.appendChild(option);
+    }
+    select.value=state.category;
+    select.disabled=approvedMaster;
+    const eye = document.createElement("input");
+    eye.type="checkbox";eye.checked=!state.hidden;eye.disabled=approvedMaster;
+    eye.dataset.siteMeshVisible=entry.path;
+    eye.setAttribute("aria-label",entry.name+" 표시");
+    item.append(focus,select,eye);
+    root.appendChild(item);
+  }
+  $("site-object-truncated").textContent = matched.length > 80
+    ? matched.length+"개 중 80개 표시 · 검색어를 입력하면 원하는 메시를 찾을 수 있습니다."
+    : (matched.length ? matched.length+"개 목록 · 분류 후 위 레이어 표시를 조절하세요." : "일치하는 메시 없음");
+}
+function renderExtraLayerRows() {
+  const list=$("layer-extra-list");
+  list.replaceChildren();
+  $("extra-layer-count").textContent=extrasRoot.children.length+"개";
+  for(const root of extrasRoot.children){
+    const item=document.createElement("div");
+    item.className="extra-layer-item";item.dataset.extraLayerId=String(root.userData.extraId);
+    const label=document.createElement("button");
+    label.type="button";label.textContent=root.name;label.title="선택 후 이동·회전·크기 변경";
+    const editable=canEditObject(root,artRoot,layerState,approvedMaster);
+    label.disabled=!editable;
+    label.addEventListener("click",()=>selectRoot(root));
+    const eye=document.createElement("input");
+    eye.type="checkbox";eye.checked=root.userData.layerHidden!==true;
+    eye.disabled=approvedMaster;
+    eye.dataset.extraVisible=String(root.userData.extraId);
+    eye.setAttribute("aria-label",root.name+" 표시");
+    const lock=document.createElement("input");
+    lock.type="checkbox";lock.checked=root.userData.layerLocked===true;
+    lock.disabled=approvedMaster;
+    lock.dataset.extraLock=String(root.userData.extraId);
+    lock.setAttribute("aria-label",root.name+" 선택 잠금");
+    item.append(label,eye,lock);
+    list.appendChild(item);
+  }
+}
+function selectedCanEdit() {
+  return canEditObject(selectedRoot,artRoot,layerState,approvedMaster);
+}
+function refreshLayers({redrawSite = false} = {}) {
+  const entries=applyLayerVisibility(layerState,siteRoot,artRoot,extrasRoot);
+  const counts=siteLayerCounts(entries);
+  $("site-mesh-count").textContent=entries.length+"개";
+  for(const key of LAYER_KEYS){
+    const checkbox=document.querySelector('[data-layer-visible="'+key+'"]');
+    checkbox.checked=layerState.groups[key].visible;
+    checkbox.disabled=approvedMaster;
+    const lock=document.querySelector('[data-layer-lock="'+key+'"]');
+    if(lock){lock.checked=layerState.groups[key].locked;lock.disabled=approvedMaster;}
+    const row=document.querySelector('[data-layer-row="'+key+'"]');
+    if(row){
+      row.classList.toggle("muted",!layerState.groups[key].visible);
+      const title=row.querySelector(".layer-group-title");
+      const count=counts[key];
+      if(title && count!==undefined) title.title=count+"개 메시 (분류는 직접 지정)";
+    }
+  }
+  if(redrawSite) renderSiteLayerRows(entries);
+  renderExtraLayerRows();
+  if(!selectedCanEdit()) transform.detach();
+  else if(!transform.dragging && transform.object!==selectedRoot) transform.attach(selectedRoot);
+  controls.forEach(input=>{input.disabled=!selectedCanEdit();});
+  $("delete-selected").disabled=!selectedCanEdit() || selectedRoot===artRoot;
+  $("ground-selected").disabled=!selectedCanEdit();
+  $("pick-selected-site").disabled=!selectedCanEdit();
+  $("apply-height").disabled=!canEditObject(artRoot,artRoot,layerState,approvedMaster);
+  $("extra-light-power").disabled=!selectedCanEdit();
+  $("extra-light-color").disabled=!selectedCanEdit();
+  document.querySelectorAll("[data-add-extra]").forEach(button=>{
+    const group=button.dataset.addExtra.includes("light") ? layerState.groups.lighting : layerState.groups.planting;
+    button.disabled=approvedMaster || !group.visible || group.locked;
+  });
+}
+function setLayerGroupVisible(key, value) {
+  if(approvedMaster || !LAYER_KEYS.includes(key))return;
+  const before=editSnapshot();
+  layerState.groups[key].visible=value;
+  refreshLayers({redrawSite:false});
+  updateExtrasStatus();
+  commit(before);
+}
+function setLayerGroupLocked(key,value){
+  if(approvedMaster || !["artwork","planting","lighting"].includes(key))return;
+  const before=editSnapshot();
+  layerState.groups[key].locked=value;
+  refreshLayers();
+  updateExtrasStatus();
+  commit(before);
+}
+function changeSiteMesh(path, field, value) {
+  if(approvedMaster) return;
+  if(!siteMeshByPath(path))return;
+  const before=editSnapshot();
+  const previous=layerState.siteNodes[path] || {category:"unassigned",hidden:false};
+  layerState.siteNodes[path]={...previous,[field]:value};
+  refreshLayers({redrawSite:field==="category"});
+  commit(before);
+}
+function changeExtraLayer(id,field,value){
+  if(approvedMaster)return;
+  const extra=extrasRoot.children.find(x=>x.userData.extraId===id);
+  if(!extra)return;
+  const before=editSnapshot();
+  extra.userData[field]=value;
+  refreshLayers();
+  updateExtrasStatus();
+  commit(before);
+}
+function resetSiteAnnotations({clearPending = true} = {}){
+  layerState.siteNodes={};
+  if(clearPending) pendingSiteLayers=null;
+  clearSiteHighlight();
+  refreshLayers({redrawSite:true});
+}
 function buildSite(preset) {
   activeSiteOperation++;
   siteRoot.scale.setScalar(1);
@@ -184,6 +362,7 @@ function buildSite(preset) {
   clearGroup(siteRoot);
   siteFileName = "";
   siteSourceFile = null;
+  resetSiteAnnotations();
   syncGroundAvailability();
   $("site-filename").textContent = "업로드된 현장 모델 없음";
   showSiteGeometryStats(null);
@@ -207,6 +386,7 @@ function buildSite(preset) {
     for (let z of [-9, 9]) for (let x = -24; x <= 24; x += 8) tree(siteRoot, x, z, 4);
     for (let z of [-18, 18]) box(siteRoot, 54, 6, 5, 0, 3, z, 0xc6c8c8);
   }
+  refreshLayers({redrawSite:true});
 }
 function syncGroundAvailability() {
   const imported = !!siteSourceFile;
@@ -400,6 +580,7 @@ function snapshot(root = artRoot) {
 }
 function editSnapshot() {
   return { artwork: snapshot(), extras: serializeExtras(extrasRoot),
+    layers:structuredClone(layerState),
     selectedId: selectedRoot === artRoot ? 0 : selectedRoot.userData.extraId };
 }
 function sameSnapshot(a, b) {
@@ -414,6 +595,8 @@ function restore(data) {
 function restoreEdit(state) {
   restore(state.artwork);
   restoreExtras(extrasRoot, state.extras);
+  if(state.layers) layerState=importLayerState(state.layers);
+  refreshLayers({redrawSite:true});
   nextExtraId = Math.max(1, ...state.extras.map(x => x.id + 1));
   const picked = state.selectedId ? extrasRoot.children.find(x => x.userData.extraId === state.selectedId) : artRoot;
   selectRoot(picked || artRoot);
@@ -460,6 +643,7 @@ function masterSnapshot() {
       .map(id => [id, Number($(id).value)])),
     shadows: $("shadows").checked,
     extras: serializeExtras(extrasRoot),
+    layers:structuredClone(layerState),
     planAlignment: planAlignmentSnapshot()
   };
 }
@@ -470,7 +654,8 @@ function validMasterSnapshot(entry) {
     validTransform(entry.artworkTransform) &&
     entry.camera && isTriple(entry.camera.position) && isTriple(entry.camera.target) &&
     entry.lighting && typeof entry.lighting === "object" &&
-    (entry.extras === undefined || validateExtras(entry.extras));
+    (entry.extras === undefined || validateExtras(entry.extras)) &&
+    (entry.layers === undefined || validateLayerState(entry.layers));
 }
 function renderMasterHistory() {
   const root = $("master-history");
@@ -525,7 +710,7 @@ function syncLock() {
     activePlanOperation++;
     transform.detach();
   }
-  else if (selectedRoot) transform.attach(selectedRoot);
+  else if (selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
   ["site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
     "plan-pick-center", "plan-visible", "map-file", "map-width", "plan-x", "plan-z",
@@ -543,12 +728,14 @@ function syncLock() {
     ? "승인된 작품 위치·회전·배율이 고정되었습니다. 잠금을 해제하면 새로운 수정 버전이 시작됩니다."
     : "승인하면 현재 작품의 배치를 잠급니다. 현장 모델은 항상 편집 대상에서 제외됩니다.";
   buttons.forEach(el => el.disabled = approvedMaster);
+  refreshLayers({redrawSite:true});
   updateUndoButtons();
 }
 function updateInspector(force = false) {
   const state = snapshot(selectedRoot);
   const values = { position: state.p, rotation: state.r.map(v => THREE.MathUtils.radToDeg(v)), scale: state.s };
   controls.forEach(el => {
+    el.disabled=!selectedCanEdit();
     if (!force && document.activeElement === el) return;
     const axis = { x: 0, y: 1, z: 2 }[el.dataset.axis];
     el.value = Number(values[el.dataset.transform][axis].toFixed(3));
@@ -565,7 +752,7 @@ function updateInspector(force = false) {
     $("extra-light-power-value").textContent = light.intensity.toFixed(1);
     $("extra-light-color").value = "#" + light.color.getHexString();
   }
-  $("delete-selected").disabled = approvedMaster || selectedRoot === artRoot;
+  $("delete-selected").disabled = !selectedCanEdit() || selectedRoot === artRoot;
   if (selectedRoot === artRoot) $("art-height").value = d.y ? Number(d.y.toFixed(2)) : 0;
 }
 function changeMode(mode) {
@@ -660,19 +847,21 @@ function updateExtrasStatus() {
     const object = extrasRoot.children.find(node => node.userData.extraId === Number(button.dataset.extraId));
     if (object) button.textContent = object.name;
     button.classList.toggle("active", Number(button.dataset.extraId) === activeId);
-    button.disabled = approvedMaster;
+    button.disabled = !object || !canEditObject(object,artRoot,layerState,approvedMaster);
   }
-  $("delete-selected").disabled = approvedMaster || selectedRoot === artRoot;
+  $("delete-selected").disabled = !selectedCanEdit() || selectedRoot === artRoot;
 }
 function selectRoot(object) {
   selectedRoot = object || artRoot;
-  if (!approvedMaster && selectedRoot) transform.attach(selectedRoot);
+  if (selectedCanEdit()) transform.attach(selectedRoot);
   else transform.detach();
   updateInspector(true);
   updateExtrasStatus();
+  refreshLayers();
 }
 function setPlacement(kind) {
-  if (approvedMaster) return;
+  const group=kind.includes("light")?layerState.groups.lighting:layerState.groups.planting;
+  if (approvedMaster || group.locked || !group.visible) return notify("잠긴 레이어나 숨겨진 레이어에는 오브제를 추가할 수 없습니다.");
   placementMode = kind;
   $("placement-hint").hidden = false;
   $("placement-hint").textContent = kind.includes("light")
@@ -681,7 +870,8 @@ function setPlacement(kind) {
   notify("현장 위치를 클릭하여 추가하세요.");
 }
 function createPlacedExtra(kind, position) {
-  if (approvedMaster || extrasRoot.children.length >= 120) return null;
+  const group=kind.includes("light")?layerState.groups.lighting:layerState.groups.planting;
+  if (approvedMaster || group.locked || !group.visible || extrasRoot.children.length >= 120) return null;
   const before = editSnapshot();
   const root = makeExtra(kind, nextExtraId++);
   root.position.copy(position);
@@ -697,7 +887,7 @@ function createPlacedExtra(kind, position) {
   return root;
 }
 function deleteSelectedExtra() {
-  if (approvedMaster || selectedRoot === artRoot || !selectedRoot.parent) return;
+  if (!selectedCanEdit() || selectedRoot === artRoot || !selectedRoot.parent) return;
   const before = editSnapshot();
   selectedRoot.parent.remove(selectedRoot);
   selectRoot(artRoot);
@@ -705,7 +895,7 @@ function deleteSelectedExtra() {
   notify("선택한 오브제를 삭제했습니다. Ctrl+Z로 복원할 수 있습니다.");
 }
 function groundSelected({ silent = false } = {}) {
-  if (approvedMaster) return null;
+  if (!selectedCanEdit()) return null;
   if (selectedRoot !== artRoot && extraLight(selectedRoot)) {
     if (!silent) notify("조명은 공중 설치가 가능하므로 자동 밀착하지 않습니다. 현장 클릭 재배치에서 높이를 조정하세요.");
     return null;
@@ -728,7 +918,7 @@ function groundSelected({ silent = false } = {}) {
   return result;
 }
 function placeSelectedOnSite(hit) {
-  if (approvedMaster || !hit) return;
+  if (!selectedCanEdit() || !hit) return;
   const before = editSnapshot();
   selectedRoot.position.x = hit.point.x;
   selectedRoot.position.z = hit.point.z;
@@ -786,14 +976,20 @@ function handleSelection(event) {
   mouse.y = -(event.clientY - rect.top) / rect.height * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
   const allHits = raycaster.intersectObjects([...extrasRoot.children, ...artRoot.children], true);
-  if (!allHits.length) return;
-  let candidate = allHits[0].object;
+  const first = allHits.find(hit=>{
+    let obj=hit.object;
+    while(obj.parent && obj.parent!==extrasRoot && obj.parent!==artRoot) obj=obj.parent;
+    const root=obj.parent===extrasRoot ? obj : artRoot;
+    return canEditObject(root,artRoot,layerState,false);
+  });
+  if (!first) return;
+  let candidate = first.object;
   while (candidate.parent && candidate.parent !== extrasRoot && candidate.parent !== artRoot) candidate = candidate.parent;
   if (candidate.parent === extrasRoot) selectRoot(candidate);
   else selectRoot(artRoot);
 }
 function setTransformFromField(el) {
-  if (approvedMaster) return;
+  if (!selectedCanEdit()) return;
   const current = selectedRoot[el.dataset.transform][el.dataset.axis];
   const raw = safeNumber(el.value, NaN);
   if (!Number.isFinite(raw)) return updateInspector();
@@ -893,6 +1089,13 @@ async function importModel(file, isSite) {
       $("site-unit").value = "m"; $("site-up").value = "y";
       applySiteUnits(); syncGroundAvailability();
       setShadows(siteRoot);
+      resetSiteAnnotations({clearPending:false});
+      if(pendingSiteLayers && pendingSiteLayers.file === file.name){
+        layerState.siteNodes=structuredClone(pendingSiteLayers.nodes);
+        pendingSiteLayers=null;refreshLayers({redrawSite:true});
+      } else {
+        pendingSiteLayers=null;
+      }
       showSiteGeometryStats(inspectSiteGeometry(siteRoot));
       notify("현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
     } else {
@@ -951,6 +1154,7 @@ function sceneConfig() {
       planAlignment: planAlignmentSnapshot() },
     groundPlacement: { auto: $("auto-ground").checked, offset: +$("ground-offset").value },
     extras: serializeExtras(extrasRoot),
+    layers:structuredClone(layerState),
     navSpeed: +$("nav-speed").value,
     lightPreset: $("light-preset").value,
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked },
@@ -974,6 +1178,7 @@ function validateProjectConfig(data) {
       typeof data.artwork.source !== "string" || typeof data.site.file !== "string" ||
       !["empty", "plaza", "courtyard", "promenade"].includes(data.site.preset) ||
       (data.extras !== undefined && !validateExtras(data.extras)) ||
+      (data.layers !== undefined && !validateLayerState(data.layers)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
       (data.site.up !== undefined && !["y","z"].includes(data.site.up)) ||
       (data.site.planAlignment !== undefined && !validPlanAlignment(data.site.planAlignment)) ||
@@ -1031,6 +1236,14 @@ function importSceneConfig(data) {
   $("nav-speed").dispatchEvent(new Event("input"));
   updateLight();
   restoreExtras(extrasRoot, data.extras || []);
+  layerState=importLayerState(data.layers);
+  if(data.site.file && data.site.file!==siteFileName){
+    pendingSiteLayers={file:data.site.file,nodes:structuredClone(layerState.siteNodes)};
+    layerState.siteNodes={};
+  }else{
+    normalizeSiteAnnotations(layerState,siteRoot);
+  }
+  refreshLayers({redrawSite:true});
   nextExtraId = Math.max(1,...extrasRoot.children.map(x => x.userData.extraId+1));
   selectRoot(artRoot);
   $("uniform-scale").checked = data.artwork.uniformScale !== false;
@@ -1162,6 +1375,7 @@ async function importProjectArchive(file) {
       applySiteUnits(); syncGroundAvailability();
       showSiteGeometryStats(inspectSiteGeometry(siteRoot));
       setShadows(siteRoot);
+      resetSiteAnnotations();
     } else {
       $("site-preset").value = data.site.preset;
       buildSite(data.site.preset);
@@ -1197,6 +1411,7 @@ function exportImage() {
   const originalGrid = grid.visible;
   const originalHelper = transform.getHelper().visible;
   const originalSun = sunGuide.visible;
+  const originalHighlight = siteHighlight?.visible;
   const originalEditorGizmos = true;
   try {
     const targetMultiplier = safeNumber($("render-resolution").value, 2, 2, 4);
@@ -1207,6 +1422,7 @@ function exportImage() {
     grid.visible = false;
     transform.getHelper().visible = false;
     sunGuide.visible = false;
+    if(siteHighlight) siteHighlight.visible = false;
     setEditorGizmosVisible(extrasRoot, false);
     renderer.render(scene, camera);
     const data = renderer.domElement.toDataURL("image/png");
@@ -1223,6 +1439,7 @@ function exportImage() {
     grid.visible = originalGrid;
     transform.getHelper().visible = originalHelper;
     sunGuide.visible = originalSun;
+    if(siteHighlight) siteHighlight.visible = originalHighlight;
     setEditorGizmosVisible(extrasRoot, originalEditorGizmos);
     renderer.setPixelRatio(originalRatio);
     renderer.setSize(width, height, false);
@@ -1252,6 +1469,19 @@ async function exportGLB() {
 }
 
 // Event connections
+// Delegate changes from dynamically rendered layer rows; site source geometry stays read-only.
+$("layer-manager").addEventListener("change", event => {
+  const target=event.target;
+  if(!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement))return;
+  if(approvedMaster) return;
+  if(target.dataset.layerVisible) return setLayerGroupVisible(target.dataset.layerVisible,target.checked);
+  if(target.dataset.layerLock) return setLayerGroupLocked(target.dataset.layerLock,target.checked);
+  if(target.dataset.siteMeshVisible) return changeSiteMesh(target.dataset.siteMeshVisible,"hidden",!target.checked);
+  if(target.dataset.siteMeshCategory && SITE_CATEGORIES.includes(target.value)) return changeSiteMesh(target.dataset.siteMeshCategory,"category",target.value);
+  if(target.dataset.extraVisible) return changeExtraLayer(Number(target.dataset.extraVisible),"layerHidden",!target.checked);
+  if(target.dataset.extraLock) return changeExtraLayer(Number(target.dataset.extraLock),"layerLocked",target.checked);
+});
+$("site-object-search").addEventListener("input", () => renderSiteLayerRows(enumerateSiteMeshes(siteRoot)));
 $("site-unit").addEventListener("change", () => {
   if (approvedMaster) return;
   applySiteUnits();
