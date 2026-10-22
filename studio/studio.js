@@ -745,6 +745,20 @@ function placeSelectedOnSite(hit) {
   notify("클릭한 현장 표면으로 선택 오브제를 이동했습니다.");
 }
 function pickPlacement(event) {
+  if (!siteSourceFile) {
+    // Preserve the original v0.4 picking behavior for schematic demonstration
+    // sites (buildings / trees / placeholder ground may be arbitrary meshes).
+    const rect = viewport.getBoundingClientRect();
+    mouse.x = (event.clientX - rect.left) / rect.width * 2 - 1;
+    mouse.y = -(event.clientY - rect.top) / rect.height * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(siteRoot.children, true);
+    const groundHits = raycaster.intersectObject(floor);
+    const hit = hits[0] || groundHits[0];
+    if (hit) return { point: hit.point.clone(), mesh: hit.object, source: "preset" };
+  }
+  // Real imported sites require a verified, upward-facing 3D mesh triangle;
+  // avoid manufacturing a ground surface when only a facade/sky is clicked.
   return surfaceAtPointer(event, camera, viewport, siteRoot, !siteSourceFile);
 }
 function handleSelection(event) {
