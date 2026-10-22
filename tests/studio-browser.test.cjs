@@ -28,7 +28,10 @@ const assert = require("node:assert/strict");
     assert.equal(Number(await x.inputValue()), 2, "redo should repeat the position change");
     await page.locator('[data-view="aerial"]').click();
     assert.match(await page.locator('[data-view="aerial"]').getAttribute("class"), /active/);
-    await page.locator("#sun-azimuth").fill("130");
+    await page.locator("#sun-azimuth").evaluate(el => {
+      el.value = "130";
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
     assert.equal(await page.locator("#sun-azimuth-value").textContent(), "130°");
     await page.locator("#master-lock").click();
     assert.equal(await x.isDisabled(), true, "approved placement should be locked");
