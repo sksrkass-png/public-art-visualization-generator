@@ -1,6 +1,14 @@
-# AXOO Public Art 3D Studio — v1.1
+# AXOO Public Art 3D Studio — v1.2
 
 Static, browser-based interactive editor for public-art proposal staging. Version 0.3 expands site model imports. It is a companion to the existing prompt generator: `/studio/` leaves the legacy app unchanged.
+
+## v1.2 — Scene Asset Library / People, planting, furniture and GLB
+
+- **Immediate built-in reference assets:** New **autumn deciduous tree**, **1.73m neutral pedestrian mannequin**, **1.8m park bench** and **cylindrical planter with planting** can be placed by clicking on a mesh surface. They join the existing round/conifer trees and shrubs; all are **deterministic lightweight reference meshes**, not photogrammetric botanical assets. Directly edit size (S), translation (G) and rotation (R) with the same inspector and Undo. These objects are *context*, not any change to the user's original sculpture or imported building.
+- **Local high-fidelity external GLB library:** Upload up to six embedded glTF 2.0 GLB files (each at most 20MB; total 60MB; maximum 250k triangles per source). Choose category (planting, pedestrian, street furniture), pick an imported GLB and click the site to place it. The GLB mesh hierarchy, relative scale, original PBR materials and textures are preserved and copied into editable groups; the imported source is not changed or reinterpreted. Repeat placements reuse loaded source geometry. Confirm that the asset's size is in metres, and adjust user-added context objects manually.
+- **Non-destructive persistence:** `library` manifests and individual `assetId` assignments are saved in JSON and master revision snapshots; *all six original binary files* are stored inside the SHA-256-verified full-project ZIP under `assets/library/libN.glb`. ZIP imports parse and verify **every source before touching the live scene**. Source-free old projects continue to load. A JSON-only settings file does **not** include binary sources and may need source re-upload; complete-project ZIP is the supported recovery workflow.
+- **Performance:** The library UI displays source byte budget, placed instance counts and approximate visible source triangle counts. Reject large GLB assets before inserting them. A dense site plus multiple instances can still overload mobile GPUs; no unsupported claim of automatic LOD, path-traced botanics or physically accurate landscape shadows. Keep artist work and site locked.
+- **Rights:** No stock/photo/GLB assets are redistributed or fetched from third-party sites. Users must select and verify suitable real-world units, environment accuracy and third-party source usage rights.
 
 ## v1.1 — Advanced Site Import / reliable project coordinates
 

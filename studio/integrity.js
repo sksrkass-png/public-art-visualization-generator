@@ -4,6 +4,12 @@ const ALLOWED=["project.json","assets/site","assets/artwork","assets/plan","asse
 const MAX_HASH_BYTES={"project.json":1048576,"assets/site":83886080,
   "assets/artwork":83886080,"assets/plan":20971520,"assets/environment":20971520};
 const INTEGRITY_SCHEMA="axoo-studio-integrity-v1";
+function allowed(name){
+  return ALLOWED.includes(name) || /^assets\/library\/lib[1-9]\d{0,4}\.glb$/.test(name);
+}
+function maxSize(name){
+  return name.startsWith("assets/library/")?20*1024*1024:MAX_HASH_BYTES[name];
+}
 async function digest(bytes){
   if(!crypto?.subtle)throw Error("암호화 해시를 지원하는 보안 환경(HTTPS)이 필요합니다.");
   const value=await crypto.subtle.digest("SHA-256",bytes);
@@ -11,21 +17,23 @@ async function digest(bytes){
 }
 function inspectZip(zip){
   const names=Object.keys(zip.files).filter(name=>!zip.files[name].dir);
-  if(names.some(name=>![...ALLOWED,"integrity.json"].includes(name)))
+  if(names.filter(name=>name.startsWith("assets/library/")).length>6)
+    throw Error("사용자 GLB 파일은 최대 6개입니다.");
+  if(names.some(name=>name!=="integrity.json" && !allowed(name)))
     throw Error("알 수 없는 ZIP 내부 파일이 있습니다.");
   return names;
 }
 export async function makeIntegrityManifest(zip){
   const entries=inspectZip(zip);
   const files={};
-  for(const name of ALLOWED){
-    if(!entries.includes(name))continue;
+  for(const name of entries){
+    if(name==="integrity.json")continue;
     const entry=zip.file(name);
     const size=entry._data?.uncompressedSize;
-    if(Number.isFinite(size) && size>MAX_HASH_BYTES[name])
+    if(Number.isFinite(size) && size>maxSize(name))
       throw Error(name+" 항목이 허용 크기를 초과했습니다.");
     const bytes=await entry.async("uint8array");
-    if(bytes.byteLength>MAX_HASH_BYTES[name])throw Error(name+" 항목이 너무 큽니다.");
+    if(bytes.byteLength>maxSize(name))throw Error(name+" 항목이 너무 큽니다.");
     files[name]={sha256:await digest(bytes),bytes:bytes.byteLength};
   }
   if(!files["project.json"])throw Error("project.json이 빠졌습니다.");
@@ -48,11 +56,11 @@ export async function verifyIntegrityManifest(zip){
   if(JSON.stringify(actual)!==JSON.stringify(listed))
     throw Error("ZIP 파일 목록이 저장 당시와 다릅니다.");
   for(const name of actual){
-    if(!ALLOWED.includes(name))throw Error("허용되지 않은 파일 항목: "+name);
+    if(!allowed(name))throw Error("허용되지 않은 파일 항목: "+name);
     const expected=metadata.files[name];
     if(!expected || !/^[a-f0-9]{64}$/.test(expected.sha256) ||
       !Number.isInteger(expected.bytes) || expected.bytes<0 ||
-      expected.bytes>MAX_HASH_BYTES[name])throw Error("무결성 메타데이터가 잘못됐습니다.");
+      expected.bytes>maxSize(name))throw Error("무결성 메타데이터가 잘못됐습니다.");
     const size=zip.file(name)._data?.uncompressedSize;
     if(Number.isFinite(size) && size!==expected.bytes)
       throw Error(name+" 파일 크기가 일치하지 않습니다.");

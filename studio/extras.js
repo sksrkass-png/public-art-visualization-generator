@@ -1,8 +1,10 @@
 import * as THREE from "three";
+import { instantiateLibraryAsset } from "./assets.js";
 
 // Procedural planting is intentionally schematic rather than a claim of true
 // botanical/photogrammetry accuracy. All extras are independent editables.
-export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "point-light", "spot-light"]);
+export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "tree-autumn",
+  "person-standing", "park-bench", "round-planter", "custom-glb", "point-light", "spot-light"]);
 
 function mesh(geometry, color, roughness = .85, metalness = 0) {
   const o = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, roughness, metalness }));
@@ -87,6 +89,54 @@ function shrub(root) {
   });
   detailFoliage(root,centers,20,23);
 }
+function autumnTree(root){
+  treeRound(root);
+  let i=0;
+  root.traverse(o=>{
+    if(!o.isMesh || !(o.material instanceof THREE.MeshStandardMaterial))return;
+    if(o.geometry.type==="IcosahedronGeometry"){
+      const color=[0xc27838,0xd09e4d,0xa96a35,0xd0b363,0x997348][i++%5];
+      o.material=o.material.clone();o.material.color.setHex(color);
+    }
+  });
+}
+function standingPerson(root){
+  // Neutral mannequin proportions (1.73m). No claims of photogrammetry.
+  const skin=0xbda996,coat=0x44576a,legs=0x343d48,shoes=0x20262a;
+  const torso=mesh(new THREE.CapsuleGeometry(.21,.48,5,10),coat);
+  torso.position.y=1.18;root.add(torso);
+  const head=mesh(new THREE.SphereGeometry(.118,12,10),skin);
+  head.position.y=1.61;root.add(head);
+  for(const x of [-.115,.115]){
+    const leg=mesh(new THREE.CapsuleGeometry(.083,.57,4,8),legs);
+    leg.position.set(x,.44,0);root.add(leg);
+    const foot=mesh(new THREE.BoxGeometry(.15,.1,.29),shoes);
+    foot.position.set(x,.075,.06);root.add(foot);
+  }
+  for(const x of [-.27,.27]){
+    const arm=mesh(new THREE.CapsuleGeometry(.068,.47,4,8),coat);
+    arm.position.set(x,1.12,0);
+    arm.rotation.z=x<0?-.16:.16;root.add(arm);
+  }
+}
+function parkBench(root){
+  const seat=mesh(new THREE.BoxGeometry(1.8,.12,.52),0x956f4e);
+  seat.position.set(0,.51,0);root.add(seat);
+  const back=mesh(new THREE.BoxGeometry(1.8,.6,.10),0x9e7856);
+  back.position.set(0,.88,-.25);back.rotation.x=-.11;root.add(back);
+  for(const x of [-.7,.7]){
+    const leg=mesh(new THREE.BoxGeometry(.07,.5,.45),0x485056,.38,.75);
+    leg.position.set(x,.25,0);root.add(leg);
+  }
+}
+function roundPlanter(root){
+  const pot=mesh(new THREE.CylinderGeometry(.56,.44,.64,16),0xadb0a6,.9,.04);
+  pot.position.y=.32;root.add(pot);
+  const soil=mesh(new THREE.CylinderGeometry(.52,.52,.03,16),0x4c4438);
+  soil.position.y=.66;root.add(soil);
+  const foliage=mesh(new THREE.IcosahedronGeometry(.56,2),0x5d8355);
+  foliage.scale.set(1,.7,1);foliage.position.y=1.02;root.add(foliage);
+}
 function lightIcon(root, kind) {
   const icon = new THREE.Mesh(new THREE.SphereGeometry(.19,14,10),
     new THREE.MeshBasicMaterial({color:kind==="spot-light"?0xffcf88:0xfff4b4,depthTest:false,transparent:true,opacity:.85}));
@@ -113,17 +163,30 @@ function lightFixture(root,kind) {
   lightIcon(root,kind);
   return light;
 }
-export function makeExtra(kind,id,appearanceVersion=2) {
+export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null) {
   if(!EXTRA_TYPES.includes(kind))throw Error("Unknown decorative object kind");
   const root=new THREE.Group();
   root.userData.extraKind=kind;
   root.userData.extraId=id;
   root.userData.appearanceVersion=appearanceVersion;
+  if(kind==="custom-glb")root.userData.assetId=assetId;
   root.name=({ "tree-round":"활엽수", "tree-cone":"침엽수", "shrub":"덤불",
+    "tree-autumn":"가을 활엽수", "person-standing":"보행자", "park-bench":"공원 벤치",
+    "round-planter":"화분", "custom-glb":"사용자 GLB",
     "point-light":"포인트 조명","spot-light":"스폿 조명" })[kind]+" #"+id;
   if(kind==="tree-round")(appearanceVersion === 1 ? legacyTreeRound : treeRound)(root);
   else if(kind==="tree-cone")(appearanceVersion === 1 ? legacyTreeCone : treeCone)(root);
   else if(kind==="shrub")(appearanceVersion === 1 ? legacyShrub : shrub)(root);
+  else if(kind==="tree-autumn")autumnTree(root);
+  else if(kind==="person-standing")standingPerson(root);
+  else if(kind==="park-bench")parkBench(root);
+  else if(kind==="round-planter")roundPlanter(root);
+  else if(kind==="custom-glb"){
+    const source=library?.get(assetId);
+    if(!source)throw Error("사용자 GLB 원본이 없습니다: "+assetId);
+    root.add(instantiateLibraryAsset(source));
+    root.name=source.file.name.replace(/\.glb$/i,"")+" #"+id;
+  }
   else lightFixture(root,kind);
   return root;
 }
@@ -138,6 +201,7 @@ export function serializeExtras(container) {
       id:root.userData.extraId,
       kind:root.userData.extraKind,
       appearanceVersion:root.userData.appearanceVersion || 1,
+      ...(root.userData.extraKind==="custom-glb"?{assetId:root.userData.assetId}:{}),
       hidden:root.userData.layerHidden === true,
       selectionLocked:root.userData.layerLocked === true,
       transform:{
@@ -155,6 +219,7 @@ export function validateExtras(extras) {
   for(const x of extras) {
     if(!x||!EXTRA_TYPES.includes(x.kind)||!Number.isInteger(x.id)||x.id<1||ids.has(x.id))return false;
     if(x.appearanceVersion !== undefined && ![1,2].includes(x.appearanceVersion))return false;
+    if(x.kind==="custom-glb" && !/^lib[1-9]\d{0,4}$/.test(x.assetId||""))return false;
     if(x.hidden !== undefined && typeof x.hidden !== "boolean")return false;
     if(x.selectionLocked !== undefined && typeof x.selectionLocked !== "boolean")return false;
     ids.add(x.id);
@@ -167,11 +232,11 @@ export function validateExtras(extras) {
   }
   return true;
 }
-export function restoreExtras(container,entries) {
+export function restoreExtras(container,entries,library=null) {
   if(!validateExtras(entries))throw Error("Invalid scene extras");
   container.clear();
   for(const x of entries){
-    const root=makeExtra(x.kind,x.id,x.appearanceVersion || 1);
+    const root=makeExtra(x.kind,x.id,x.appearanceVersion || 1,x.assetId||null,library);
     root.userData.layerHidden = x.hidden === true;
     root.userData.layerLocked = x.selectionLocked === true;
     root.position.fromArray(x.transform.p);

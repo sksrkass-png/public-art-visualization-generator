@@ -19,6 +19,8 @@ import { STANDARD_VIEWS, createStandardCameras, captureSceneIntegrity,
 import { initVisualReview } from "./review.js";
 import { makeIntegrityManifest, verifyIntegrityManifest } from "./integrity.js";
 import { initReadiness } from "./readiness.js";
+import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
+  MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
 import { decodeSiteBundle, inspectImportedSite, validSiteAlignment } from "./site-import.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
@@ -134,6 +136,8 @@ let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
 let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
+const assetLibrary=new Map();
+let nextLibraryId=1,activeLibraryOperation=0;
 const neutralEnvironment=scene.environment;
 let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
 let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
@@ -263,6 +267,51 @@ function renderSiteLayerRows(entries) {
     ? matched.length+"개 중 80개 표시 · 검색어를 입력하면 원하는 메시를 찾을 수 있습니다."
     : (matched.length ? matched.length+"개 목록 · 분류 후 위 레이어 표시를 조절하세요." : "일치하는 메시 없음");
 }
+function refreshAssetLibraryUI(){
+  const chosen=$("library-asset-select").value;
+  const select=$("library-asset-select");
+  select.replaceChildren();
+  if(!assetLibrary.size)select.add(new Option("등록한 GLB 에셋 없음",""));
+  for(const asset of assetLibrary.values())select.add(new Option(
+    asset.file.name+" · "+asset.stats.triangles.toLocaleString()+" tris",asset.id));
+  if(assetLibrary.has(chosen))select.value=chosen;
+  const total=[...assetLibrary.values()].reduce((sum,a)=>sum+a.file.size,0);
+  const placed=extrasRoot.children.filter(x=>x.userData.extraKind==="custom-glb");
+  const perf=libraryMemoryStats(assetLibrary,placed);
+  $("library-status").textContent="등록 "+assetLibrary.size+" / "+MAX_LIBRARY_ASSETS+" · "+
+    (total/1048576).toFixed(1)+"MB / 60MB · 장면 내 GLB "+placed.length+
+    "개 / 약 "+perf.visibleTriangles.toLocaleString()+" 삼각형"+
+    (perf.visibleTriangles>500000?" · 저사양 GPU 주의":"");
+  $("library-place").disabled=approvedMaster || !assetLibrary.size ||
+    !layerState.groups.planting.visible || layerState.groups.planting.locked ||
+    extrasRoot.children.length>=120;
+  $("library-asset-file").disabled=approvedMaster || assetLibrary.size>=MAX_LIBRARY_ASSETS;
+  $("library-asset-category").disabled=approvedMaster;
+}
+async function importLibraryGLB(file){
+  if(!file || approvedMaster)return;
+  if(assetLibrary.size>=MAX_LIBRARY_ASSETS)return notify("에셋은 최대 6개까지 등록할 수 있습니다.");
+  const bytes=[...assetLibrary.values()].reduce((sum,a)=>sum+a.file.size,0);
+  if(bytes+file.size>MAX_LIBRARY_BYTES)return notify("GLB 합계 60MB 초과입니다.");
+  const op=++activeLibraryOperation;activeProjectOperation++;
+  const id="lib"+nextLibraryId++;
+  try{
+    const asset=await parseLibraryGLB(file,id,$("library-asset-category").value);
+    if(op!==activeLibraryOperation || approvedMaster)return;
+    assetLibrary.set(id,asset);
+    refreshAssetLibraryUI();
+    $("library-asset-select").value=id;
+    notify("에셋 등록 완료 · 원본 크기와 재질 유지: "+file.name);
+  }catch(error){console.error(error);notify("에셋 등록 실패: "+error.message);}
+}
+function ensureAvailableLibrary(assets,library=assetLibrary){
+  if(!validLibraryManifest(assets))throw Error("GLB 에셋 목록 형식이 올바르지 않습니다.");
+  for(const a of assets){
+    const entry=library.get(a.id);
+    if(!entry || entry.file.name!==a.name || entry.file.size!==a.byteSize ||
+      entry.category!==a.category)throw Error("사용자 GLB 파일을 다시 불러오세요: "+a.name);
+  }
+}
 function renderExtraLayerRows() {
   const list=$("layer-extra-list");
   list.replaceChildren();
@@ -325,6 +374,7 @@ function refreshLayers({redrawSite = false} = {}) {
     const group=button.dataset.addExtra.includes("light") ? layerState.groups.lighting : layerState.groups.planting;
     button.disabled=approvedMaster || !group.visible || group.locked;
   });
+  refreshAssetLibraryUI();
 }
 function setLayerGroupVisible(key, value) {
   if(approvedMaster || !LAYER_KEYS.includes(key))return;
@@ -771,7 +821,7 @@ function restore(data) {
 }
 function restoreEdit(state) {
   restore(state.artwork);
-  restoreExtras(extrasRoot, state.extras);
+  restoreExtras(extrasRoot, state.extras,assetLibrary);
   setArtworkMaterial(state.material || {preset:"original",color:"#d0d6db"});
   if(state.layers) layerState=importLayerState(state.layers);
   refreshLayers({redrawSite:true});
@@ -821,6 +871,7 @@ function masterSnapshot() {
       .map(id => [id, Number($(id).value)])),
     shadows: $("shadows").checked,
     extras: serializeExtras(extrasRoot),
+    library:libraryManifest(assetLibrary),
     layers:structuredClone(layerState),
     material:structuredClone(artworkMaterialState),
     render:currentRenderConfig(),
@@ -835,6 +886,7 @@ function validMasterSnapshot(entry) {
     entry.camera && isTriple(entry.camera.position) && isTriple(entry.camera.target) &&
     entry.lighting && typeof entry.lighting === "object" &&
     (entry.extras === undefined || validateExtras(entry.extras)) &&
+    (entry.library === undefined || validLibraryManifest(entry.library)) &&
     (entry.layers === undefined || validateLayerState(entry.layers)) &&
     (entry.material === undefined || validMaterialConfig(entry.material)) &&
     (entry.render === undefined || validRenderConfig(entry.render));
@@ -905,7 +957,8 @@ function syncLock() {
     transform.detach();
   }
   else if (selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
-  ["site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
+  ["library-place","library-asset-file","library-asset-category",
+    "site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
     "plan-pick-center", "plan-visible", "map-file", "map-width", "plan-x", "plan-z",
     "plan-rotation", "plan-elevation", "plan-opacity"]
@@ -1070,7 +1123,9 @@ function createPlacedExtra(kind, position) {
   const group=kind.includes("light")?layerState.groups.lighting:layerState.groups.planting;
   if (approvedMaster || group.locked || !group.visible || extrasRoot.children.length >= 120) return null;
   const before = editSnapshot();
-  const root = makeExtra(kind, nextExtraId++);
+  const assetId=kind==="custom-glb"?$("library-asset-select").value:null;
+  if(kind==="custom-glb" && !assetLibrary.has(assetId))return notify("에셋을 선택하세요.");
+  const root = makeExtra(kind, nextExtraId++,2,assetId,assetLibrary);
   root.position.copy(position);
   if (kind.includes("light")) root.position.y += 3;
   extrasRoot.add(root);
@@ -1350,6 +1405,7 @@ function sceneConfig() {
   return {
     schema: "axoo-public-art-3d-studio-v1",
     projectName: $("project-name").value,
+    library:libraryManifest(assetLibrary),
     createdAt: new Date().toISOString(),
     site: { file: siteFileName, preset: $("site-preset").value, floor: $("floor-map").value,
       unit: $("site-unit").value, up: $("site-up").value,
@@ -1383,6 +1439,9 @@ function validateProjectConfig(data) {
       typeof data.artwork.source !== "string" || typeof data.site.file !== "string" ||
       !["empty", "plaza", "courtyard", "promenade"].includes(data.site.preset) ||
       (data.extras !== undefined && !validateExtras(data.extras)) ||
+      (data.library !== undefined && !validLibraryManifest(data.library)) ||
+      (data.extras || []).some(x=>x.kind==="custom-glb" &&
+        !(data.library || []).some(a=>a.id===x.assetId)) ||
       (data.layers !== undefined && !validateLayerState(data.layers)) ||
       (data.render !== undefined && !validRenderConfig(data.render)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
@@ -1403,6 +1462,13 @@ function validateProjectConfig(data) {
 function importSceneConfig(data) {
   if (approvedMaster) throw new Error("MASTER LOCK을 해제한 후 프로젝트를 불러오세요.");
   validateProjectConfig(data);
+  ensureAvailableLibrary(data.library||[]);
+  // A settings-only import may refer to already loaded GLB sources. Remove
+  // unrelated sources to avoid silently importing assets from another project.
+  const used=new Set((data.library||[]).map(a=>a.id));
+  for(const id of [...assetLibrary.keys()])if(!used.has(id))assetLibrary.delete(id);
+  nextLibraryId=Math.max(1,...[...assetLibrary.keys()].map(id=>Number(id.slice(3))+1));
+  refreshAssetLibraryUI();
   const originalSite = siteFileName;
   const originalArt = artFileName;
   if(!data.render?.environmentFile ||
@@ -1445,7 +1511,8 @@ function importSceneConfig(data) {
   $("nav-speed").value = safeNumber(data.navSpeed, 2.6, .5, 5);
   $("nav-speed").dispatchEvent(new Event("input"));
   updateLight();
-  restoreExtras(extrasRoot, data.extras || []);
+  restoreExtras(extrasRoot, data.extras || [],assetLibrary);
+  refreshAssetLibraryUI();
   layerState=importLayerState(data.layers);
   if(data.site.file && data.site.file!==siteFileName){
     pendingSiteLayers={file:data.site.file,nodes:structuredClone(layerState.siteNodes)};
@@ -1511,11 +1578,14 @@ async function exportProjectArchive() {
     if (artSourceFile) zip.file("assets/artwork", artSourceFile);
     if (planSourceFile) zip.file("assets/plan", planSourceFile);
     if (hdrSourceFile) zip.file("assets/environment", hdrSourceFile);
+    for(const asset of assetLibrary.values())zip.file("assets/library/"+asset.id+".glb",asset.file);
     $("save-status").textContent = "SHA-256 원본 검증 정보 생성 중…";
     const integrity=await makeIntegrityManifest(zip);
     zip.file("integrity.json",JSON.stringify(integrity,null,2));
     $("save-status").textContent = "검증 가능한 프로젝트 패키지 저장 중…";
     const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
+    if(blob.size>MAX_ZIP_BYTES)
+      throw Error("ZIP 200MB 복원 한도를 초과했습니다. 현장·작품·에셋 파일을 경량화하세요.");
     download(safeFileName() + "-project.zip", blob);
     notify("프로젝트 ZIP 저장 완료 · 원본과 SHA-256 손상 검증 정보 포함");
   } catch (err) {
@@ -1551,7 +1621,7 @@ async function importProjectArchive(file) {
   let planTexture = null, preparedHDR=null, recoveredHDRFile=null;
   try {
     const zip = await JSZip.loadAsync(file);
-    if (Object.keys(zip.files).length > 10) throw new Error("허용되지 않는 파일이 너무 많습니다.");
+    if (Object.keys(zip.files).length > 26) throw new Error("허용되지 않는 파일이 너무 많습니다.");
     const integrityResult=await verifyIntegrityManifest(zip);
     $("save-status").textContent=integrityResult.verified
       ? "ZIP 모든 파일 SHA-256 검사 통과"
@@ -1561,6 +1631,19 @@ async function importProjectArchive(file) {
     if (metadata.length > 1024 * 1024) throw new Error("프로젝트 설정 정보가 너무 큽니다.");
     const data = JSON.parse(metadata);
     validateProjectConfig(data);
+    const loadedLibrary=new Map();
+    for(const entry of data.library||[]){
+      const bin=checkedArchiveEntry(zip,"assets/library/"+entry.id+".glb",20*1024*1024,true);
+      const file=await recoverArchiveAsset(bin,entry.name,20*1024*1024,"model/gltf-binary");
+      if(file.size!==entry.byteSize)throw Error("사용자 GLB 파일 크기가 일치하지 않습니다: "+entry.name);
+      loadedLibrary.set(entry.id,await parseLibraryGLB(file,entry.id,entry.category));
+    }
+    ensureAvailableLibrary(data.library||[],loadedLibrary);
+    const actualGlbSources=Object.keys(zip.files).filter(name=>
+      /^assets\/library\/lib[1-9]\d{0,4}\.glb$/.test(name)).sort();
+    const declaredGlbSources=(data.library||[]).map(a=>"assets/library/"+a.id+".glb").sort();
+    if(JSON.stringify(actualGlbSources)!==JSON.stringify(declaredGlbSources))
+      throw Error("프로젝트 설정과 ZIP 내 GLB 에셋 목록이 일치하지 않습니다.");
     if (data.archiveSchema !== PROJECT_ARCHIVE_SCHEMA) throw new Error("지원하지 않는 프로젝트 패키지 버전입니다.");
     // Decode and validate EVERYTHING before changing the current scene.
     const siteEntry = checkedArchiveEntry(zip, "assets/site", MAX_MODEL_BYTES, !!data.site.file);
@@ -1594,6 +1677,11 @@ async function importProjectArchive(file) {
       return notify("작업 상태가 변경되어 이전 파일 로딩을 취소했습니다.");
     }
     // Commit an already validated package. No user's original file is uploaded.
+    activeLibraryOperation++;
+    assetLibrary.clear();
+    for(const [key,value] of loadedLibrary)assetLibrary.set(key,value);
+    nextLibraryId=Math.max(1,...[...assetLibrary.keys()].map(id=>Number(id.slice(3))+1));
+    refreshAssetLibraryUI();
     activeSiteOperation++; activeArtOperation++; activePlanOperation++;
     if (siteModel) {
       clearGroup(siteRoot);
@@ -1657,6 +1745,7 @@ function baselineForMaster(){
   return {
     artworkTransform:snapshot(),
     extras:serializeExtras(extrasRoot),
+    library:libraryManifest(assetLibrary),
     layers:structuredClone(layerState),
     material:structuredClone(artworkMaterialState),
     artworkFile:artFileName,siteFile:siteFileName
@@ -2062,6 +2151,14 @@ $("light-preset").addEventListener("change", e => {
   updateLight();
 });
 document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener("click", () => setPlacement(el.dataset.addExtra)));
+$("library-asset-file").addEventListener("change",e=>{
+  importLibraryGLB(e.target.files[0]);e.target.value="";
+});
+$("library-place").addEventListener("click",()=>{
+  if(!assetLibrary.has($("library-asset-select").value))return notify("에셋을 등록하세요.");
+  setPlacement("custom-glb");
+});
+$("library-asset-select").addEventListener("change",refreshAssetLibraryUI);
 $("select-artwork").addEventListener("click", () => selectRoot(artRoot));
 $("delete-selected").addEventListener("click", deleteSelectedExtra);
 $("extra-light-power").addEventListener("input", e => {

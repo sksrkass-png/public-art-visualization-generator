@@ -149,3 +149,11 @@
 .site-conversion-help{margin-top:10px;border-top:1px solid #dce1e7;padding-top:9px}
 .site-conversion-help summary{cursor:pointer;font-size:10.5px;font-weight:700}
 .site-conversion-help p{padding:7px 0 0;margin:0;line-height:1.55}
+
+/* v1.2 custom context assets */
+.asset-library-panel{margin:13px 0;padding:12px;background:#f5f8f5;border:1px solid #dce7db;border-radius:6px}
+.asset-library-panel .section-title{margin-bottom:10px}
+.asset-library-panel select{width:100%;min-width:0}
+.asset-library-panel .file-button{margin:6px 0 12px}
+#library-status{font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere;line-height:1.6}
+#library-place{margin-top:9px}
