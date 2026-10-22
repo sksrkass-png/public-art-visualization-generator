@@ -143,5 +143,19 @@ assert.match(js,/centerOrigin:\$\("site-center-origin"\)\.checked/,"site center 
 const preflightSource=fs.readFileSync(path.join(base,"studio/site-import.js"),"utf8");
 for(const token of ["decodeSiteBundle","resourceName","inspectImportedSite","GLTFLoader","MAX_UNPACKED"])
   assert.ok(preflightSource.includes(token),"v1.1 bundled glTF import guard absent: "+token);
+for(const id of ["asset-library-panel","library-asset-file","library-asset-category",
+ "library-asset-select","library-place","library-status"])
+ assert.ok(unique.has(id),"v1.2 asset browser control missing: "+id);
+for(const marker of ["importLibraryGLB","refreshAssetLibraryUI","assetLibrary=new Map","loadedLibrary",
+ "libraryManifest(assetLibrary)","assets/library/"])
+ assert.ok(js.includes(marker),"v1.2 missing source registry: "+marker);
+const assetsModule=fs.readFileSync(path.join(base,"studio/assets.js"),"utf8");
+for(const marker of ["parseLibraryGLB","instantiateLibraryAsset","validLibraryManifest","MAX_LIBRARY_TRIANGLES"])
+ assert.ok(assetsModule.includes(marker),"v1.2 custom GLB module missing: "+marker);
+const extrasModule=fs.readFileSync(path.join(base,"studio/extras.js"),"utf8");
+for(const marker of ["tree-autumn","person-standing","park-bench","round-planter","custom-glb"])
+ assert.ok(extrasModule.includes(marker),"v1.2 scene asset missing: "+marker);
+const integrity=fs.readFileSync(path.join(base,"studio/integrity.js"),"utf8");
+assert.match(integrity,/assets\\/library/,"checksums for external GLB sources required");
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");
