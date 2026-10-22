@@ -1060,6 +1060,16 @@ async function exportGLB() {
 }
 
 // Event connections
+$("site-unit").addEventListener("change", () => {
+  if (approvedMaster) return;
+  applySiteUnits();
+  notify("현장 단위 보정 적용 · 실제 크기를 확인하세요.");
+});
+$("site-up").addEventListener("change", () => {
+  if (approvedMaster) return;
+  applySiteUnits();
+  notify("현장 높이축 보정 적용");
+});
 $("site-preset").addEventListener("change", e => {
   if (approvedMaster) return;
   activeProjectOperation++;
@@ -1071,6 +1081,40 @@ $("map-file").addEventListener("change", e => loadPlan(e.target.files[0]));
 $("map-width").addEventListener("change", () => { if (!approvedMaster) syncPlanWidth(); });
 $("floor-map").addEventListener("change", () => { if (!approvedMaster) updateGround(); });
 $("grid").addEventListener("change", e => { grid.visible = e.target.checked; });
+$("sun-helper").addEventListener("change", e => { sunGuide.visible = e.target.checked; });
+$("nav-speed").addEventListener("input", e => {
+  const speed = +e.target.value;
+  orbit.panSpeed = speed;
+  orbit.rotateSpeed = speed * .65;
+  orbit.zoomSpeed = Math.max(.5, speed * .62);
+  $("nav-speed-value").textContent = speed.toFixed(1) + "×";
+});
+$("light-preset").addEventListener("change", e => {
+  const presets = {
+    clear: {az:45, el:45, sun:2, ambient:1.3, exposure:1},
+    cloudy: {az:50,el:58,sun:.65,ambient:2,exposure:1.1},
+    golden: {az:65,el:17,sun:2.25,ambient:.95,exposure:1.0},
+    night: {az:90,el:8,sun:0,ambient:.35,exposure:.85}
+  };
+  const p = presets[e.target.value];
+  if (p) {
+    for (const [id,value] of Object.entries({"sun-azimuth":p.az,"sun-elevation":p.el,"sun-strength":p.sun,ambient:p.ambient,exposure:p.exposure})) $(id).value=value;
+  }
+  updateLight();
+});
+document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener("click", () => setPlacement(el.dataset.addExtra)));
+$("select-artwork").addEventListener("click", () => selectRoot(artRoot));
+$("delete-selected").addEventListener("click", deleteSelectedExtra);
+$("extra-light-power").addEventListener("input", e => {
+  if (approvedMaster) return;
+  const light = extraLight(selectedRoot);
+  if (light) { light.intensity = +e.target.value; $("extra-light-power-value").textContent = light.intensity.toFixed(1); }
+});
+$("extra-light-color").addEventListener("input", e => {
+  if (approvedMaster) return;
+  const light = extraLight(selectedRoot);
+  if (light) light.color.set(e.target.value);
+});
 $("snap").addEventListener("change", snapSetting);
 $("sample-art").addEventListener("click", () => {
   if (approvedMaster) return notify("MASTER LOCK 해제 후 작품을 변경하세요.");
@@ -1107,7 +1151,10 @@ $("restore-master-camera").addEventListener("click", () => restoreMasterCamera(m
 $("undo").addEventListener("click", undo);
 $("redo").addEventListener("click", redo);
 ["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure", "shadows"]
-  .forEach(id => $(id).addEventListener("input", updateLight));
+  .forEach(id => $(id).addEventListener("input", () => {
+    $("light-preset").value = "custom";
+    updateLight();
+  }));
 document.querySelectorAll("[data-view]").forEach(el => el.addEventListener("click", () => changeView(el.dataset.view)));
 $("focus").addEventListener("click", fitCamera);
 $("shot-export").addEventListener("click", exportImage);
