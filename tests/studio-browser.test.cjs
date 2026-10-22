@@ -711,6 +711,9 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     const afterReviewEvent=page.waitForEvent("download",{timeout:20000});
     await page.locator("#export-json").click();
     const afterReview=JSON.parse(fs.readFileSync(await (await afterReviewEvent).path(),"utf8"));
+    // createdAt belongs to the export operation, not to the editable scene.
+    delete afterReview.createdAt;
+    delete approvedAfter.createdAt;
     assert.deepEqual(afterReview,approvedAfter,"enhanced-image review must not mutate MASTER 3D scene");
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v0.8 approved eight-view batch ZIP, 8 real 16:9 PNGs, contact sheet, QA integrity manifest, immutable scene restoration plus existing editor regression suite");
