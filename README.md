@@ -6,6 +6,14 @@ A lightweight, static, Korean-first web tool that generates structured, copy-pas
 
 No backend, no build step, no API keys — pure HTML/CSS/JavaScript, deployable directly to GitHub Pages. ⓒ AXOO CORP. — designed as an extension of the AXOO creative portfolio: black-and-white editorial palette, large display typography, sharp (unrounded) grid, generous whitespace, Pretendard typeface. Hierarchy comes from type scale and spacing, not color — the interface is meant to read as a premium creative studio tool, not a configuration dashboard.
 
+## Interactive 3D Studio — Alpha 0.1
+
+A new companion editor lives at **[3D STUDIO](https://sksrkass-png.github.io/public-art-visualization-generator/studio/)** (`studio/index.html`).
+
+Unlike the text-prompt generator below, the studio lets proposal teams load scene models and artwork, move/rotate/scale using 3D gizmos, choose ground mappings, place a horizontal site-plan reference image, tune lighting and camera, lock an approved master placement, and export PNG/JSON/GLB. Built on pinned Three.js; no API key or backend. See [studio/README.md](studio/README.md) for supported model formats, source constraints and workflow.
+
+**Scope distinction:** The studio is an interactive 3D **scene editor**, not an AI image generator, full Blender CAD replacement, architectural photogrammetry tool or verified reconstruction of any real site. The older prompt generator continues to operate independently.
+
 ## Purpose
 
 Public art competition visualizations need to satisfy a specific, non-negotiable constraint that generic AI art prompts don't handle: **the site must stay the site, and the artwork must stay the artwork** — only the camera should change between shots. This tool encodes that workflow directly into the prompt structure:

@@ -2,7 +2,7 @@ name: Validate static app
 
 on:
   push:
-    branches: [main, feature/json-project-import]
+    branches: [main, 'feature/**']
   pull_request:
 
 jobs:
@@ -16,6 +16,10 @@ jobs:
         with:
           node-version: '22'
       - name: Check JavaScript syntax
-        run: node --check assets/app.js
+        run: |
+          node --check assets/app.js
+          node --check studio/studio.js
       - name: Run JSON import regression tests
-        run: node tests/json-import.test.cjs
+        run: |
+          node tests/json-import.test.cjs
+          node tests/studio-static.test.cjs
