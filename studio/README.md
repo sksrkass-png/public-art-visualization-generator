@@ -1,6 +1,15 @@
-# AXOO Public Art 3D Studio — v0.7
+# AXOO Public Art 3D Studio — v0.8
 
 Static, browser-based interactive editor for public-art proposal staging. Version 0.3 expands site model imports. It is a companion to the existing prompt generator: `/studio/` leaves the legacy app unchanged.
+
+## v0.8 approved MASTER 8-view render package
+
+- **MASTER approval is mandatory** before batch rendering. The latest approved revision defines a canonical artwork placement, model identities, layer visibility, supplemental planting/lights and material selection. Changed locked elements block the export, rather than being silently used as a new MASTER.
+- **8 standard viewpoints** are derived from that approved camera direction and its saved target: 01 Main Perspective (exact approved camera); 02 Eye Level; 03 Left ¾; 04 Right ¾; 05 Rear; 06 Aerial; 07 Long Shot; and 08 Close-up. They are mathematically derived camera views and do **not** change any artwork/site meshes. Architectural occlusion, pedestrian circulation and competition composition should still be reviewed manually. Side/rear directions are relative to the MASTER camera bearing, not a claimed true building north.
+- **One-click batch PNG ZIP:** renders eight 16:9 images using selected 1× or 2× viewport-height quality (bounded by browser GPU maximum texture size and pixel budget); includes `render-manifest.json`, `REVIEW_NOTES.txt`, and optional 2-column `00-contact-sheet.png`. Temporary render camera, projection, sunlight and helper overlays are restored even on errors. The ZIP contains **renders and QA manifest only**; retain the separate full-project ZIP for source model files and editable state.
+- **QA manifest & safety gates:** records approved revision, original files, measured *rendered mesh bounds* (not independently verified architectural survey), output sizes, per-view camera position/target/FOV, a scene identity/transform/material audit and limitations. Before rendering and after the capture pass, verify the latest approved artwork position, added-object transforms, site identity, layers and material preset. Detect in-memory mesh UUID, material references and placement changes across the batch. A failed check stops ZIP delivery.
+- **Lighting:** uses saved approval lighting and environment mode where available. If the approval requires a missing custom HDRI, batch rendering refuses to substitute a generic studio environment silently. A previously saved v0.7 MASTER with no v0.8 record still works.
+- **Accuracy limits:** This remains original Three.js WebGL PBR rendering, **not AI photorealization or a guaranteed CAD verification**. Human review remains necessary for true-scale dimensions, context, orientation, approved artwork components, and material realism. Do not represent the manifest as proof of artist consent or site approval.
 
 ## v0.7 architectural visualization / render controls
 
