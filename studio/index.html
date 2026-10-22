@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101113">
+  <title>AXOO — Public Art 3D Studio</title>
+  <link rel="stylesheet" href="./studio.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>ALPHA 0.1</small></div>
+    <div class="top-actions">
+      <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
+      <a class="text-link" href="../">프롬프트 생성기 ↗</a>
+      <button id="shot-export" class="primary" type="button">PNG 렌더 캡처</button>
+    </div>
+  </header>
+  <main class="workspace">
+    <aside class="sidepanel left">
+      <div class="panel-head"><span class="eyebrow">01 / SCENE SETUP</span><h1>공간과 작품</h1><p>현장을 선택하고 작품 모델을 배치하세요.</p></div>
+      <section class="section">
+        <h2>프로젝트</h2>
+        <label for="project-name">프로젝트 이름</label>
+        <input id="project-name" type="text" value="새 공공미술 시안" maxlength="100">
+        <p class="hint">거리 단위는 m(미터), Y축은 높이입니다.</p>
+      </section>
+      <section class="section">
+        <div class="section-title"><h2>01. 설치 현장</h2><span id="site-status" class="tag">예시 공간</span></div>
+        <label for="site-preset">현장 프리셋</label>
+        <select id="site-preset">
+          <option value="plaza">광장 — 예시 매스</option>
+          <option value="courtyard">아파트 중정 — 예시 매스</option>
+          <option value="promenade">보행가로 — 예시 매스</option>
+          <option value="empty">빈 작업 공간</option>
+        </select>
+        <label class="file-button" for="site-file"><span>+ 현장 3D 모델 불러오기</span><small>GLB · GLTF(단일 파일)</small></label>
+        <input id="site-file" class="sr-only" type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json">
+        <div id="site-filename" class="asset-caption">업로드된 현장 모델 없음</div>
+        <label for="floor-map">바닥 매핑</label>
+        <select id="floor-map">
+          <option value="concrete">연회색 콘크리트</option>
+          <option value="pavers">석재 보도블록</option>
+          <option value="grass">잔디</option>
+          <option value="asphalt">아스팔트</option>
+          <option value="white">화이트 매스</option>
+        </select>
+        <label class="file-button secondary" for="map-file"><span>+ 배치도 이미지 깔기</span><small>PNG · JPG (수평면 참조)</small></label>
+        <input id="map-file" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp">
+        <label for="map-width">배치도 가로 실측 폭 (m)</label>
+        <input id="map-width" type="number" min="1" max="1000" step="1" value="40">
+        <p id="map-name" class="asset-caption">이미지 없음 · 자동으로 3D 지형을 만들지는 않습니다.</p>
+      </section>
+      <section class="section">
+        <div class="section-title"><h2>02. 설치 작품</h2><span id="art-status" class="tag">샘플</span></div>
+        <label class="file-button" for="art-file"><span>+ 작품 3D 모델 불러오기</span><small>GLB · GLTF · OBJ · STL</small></label>
+        <input id="art-file" class="sr-only" type="file" accept=".glb,.gltf,.obj,.stl,model/gltf-binary">
+        <button class="outline full" type="button" id="sample-art">샘플 조형물 다시 넣기</button>
+        <p id="art-filename" class="asset-caption">현재: 편집 가능한 샘플 조형물</p>
+        <label for="art-height">작품 실제 높이 (m)</label>
+        <div class="inline"><input id="art-height" type="number" min="0.05" max="100" step="0.1" value="3"><button id="apply-height" class="outline" type="button">높이 맞춤</button></div>
+        <p class="hint">업로드 모델은 원본 형상·구성요소를 변경하지 않고 높이만 비례 조정합니다.</p>
+      </section>
+      <div class="notice">현장 프리셋은 <strong>조작 확인용 예시 공간</strong>입니다. 실제 설계의 배치·입면·조경을 재현하려면 현장 모델(GLB) 또는 배치도 원본이 필요합니다.</div>
+    </aside>
+    <section class="viewer-shell" aria-label="3D 편집 뷰포트">
+      <div class="toolbar">
+        <div class="toolgroup" role="group" aria-label="작품 편집 도구">
+          <button type="button" data-mode="translate" class="tool active" title="위치 이동 (G)">이동 <kbd>G</kbd></button>
+          <button type="button" data-mode="rotate" class="tool" title="회전 (R)">회전 <kbd>R</kbd></button>
+          <button type="button" data-mode="scale" class="tool" title="크기 (S)">크기 <kbd>S</kbd></button>
+        </div>
+        <div class="toolgroup">
+          <label class="toggle"><input id="snap" type="checkbox"> 스냅 0.5m</label>
+          <label class="toggle"><input id="grid" type="checkbox" checked> 그리드</label>
+        </div>
+      </div>
+      <div id="viewport" tabindex="0" aria-label="마우스 왼쪽 드래그로 화면 회전, 오른쪽으로 이동, 휠로 확대 및 축소"></div>
+      <div class="viewport-bottom">
+        <span>좌클릭 드래그: 시점 회전 · 우클릭 드래그: 화면 이동 · 휠: 줌 · 작품 클릭: 선택</span>
+        <span id="coords">X 0.00 · Y 0.00 · Z 0.00</span>
+      </div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </section>
+    <aside class="sidepanel right">
+      <div class="panel-head"><span class="eyebrow">02 / INSPECTOR</span><h1>조작 패널</h1><p>선택한 작품의 위치와 연출을 조정합니다.</p></div>
+      <section class="section">
+        <div class="section-title"><h2>작품 Transform</h2><span id="object-state" class="tag">편집 가능</span></div>
+        <p id="object-name" class="object-name">Sample Artwork</p>
+        <div class="tr-head">POSITION / 위치 (m)</div>
+        <div class="xyz" id="position-fields">
+          <label>X<input type="number" data-transform="position" data-axis="x" step="0.1" value="0"></label>
+          <label>Y<input type="number" data-transform="position" data-axis="y" step="0.1" value="0"></label>
+          <label>Z<input type="number" data-transform="position" data-axis="z" step="0.1" value="0"></label>
+        </div>
+        <div class="tr-head">ROTATION / 회전 (°)</div>
+        <div class="xyz" id="rotation-fields">
+          <label>X<input type="number" data-transform="rotation" data-axis="x" step="1" value="0"></label>
+          <label>Y<input type="number" data-transform="rotation" data-axis="y" step="1" value="0"></label>
+          <label>Z<input type="number" data-transform="rotation" data-axis="z" step="1" value="0"></label>
+        </div>
+        <div class="tr-head">SCALE / 배율</div>
+        <div class="xyz" id="scale-fields">
+          <label>X<input type="number" data-transform="scale" data-axis="x" step="0.05" min="0.01" value="1"></label>
+          <label>Y<input type="number" data-transform="scale" data-axis="y" step="0.05" min="0.01" value="1"></label>
+          <label>Z<input type="number" data-transform="scale" data-axis="z" step="0.05" min="0.01" value="1"></label>
+        </div>
+        <div class="hint">화면상 작품 크기: <strong id="dimensions">—</strong></div>
+        <div class="inline">
+          <button id="undo" class="outline full" type="button" title="Ctrl+Z">↶ 실행 취소</button>
+          <button id="redo" class="outline full" type="button" title="Ctrl+Shift+Z">↷ 다시 실행</button>
+        </div>
+        <button id="master-lock" class="lock-button" type="button">MASTER VIEW 승인 · 작품 잠금</button>
+        <p id="lock-desc" class="hint">승인하면 위치·회전·배율을 고정합니다. 해제 전에는 작품을 편집할 수 없습니다.</p>
+      </section>
+      <section class="section">
+        <h2>라이팅 / 조명</h2>
+        <label for="sun-azimuth">태양 방향 <output id="sun-azimuth-value">45°</output></label>
+        <input id="sun-azimuth" type="range" min="0" max="360" step="1" value="45">
+        <label for="sun-elevation">태양 고도 <output id="sun-elevation-value">45°</output></label>
+        <input id="sun-elevation" type="range" min="5" max="85" step="1" value="45">
+        <label for="sun-strength">직사광량 <output id="sun-strength-value">2.0</output></label>
+        <input id="sun-strength" type="range" min="0" max="5" step=".1" value="2">
+        <label for="ambient">환경광 <output id="ambient-value">1.3</output></label>
+        <input id="ambient" type="range" min="0" max="4" step=".1" value="1.3">
+        <label for="exposure">노출 <output id="exposure-value">1.0</output></label>
+        <input id="exposure" type="range" min=".4" max="2.2" step=".05" value="1">
+        <label class="toggle"><input id="shadows" type="checkbox" checked> 실제 그림자 켜기</label>
+      </section>
+      <section class="section">
+        <h2>카메라 / 시점</h2>
+        <div class="views">
+          <button type="button" data-view="main">Main</button>
+          <button type="button" data-view="eye">Eye</button>
+          <button type="button" data-view="left">Left ¾</button>
+          <button type="button" data-view="right">Right ¾</button>
+          <button type="button" data-view="rear">Rear</button>
+          <button type="button" data-view="aerial">Aerial</button>
+          <button type="button" data-view="long">Long</button>
+          <button type="button" data-view="detail">Detail</button>
+        </div>
+        <button id="focus" class="outline full" type="button">작품 화면 중앙에 맞추기</button>
+      </section>
+      <section class="section">
+        <h2>프로젝트 저장</h2>
+        <button id="export-json" class="outline full" type="button">프로젝트 설정 JSON 저장</button>
+        <label class="file-button secondary" for="import-json">+ 프로젝트 설정 불러오기</label>
+        <input id="import-json" class="sr-only" type="file" accept=".json,application/json">
+        <button id="export-glb" class="outline full" type="button">현재 장면 GLB 내보내기</button>
+        <p class="hint">JSON은 변형·조명·카메라 설정을 저장합니다. 원본 3D 파일은 포함되지 않으며 다시 불러와야 합니다. GLB는 모델 메시를 포함합니다.</p>
+      </section>
+    </aside>
+  </main>
+</div>
+<script type="module" src="./studio.js"></script>
+</body>
+</html>
