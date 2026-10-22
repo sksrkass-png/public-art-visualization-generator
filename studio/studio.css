@@ -141,3 +141,11 @@
 .readiness-checks label input{margin-top:3px;accent-color:#4c6172}
 #readiness-status{white-space:pre-line;padding:9px;background:#eef1f4;border-radius:4px;line-height:1.65}
 #readiness-badge[data-ready="true"]{background:#e5f2e8;color:#265a35}
+
+/* v1.1 imported site mesh diagnostic / non-destructive local origin */
+.site-inspection-panel{margin-top:12px;background:#f5f7f9;border:1px solid #dce1e7;border-radius:6px;padding:12px}
+.site-inspection-panel .section-title{margin-bottom:9px}
+#site-preflight-summary{white-space:pre-line;line-height:1.6;overflow-wrap:anywhere}
+.site-conversion-help{margin-top:10px;border-top:1px solid #dce1e7;padding-top:9px}
+.site-conversion-help summary{cursor:pointer;font-size:10.5px;font-weight:700}
+.site-conversion-help p{padding:7px 0 0;margin:0;line-height:1.55}

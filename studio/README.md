@@ -1,6 +1,14 @@
-# AXOO Public Art 3D Studio — v1.0
+# AXOO Public Art 3D Studio — v1.1
 
 Static, browser-based interactive editor for public-art proposal staging. Version 0.3 expands site model imports. It is a companion to the existing prompt generator: `/studio/` leaves the legacy app unchanged.
+
+## v1.1 — Advanced Site Import / reliable project coordinates
+
+- **GLTF ZIP import:** Real site models may be uploaded as a *.zip* containing **one glTF 2.0 `.gltf` plus its referenced external `.bin` and image files** (PNG, JPEG, WEBP). Direct GLB, standalone glTF, OBJ, FBX, STL, PLY, DAE, 3DS remain available. The ZIP is decoded locally with strict file/path checks (maximum 45 files, 100MB unpacked, 80MB input). External HTTP resources and upper-directory traversal are rejected. The **original ZIP bytes** are stored inside the portable studio project; reopening the whole project restores the exact source. This ZIP format is for *glTF 2.0 resources*, **not a generic archive of SKP/CAD/IFC/BIM files**.
+- **Accurate site diagnostics:** Source mesh count, approximate triangle count, vertex count, distinct material count, source bounds/center and displayed dimensions in metres. Warns about large polygon counts, very distant model origin and implausible source size. Export the detailed **site preflight JSON**, with explicit caveat that it does not certify surveyed dimensions.
+- **Local origin option:** For distant CAD/georeferenced site coordinates, the optional `뷰어 원점을 현장 모델 중심으로 맞추기` repositions **only the site parent group**. The source geometry, nested local transforms, materials and file bytes are untouched. The offset is recalculated on unit/up-axis edits to avoid cumulative drift, and saved/restored through the existing project ZIP/JSON as `site.alignment.centerOrigin`. Because artwork, plan overlay and other placed objects are *not* automatically translated, this is best selected **before** positioning/approving artwork.
+- **Conversion instructions:** SKP, DWG, RVT and IFC are **not decoded natively**. Convert/export using trusted authoring tools to GLB or glTF ZIP; verify real units, mesh separation and whether textures or hidden building floors are preserved.
+- **Risks:** Large geospatial models may suffer WebGL floating-point precision limitations even after recentering a parent group. A genuine georeferenced CAD tile-rebasing pipeline is separate future work. Always compare the result against original drawings and site measurements before approving MASTER.
 
 ## v1.0 — internal proposal production hardening
 

@@ -19,6 +19,7 @@ import { STANDARD_VIEWS, createStandardCameras, captureSceneIntegrity,
 import { initVisualReview } from "./review.js";
 import { makeIntegrityManifest, verifyIntegrityManifest } from "./integrity.js";
 import { initReadiness } from "./readiness.js";
+import { decodeSiteBundle, inspectImportedSite, validSiteAlignment } from "./site-import.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
 import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
@@ -128,6 +129,7 @@ let undoStack = [], redoStack = [];
 let pendingArtwork = null;
 let activeSiteOperation = 0, activeArtOperation = 0, activePlanOperation = 0, activeProjectOperation = 0;
 let siteSourceFile = null, artSourceFile = null, planSourceFile = null;
+let sourceSiteInspection = null;
 let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
 let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
@@ -369,6 +371,9 @@ function buildSite(preset) {
   activeSiteOperation++;
   siteRoot.scale.setScalar(1);
   siteRoot.rotation.set(0, 0, 0);
+  siteRoot.position.set(0,0,0);
+  $("site-center-origin").checked = false;
+  sourceSiteInspection=null;
   $("site-unit").value = "m";
   $("site-up").value = "y";
   clearGroup(siteRoot);
@@ -378,6 +383,7 @@ function buildSite(preset) {
   syncGroundAvailability();
   $("site-filename").textContent = "업로드된 현장 모델 없음";
   showSiteGeometryStats(null);
+  updateSitePreflight();
   $("site-status").textContent = preset === "empty" ? "빈 공간" : "예시 공간";
   if (preset === "plaza") {
     box(siteRoot, 18, 9, 2, -17, 4.5, -15);
@@ -407,13 +413,72 @@ function syncGroundAvailability() {
   floor.visible = !imported;
   syncPlanOverlay();
 }
+function currentSitePreflight() {
+  if(!sourceSiteInspection || !siteSourceFile)return null;
+  const factor=SITE_UNIT_TO_M[$("site-unit").value]||1;
+  const visible=new THREE.Box3().setFromObject(siteRoot);
+  const actual=visible.getSize(new THREE.Vector3());
+  const center=visible.getCenter(new THREE.Vector3());
+  return {
+    schema:"axoo-site-import-preflight-v1",
+    createdAt:new Date().toISOString(),
+    file:siteFileName,
+    fileBytes:siteSourceFile.size,
+    selectedSourceUnit:$("site-unit").value,
+    axis:$("site-up").value,
+    viewerCentering:$("site-center-origin").checked,
+    source:structuredClone(sourceSiteInspection),
+    rendered:{
+      dimensionsMeters:actual.toArray().map(n=>Number(n.toFixed(5))),
+      centerMeters:center.toArray().map(n=>Number(n.toFixed(5))),
+      appliedUnitScale:factor
+    },
+    warnings:[
+      ...sourceSiteInspection.warnings,
+      ...(!Number.isFinite(actual.y)||actual.y<.05?["모델 높이가 5cm 미만입니다. 단위·축·바닥을 확인하세요."]:[]),
+      ...(sourceSiteInspection.triangles>1000000?["백만 삼각형 이상: 그림자·일괄 렌더 전에 외부에서 폴리곤 경량화 권장."]:[])
+    ],
+    verification:"메시와 좌표 검사 결과이며 실측 도면·건축 정보나 안전 승인을 대체하지 않습니다."
+  };
+}
+function updateSitePreflight() {
+  const result=currentSitePreflight();
+  $("site-preflight-export").disabled=!result;
+  if(!result){
+    $("site-preflight-summary").textContent=
+      "실제 현장 모델을 가져오면 크기·폴리곤·원점 위치를 점검합니다.";
+    return;
+  }
+  const dim=result.rendered.dimensionsMeters.map(x=>x.toFixed(2)).join(" × ");
+  $("site-preflight-summary").textContent=
+    "현장 메시 "+result.source.meshCount+"개 · 삼각형 "+result.source.triangles.toLocaleString()+
+    "개 · 고유 재질 "+result.source.materialCount+"개\n"+
+    "뷰어 크기 "+dim+" m (W×H×D)\n"+
+    (result.warnings.length?"주의: "+result.warnings.join(" / "):
+      "자동 기하 검사에 주의사항 없음 · 실측 자료로 크기를 확인하세요.");
+}
+function exportSitePreflight(){
+  const data=currentSitePreflight();
+  if(!data)return notify("실제 현장 모델부터 불러오세요.");
+  download(safeFileName()+"-site-preflight.json",
+    new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
+}
 function applySiteUnits() {
   if (approvedMaster) return;
   const factor = SITE_UNIT_TO_M[$("site-unit").value] || 1;
   siteRoot.scale.setScalar(factor);
   siteRoot.rotation.set($("site-up").value === "z" ? -Math.PI / 2 : 0, 0, 0);
+  siteRoot.position.set(0,0,0);
   siteRoot.updateMatrixWorld(true);
+  // View-only centering maintains original geometry/vertex positions and
+  // is recomputed from raw coordinates on every unit/up change (no drift).
+  if (siteSourceFile && $("site-center-origin").checked) {
+    const center=new THREE.Box3().setFromObject(siteRoot).getCenter(new THREE.Vector3());
+    if (center.toArray().every(Number.isFinite))siteRoot.position.sub(center);
+    siteRoot.updateMatrixWorld(true);
+  }
   if (siteSourceFile) showSiteGeometryStats(inspectSiteGeometry(siteRoot));
+  updateSitePreflight();
 }
 function currentRenderConfig(){
   return {
@@ -840,7 +905,7 @@ function syncLock() {
     transform.detach();
   }
   else if (selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
-  ["site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
+  ["site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
     "plan-pick-center", "plan-visible", "map-file", "map-width", "plan-x", "plan-z",
     "plan-rotation", "plan-elevation", "plan-opacity"]
@@ -1145,7 +1210,7 @@ function setTransformFromField(el) {
   commit(before);
   updateInspector();
 }
-const SITE_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl", "ply", "dae", "3ds"]);
+const SITE_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl", "ply", "dae", "3ds", "zip"]);
 const ARTWORK_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "stl"]);
 
 function plainGeometryMesh(geometry, kind) {
@@ -1166,9 +1231,10 @@ async function decodeModel(file, isSite) {
   const formats = isSite ? SITE_MODEL_FORMATS : ARTWORK_MODEL_FORMATS;
   if (!formats.includes(ext)) {
     throw new Error(isSite
-      ? "현장 모델은 GLB, GLTF, OBJ, FBX, STL, PLY, DAE 또는 3DS 파일을 사용하세요. SKP/IFC/RVT/DWG는 GLB로 변환이 필요합니다."
+      ? "현장 모델은 GLB, GLTF, OBJ, FBX, STL, PLY, DAE, 3DS 또는 glTF 번들 ZIP을 사용하세요. SKP/IFC/RVT/DWG는 GLB 변환이 필요합니다."
       : "작품 모델은 GLB, GLTF, OBJ, STL 형식만 지원합니다.");
   }
+  if (isSite && ext === "zip")return (await decodeSiteBundle(file)).model;
   if (ext === "glb" || ext === "gltf") {
     // A standalone .gltf requires embedded geometry/texture data.
     // Prefer .glb when the source references additional .bin/images.
@@ -1209,10 +1275,14 @@ async function importModel(file, isSite) {
     notify("파일을 읽고 있습니다: " + file.name);
     const model = await decodeModel(file, isSite);
     const siteStats = isSite ? inspectSiteGeometry(model) : null;
+    const inspected = isSite ? inspectImportedSite(model) : null;
     if (approvedMaster || op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
     if (isSite) {
       clearGroup(siteRoot);
       siteRoot.add(model);
+      siteRoot.position.set(0,0,0);
+      $("site-center-origin").checked=false;
+      sourceSiteInspection=inspected;
       siteFileName = file.name;
       siteSourceFile = file;
       $("site-filename").textContent = file.name;
@@ -1229,6 +1299,7 @@ async function importModel(file, isSite) {
         pendingSiteLayers=null;
       }
       showSiteGeometryStats(inspectSiteGeometry(siteRoot));
+      updateSitePreflight();
       notify("현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
     } else {
       // Imported geometry retains original dimensions; never fit to stale 3m field.
@@ -1282,6 +1353,7 @@ function sceneConfig() {
     createdAt: new Date().toISOString(),
     site: { file: siteFileName, preset: $("site-preset").value, floor: $("floor-map").value,
       unit: $("site-unit").value, up: $("site-up").value,
+      alignment:{centerOrigin:$("site-center-origin").checked},
       planFile: planFileName, planWidth: +$("map-width").value,
       planAlignment: planAlignmentSnapshot() },
     groundPlacement: { auto: $("auto-ground").checked, offset: +$("ground-offset").value },
@@ -1315,6 +1387,7 @@ function validateProjectConfig(data) {
       (data.render !== undefined && !validRenderConfig(data.render)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
       (data.site.up !== undefined && !["y","z"].includes(data.site.up)) ||
+      (data.site.alignment !== undefined && !validSiteAlignment(data.site.alignment)) ||
       (data.site.planAlignment !== undefined && !validPlanAlignment(data.site.planAlignment)) ||
       (data.groundPlacement !== undefined &&
         (!data.groundPlacement || typeof data.groundPlacement.auto !== "boolean" ||
@@ -1347,6 +1420,7 @@ function importSceneConfig(data) {
   }
   $("site-unit").value = Object.hasOwn(SITE_UNIT_TO_M,data.site.unit) ? data.site.unit : "m";
   $("site-up").value = data.site.up === "z" ? "z" : "y";
+  $("site-center-origin").checked=!!data.site.alignment?.centerOrigin;
   applySiteUnits();
   syncGroundAvailability();
   if (["concrete", "pavers", "grass", "asphalt", "white"].includes(data.site.floor)) {
@@ -1505,6 +1579,7 @@ async function importProjectArchive(file) {
       artFile ? decodeModel(artFile, false) : Promise.resolve(null)
     ]);
     const siteStats = siteModel ? inspectSiteGeometry(siteModel) : null;
+    const siteInspected=siteModel ? inspectImportedSite(siteModel) : null;
     if (artModel) {
       const preparedBounds = new THREE.Box3().setFromObject(artModel);
       if (preparedBounds.isEmpty() || preparedBounds.getSize(new THREE.Vector3()).y <= 0.000001) {
@@ -1523,6 +1598,8 @@ async function importProjectArchive(file) {
     if (siteModel) {
       clearGroup(siteRoot);
       siteRoot.add(siteModel);
+      siteRoot.position.set(0,0,0);
+      sourceSiteInspection=siteInspected;
       siteFileName = siteFile.name;
       siteSourceFile = siteFile;
       $("site-status").textContent = "실제 모델";
@@ -1884,6 +1961,14 @@ $("layer-manager").addEventListener("change", event => {
   if(target.dataset.extraLock) return changeExtraLayer(Number(target.dataset.extraLock),"layerLocked",target.checked);
 });
 $("site-object-search").addEventListener("input", () => renderSiteLayerRows(enumerateSiteMeshes(siteRoot)));
+$("site-center-origin").addEventListener("change",()=>{
+  if (approvedMaster)return;
+  applySiteUnits();
+  notify($("site-center-origin").checked
+    ?"현장 그룹만 원점 중심으로 이동했습니다. 작품과 도면의 좌표는 변경되지 않았습니다."
+    :"현장 그룹을 원본 좌표로 복원했습니다.");
+});
+$("site-preflight-export").addEventListener("click",exportSitePreflight);
 $("site-unit").addEventListener("change", () => {
   if (approvedMaster) return;
   applySiteUnits();
