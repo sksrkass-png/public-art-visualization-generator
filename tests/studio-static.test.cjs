@@ -47,7 +47,16 @@ assert.match(js, /new GLTFExporter/, "GLB model export required");
 assert.match(js, /function sceneConfig/, "portable project settings exporter required");
 assert.match(js, /function importSceneConfig/, "portable settings importer required");
 assert.match(js, /if \(approvedMaster\) return notify\("MASTER LOCK/, "locked models must not be replaced");
-assert.match(js, /artRoot\.scale\.fromArray\(lastDrag\.s\.map/, "proportional scale gizmo enforcement required");
+assert.match(js, /selectedRoot\.scale\.fromArray\(base\.map/, "proportional scale gizmo enforcement required");
+assert.match(js, /const SITE_UNIT_TO_M/, "site unit conversion must exist");
+assert.match(js, /function syncGroundAvailability/, "hide redundant ground mapping when site imported");
+assert.match(js, /function createPlacedExtra/, "mouse placement for new objects");
+assert.match(js, /function deleteSelectedExtra/, "selected object delete control");
+assert.match(js, /sunGuide\.visible = false/, "sun sphere must not appear in render");
+assert.match(js, /setEditorGizmosVisible\(extrasRoot, false\)/, "light marker must not appear in render");
+for(const id of ["site-unit","site-up","nav-speed","placement-hint","extra-count","sun-helper","render-resolution","extra-light-power","delete-selected"]){
+  assert.ok(unique.has(id), "v0.4 control missing: "+id);
+}
 assert.match(js, /const MAX_UNDO = 40/, "history cap required");
 assert.match(js, /import JSZip from/, "portable project ZIP handling required");
 assert.match(js, /function exportProjectArchive/, "portable project exporter required");

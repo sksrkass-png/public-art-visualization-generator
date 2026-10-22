@@ -19,6 +19,7 @@ jobs:
         run: |
           node --check assets/app.js
           node --check studio/studio.js
+          node --check studio/extras.js
       - name: Run JSON import regression tests
         run: |
           node tests/json-import.test.cjs

@@ -1,6 +1,16 @@
-# AXOO Public Art 3D Studio — Alpha 0.1
+# AXOO Public Art 3D Studio — v0.4
 
 Static, browser-based interactive editor for public-art proposal staging. Version 0.3 expands site model imports. It is a companion to the existing prompt generator: `/studio/` leaves the legacy app unchanged.
+
+## v0.4 additions
+
+- **Camera:** Mouse pan and rotate speeds increased; `nav-speed` slider adjusts OrbitControls pan/rotate/zoom. Remove the old full-width viewport footer; keep a small floating coordinates label.
+- **Site calibration:** UI can scale an imported site's top-level transform from m/cm/mm/ft and rotate Z-up into world Y-up. Imported meshes and original file bytes stay unchanged. **Verify real-world dimensions**; some FBX/DAE loaders may have already converted units and should not be corrected twice.
+- **Ground mapping:** Default ground textures and 2D plans remain as an optional fallback for dummy site presets, but are hidden after an actual site model is imported so they do not overwrite modeled paving.
+- **Selectable environment assets:** Add a round canopy tree, pine/conifer tree, or shrub; point/spot lights can be placed directly on a clicked surface. Extra assets can be chosen by click or selection list, moved (G), rotated (R), scaled (S), deleted and restored with undo/redo. Supplemental foliage is **stylized concept geometry**, not existing-site survey data.
+- **Lighting & sun indicator:** clear/cloudy/late-day/night presets, positionable point/spot lights (intensity/color), optional semi-transparent sun sphere. Sphere, editors and light-location icons are hidden during PNG capture and never added as export geometry.
+- **Rendering:** 2x/3x/4x clean PNG capture of the actual 3D scene using ACES tonemapping, physically based materials, basic room reflections, soft shadows where supported. This improves presentation but **is not photographic AI reconstruction, Blender Cycles or offline path-tracing**. Higher settings depend on GPU and may consume significant memory.
+- **Persistence:** Site unit/up selection, foliage, additional lights, camera speed and lighting preset persist through existing settings JSON and complete-project ZIP.
 
 ## User workflow
 
@@ -21,8 +31,8 @@ Static, browser-based interactive editor for public-art proposal staging. Versio
 - Imported artwork is normalized to a center-ground pivot for editing. This intentionally discards the *object's world placement*, not its original mesh geometry, material colors, components or ratios.
 - Site model remains **non-editable** to enforce SITE LOCK. Dummy site presets are explicitly not substitutes for verified real-site architecture or landscape.
 - Settings-only JSON is retained for backwards compatibility, but does not include source assets. **Use the complete project ZIP for reliable recovery**; it includes original uploaded model bytes and plan image. ZIP compression runs inside the browser. Current size limits: ZIP 200 MB, each model 80 MB, plan image 20 MB.
-- Map underlay is a horizontal reference plane centered on world origin; a geospatially registered coordinate import and exact surveyed plan alignment are not implemented.
-- One artwork root is currently editable per scene. Multi-artwork scene hierarchy, physically precise CAD drafting, area masks and geometry sculpting are future extensions.
+- Map underlay remains an optional schematic reference plane for a preset site. A geospatially registered coordinate import and exact surveyed plan alignment are not implemented. Imported site files hide its fallback controls and use their own modeled ground.
+- One artwork root is currently editable per scene; the additional flora/lights are separate transformable objects. Full CAD mesh sculpting and precise landscape planning are future extensions.
 - Exact screen parity with `site-model-v1/artwork-v2/viewer/index.html` **has not been checked** because `file:///C:/...` paths are not reachable from the hosted repo.
 - Three.js is loaded from pinned jsDelivr `three@0.186.1` and ZIP handling from pinned `jszip@3.10.1`; internet access is required on first page load. No user assets are sent to a server; the scene is client-side.
 - A glTF/OBJ/STL file does not contain reliable metres metadata: units must be checked against real artwork W×D×H before manually applying a size change. Imported local transforms are left intact; only an external center-ground editing pivot is added.
