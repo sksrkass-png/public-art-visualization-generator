@@ -66,3 +66,9 @@
 .section input[type=color]{width:100%;height:38px;padding:4px;border:1px solid #d8dce0;border-radius:4px;background:#fff}
 #nav-speed,#render-resolution{margin-bottom:10px}
 @media(max-width:800px){.viewer-shell{min-height:390px}.placement-hint{top:60px;font-size:10px}}
+
+.extra-list{display:flex;flex-direction:column;max-height:150px;overflow:auto;gap:4px}
+.extra-list button{padding:8px 9px;text-align:left;border:1px solid #d9dbdf;border-radius:4px;
+  color:#50555b;background:#f9faf9;font-size:11px;font-weight:600;cursor:pointer}
+.extra-list button.active{background:#23272c;color:white;border-color:#23272c}
+.extra-list button:disabled{opacity:.5;cursor:not-allowed}
