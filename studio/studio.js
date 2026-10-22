@@ -1463,6 +1463,12 @@ function importSceneConfig(data) {
   if (approvedMaster) throw new Error("MASTER LOCK을 해제한 후 프로젝트를 불러오세요.");
   validateProjectConfig(data);
   ensureAvailableLibrary(data.library||[]);
+  // A settings-only import may refer to already loaded GLB sources. Remove
+  // unrelated sources to avoid silently importing assets from another project.
+  const used=new Set((data.library||[]).map(a=>a.id));
+  for(const id of [...assetLibrary.keys()])if(!used.has(id))assetLibrary.delete(id);
+  nextLibraryId=Math.max(1,...[...assetLibrary.keys()].map(id=>Number(id.slice(3))+1));
+  refreshAssetLibraryUI();
   const originalSite = siteFileName;
   const originalArt = artFileName;
   if(!data.render?.environmentFile ||
