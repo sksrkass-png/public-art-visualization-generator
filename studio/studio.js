@@ -525,7 +525,10 @@ function syncLock() {
     transform.detach();
   }
   else if (selectedRoot) transform.attach(selectedRoot);
-  ["site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color"]
+  ["site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
+    "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
+    "plan-pick-center", "plan-visible", "map-file", "map-width", "plan-x", "plan-z",
+    "plan-rotation", "plan-elevation", "plan-opacity"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   document.querySelectorAll("[data-add-extra]").forEach(btn => { btn.disabled = approvedMaster; });
   updateExtrasStatus();
@@ -683,6 +686,10 @@ function createPlacedExtra(kind, position) {
   root.position.copy(position);
   if (kind.includes("light")) root.position.y += 3;
   extrasRoot.add(root);
+  if (!kind.includes("light")) {
+    snapRootToSurface(root, siteRoot, { allowFallback: !siteSourceFile,
+      offset: toFinite($("ground-offset").value, 0, -20, 50) });
+  }
   selectRoot(root);
   updateExtrasStatus();
   commit(before);
@@ -696,28 +703,67 @@ function deleteSelectedExtra() {
   commit(before);
   notify("선택한 오브제를 삭제했습니다. Ctrl+Z로 복원할 수 있습니다.");
 }
+function groundSelected({ silent = false } = {}) {
+  if (approvedMaster) return null;
+  if (selectedRoot !== artRoot && extraLight(selectedRoot)) {
+    if (!silent) notify("조명은 공중 설치가 가능하므로 자동 밀착하지 않습니다. 현장 클릭 재배치에서 높이를 조정하세요.");
+    return null;
+  }
+  const before = editSnapshot();
+  const result = snapRootToSurface(selectedRoot, siteRoot, {
+    allowFallback: !siteSourceFile,
+    offset: toFinite($("ground-offset").value, 0, -20, 50)
+  });
+  if (result) {
+    commit(before);
+    updateInspector(true);
+    $("ground-status").textContent = "밀착 완료 · 표면 높이 " + result.surfaceHeight.toFixed(2) +
+      "m · 이동량 " + result.deltaY.toFixed(2) + "m";
+    if (!silent) notify("선택 오브제의 최하단을 감지한 표면에 맞췄습니다.");
+  } else if (!silent) {
+    $("ground-status").textContent = "현장 표면을 찾지 못했습니다. 지면이 포함된 3D 모델인지 확인하세요.";
+    notify("해당 좌표에서 위쪽을 향한 3D 표면을 찾지 못했습니다. 높이를 임의로 변경하지 않았습니다.");
+  }
+  return result;
+}
+function placeSelectedOnSite(hit) {
+  if (approvedMaster || !hit) return;
+  const before = editSnapshot();
+  selectedRoot.position.x = hit.point.x;
+  selectedRoot.position.z = hit.point.z;
+  if (selectedRoot !== artRoot && extraLight(selectedRoot)) {
+    selectedRoot.position.y = hit.point.y + 3 + toFinite($("ground-offset").value, 0, -20, 50);
+  } else {
+    const box = new THREE.Box3().setFromObject(selectedRoot);
+    selectedRoot.position.y += hit.point.y + toFinite($("ground-offset").value, 0, -20, 50) - box.min.y;
+  }
+  commit(before);
+  updateInspector(true);
+  $("ground-status").textContent = "현장 클릭 배치 완료 · X " + hit.point.x.toFixed(2) +
+    " / Z " + hit.point.z.toFixed(2) + " / 지면 Y " + hit.point.y.toFixed(2);
+  notify("클릭한 현장 표면으로 선택 오브제를 이동했습니다.");
+}
 function pickPlacement(event) {
-  const rect = viewport.getBoundingClientRect();
-  mouse.x = (event.clientX - rect.left) / rect.width * 2 - 1;
-  mouse.y = -(event.clientY - rect.top) / rect.height * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(siteRoot.children, true);
-  const planeHits = raycaster.intersectObject(floor);
-  const hit = hits.length ? hits[0] : (planeHits.length ? planeHits[0] : null);
-  if (hit) return hit.point.clone();
-  const ground = new THREE.Plane(new THREE.Vector3(0,1,0),0);
-  const intersection = new THREE.Vector3();
-  return raycaster.ray.intersectPlane(ground, intersection) ? intersection : null;
+  return surfaceAtPointer(event, camera, viewport, siteRoot, !siteSourceFile);
 }
 function handleSelection(event) {
   if (mouseMoved || approvedMaster || transform.dragging || event.button !== 0) return;
   if (placementMode) {
-    const point = pickPlacement(event);
-    if (!point) { notify("선택한 방향에서 바닥을 찾지 못했습니다."); return; }
+    const hit = pickPlacement(event);
+    if (!hit) { notify("해당 지점에서 위쪽 표면을 찾을 수 없습니다. 현장 메시와 각도를 확인하세요."); return; }
     const kind = placementMode;
     placementMode = null;
     $("placement-hint").hidden = true;
-    createPlacedExtra(kind, point);
+    if (kind === "plan-center") {
+      $("plan-x").value = hit.point.x.toFixed(3);
+      $("plan-z").value = hit.point.z.toFixed(3);
+      syncPlanOverlay();
+      notify("배치도 중심점의 X/Z를 현장 클릭 위치로 맞췄습니다.");
+    } else if (kind === "selected-ground") {
+      placeSelectedOnSite(hit);
+    } else {
+      createPlacedExtra(kind, hit.point);
+    }
     return;
   }
   const rect = viewport.getBoundingClientRect();
@@ -746,6 +792,13 @@ function setTransformFromField(el) {
     if (Math.abs(previousAxis) > 1e-8) selectedRoot.scale.multiplyScalar(next / previousAxis);
   }
   else selectedRoot[el.dataset.transform][el.dataset.axis] = next;
+  if ($("auto-ground").checked && el.dataset.transform === "position" &&
+      ["x","z"].includes(el.dataset.axis) && !extraLight(selectedRoot)) {
+    snapRootToSurface(selectedRoot, siteRoot, {
+      allowFallback: !siteSourceFile,
+      offset: toFinite($("ground-offset").value, 0, -20, 50)
+    });
+  }
   commit(before);
   updateInspector();
 }
@@ -1164,6 +1217,25 @@ $("site-file").addEventListener("change", e => importModel(e.target.files[0], tr
 $("art-file").addEventListener("change", e => importModel(e.target.files[0], false));
 $("map-file").addEventListener("change", e => loadPlan(e.target.files[0]));
 $("map-width").addEventListener("change", () => { if (!approvedMaster) syncPlanWidth(); });
+["plan-x","plan-z","plan-rotation","plan-elevation","plan-opacity","plan-visible"].forEach(id=>{
+  $(id).addEventListener(id === "plan-opacity" ? "input" : "change", () => {
+    if (!approvedMaster) syncPlanOverlay();
+  });
+});
+$("ground-selected").addEventListener("click", () => groundSelected());
+$("pick-selected-site").addEventListener("click", () => {
+  if (approvedMaster) return;
+  placementMode = "selected-ground";
+  $("placement-hint").textContent = "대상 오브제를 옮길 실제 현장 바닥을 클릭하세요 · Esc 취소";
+  $("placement-hint").hidden = false;
+});
+$("plan-pick-center").addEventListener("click", () => {
+  if (approvedMaster) return;
+  if (!loadedPlanTexture) return notify("먼저 배치도 이미지를 불러오세요.");
+  placementMode = "plan-center";
+  $("placement-hint").textContent = "배치도 중심을 정렬할 현장 위치를 클릭하세요 · Esc 취소";
+  $("placement-hint").hidden = false;
+});
 $("floor-map").addEventListener("change", () => { if (!approvedMaster) updateGround(); });
 $("grid").addEventListener("change", e => { grid.visible = e.target.checked; });
 $("sun-helper").addEventListener("change", e => { sunGuide.visible = e.target.checked; });
@@ -1267,7 +1339,16 @@ $("import-json").addEventListener("change", async e => {
 });
 transform.addEventListener("dragging-changed", e => { orbit.enabled = !e.value; });
 transform.addEventListener("mouseDown", () => { lastDrag = editSnapshot(); });
-transform.addEventListener("mouseUp", () => { if (lastDrag) commit(lastDrag); lastDrag = null; updateInspector(); });
+transform.addEventListener("mouseUp", () => {
+  if (lastDrag && !approvedMaster && selectedMode === "translate" && $("auto-ground").checked &&
+      !extraLight(selectedRoot)) {
+    snapRootToSurface(selectedRoot, siteRoot, { allowFallback: !siteSourceFile,
+      offset: toFinite($("ground-offset").value, 0, -20, 50) });
+  }
+  if (lastDrag) commit(lastDrag);
+  lastDrag = null;
+  updateInspector();
+});
 transform.addEventListener("objectChange", () => {
   // Keep size proportional by default, including direct gizmo manipulation.
   // The axis with the strongest deviation from the drag's starting scale wins.
