@@ -934,6 +934,7 @@ function resize() {
   camera.aspect = rect.width / rect.height;
   camera.updateProjectionMatrix();
   renderer.setSize(rect.width, rect.height, false);
+  updateRenderSizeLabel();
 }
 function updateExtrasStatus() {
   $("extra-count").textContent = "추가된 오브제 " + extrasRoot.children.length + "개";
@@ -1538,44 +1539,48 @@ async function importProjectArchive(file) {
 }
 
 function exportImage() {
-  const width = Math.max(1, Math.floor(viewport.clientWidth));
-  const height = Math.max(1, Math.floor(viewport.clientHeight));
-  const originalRatio = renderer.getPixelRatio();
-  const originalGrid = grid.visible;
-  const originalHelper = transform.getHelper().visible;
-  const originalSun = sunGuide.visible;
-  const originalHighlight = siteHighlight?.visible;
-  const originalEditorGizmos = true;
+  const w=Math.max(1,Math.round(viewport.clientWidth));
+  const h=Math.max(1,Math.round(viewport.clientHeight));
+  const originalRatio=renderer.getPixelRatio();
+  const originalAspect=camera.aspect;
+  const originalGrid=grid.visible;
+  const originalHelper=transform.getHelper().visible;
+  const originalSun=sunGuide.visible;
+  const originalHighlight=siteHighlight?.visible;
   try {
-    const targetMultiplier = safeNumber($("render-resolution").value, 2, 2, 4);
-    const maxPixels = renderer.capabilities.maxTextureSize;
-    const scale = Math.min(targetMultiplier, maxPixels / width, maxPixels / height);
+    const size=targetSize(w,h,$("render-aspect").value,
+      Number($("render-resolution").value),renderer.capabilities.maxTextureSize);
     renderer.setPixelRatio(1);
-    renderer.setSize(Math.round(width * scale), Math.round(height * scale), false);
-    grid.visible = false;
-    transform.getHelper().visible = false;
-    sunGuide.visible = false;
-    if(siteHighlight) siteHighlight.visible = false;
-    setEditorGizmosVisible(extrasRoot, false);
-    renderer.render(scene, camera);
-    const data = renderer.domElement.toDataURL("image/png");
-    const link = document.createElement("a");
-    link.href = data;
-    link.download = safeFileName() + "-high-quality.png";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    notify("편집 보조물 없는 " + scale.toFixed(1) + "배 해상도 PNG 렌더를 저장했습니다.");
-  } catch (err) {
-    notify("렌더 저장 실패: " + (err.message || "그래픽 메모리 부족"));
-  } finally {
-    grid.visible = originalGrid;
-    transform.getHelper().visible = originalHelper;
-    sunGuide.visible = originalSun;
-    if(siteHighlight) siteHighlight.visible = originalHighlight;
-    setEditorGizmosVisible(extrasRoot, originalEditorGizmos);
+    renderer.setSize(size.width,size.height,false);
+    camera.aspect=size.width/size.height;
+    camera.updateProjectionMatrix();
+    grid.visible=false;
+    transform.getHelper().visible=false;
+    sunGuide.visible=false;
+    if(siteHighlight)siteHighlight.visible=false;
+    setEditorGizmosVisible(extrasRoot,false);
+    renderer.render(scene,camera);
+    const png=renderer.domElement.toDataURL("image/png");
+    if(!png.startsWith("data:image/png;base64,"))throw Error("PNG 데이터를 만들지 못했습니다.");
+    const link=document.createElement("a");
+    link.href=png;
+    link.download=safeFileName()+"-"+size.width+"x"+size.height+".png";
+    document.body.appendChild(link);link.click();link.remove();
+    notify("작품·현장 변형 없이 "+size.width+" × "+size.height+" PNG를 저장했습니다."+
+      (size.limited?" (GPU 한도에 맞춰 축소)":""));
+  }catch(error){
+    console.error(error);
+    notify("고해상도 렌더 실패: "+(error.message||"GPU 메모리/출력 설정 확인"));
+  }finally{
+    grid.visible=originalGrid;
+    transform.getHelper().visible=originalHelper;
+    sunGuide.visible=originalSun;
+    if(siteHighlight)siteHighlight.visible=originalHighlight;
+    setEditorGizmosVisible(extrasRoot,true);
+    camera.aspect=originalAspect;
+    camera.updateProjectionMatrix();
     renderer.setPixelRatio(originalRatio);
-    renderer.setSize(width, height, false);
+    renderer.setSize(w,h,false);
   }
 }
 async function exportGLB() {
@@ -1663,6 +1668,33 @@ $("nav-speed").addEventListener("input", e => {
   orbit.zoomSpeed = Math.max(.5, speed * .62);
   $("nav-speed-value").textContent = speed.toFixed(1) + "×";
 });
+$("env-mode").addEventListener("change", () => {
+  if($("env-mode").value==="hdr"&&!hdrTexture){
+    $("env-mode").value="neutral";
+    return notify("먼저 Radiance .HDR 환경 이미지를 업로드하세요.");
+  }
+  applyEnvironment();
+});
+$("env-file").addEventListener("change",e=>{
+  loadHDR(e.target.files[0]);
+  e.target.value="";
+});
+$("env-strength").addEventListener("input",applyEnvironment);
+$("apply-material").addEventListener("click",()=>{
+  if(approvedMaster)return notify("MASTER LOCK 해제 후 작품 재질을 변경하세요.");
+  setArtworkMaterial({preset:$("art-material").value,color:$("art-material-color").value},{recordUndo:true});
+});
+$("reset-material").addEventListener("click",()=>{
+  if(approvedMaster)return;
+  setArtworkMaterial({preset:"original",color:"#d0d6db"},{recordUndo:true});
+});
+$("camera-focal").addEventListener("input",e=>{
+  camera.setFocalLength(Number(e.target.value));
+  camera.updateProjectionMatrix();
+  $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
+});
+$("render-aspect").addEventListener("change",updateRenderSizeLabel);
+$("render-resolution").addEventListener("change",updateRenderSizeLabel);
 $("light-preset").addEventListener("change", e => {
   const presets = {
     clear: {az:45, el:45, sun:2, ambient:1.3, exposure:1},
@@ -1818,6 +1850,8 @@ updateGround();
 syncLock();
 snapSetting();
 updateLight();
+applyEnvironment();
+restoreRenderConfig(null);
 fitCamera();
 resize();
 animate();
