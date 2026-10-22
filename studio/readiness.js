@@ -76,4 +76,5 @@ export function initReadiness({getScene}) {
     setTimeout(()=>URL.revokeObjectURL(url),5000);
   });
   evaluate();
+  return {getReport:snapshot};
 }
