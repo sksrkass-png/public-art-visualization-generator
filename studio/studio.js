@@ -19,6 +19,7 @@ import { STANDARD_VIEWS, createStandardCameras, captureSceneIntegrity,
 import { initVisualReview } from "./review.js";
 import { makeIntegrityManifest, verifyIntegrityManifest } from "./integrity.js";
 import { initReadiness } from "./readiness.js";
+import { initProposalExport } from "./proposal.js";
 import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precision.js";
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
@@ -481,7 +482,7 @@ function checkInterferences(){
     :"검사 범위에서 외접 박스 중첩 없음 · 건물 메시 "+output.checkedBuildings+"개 분류됨";
   if(output.truncated)$("precision-collision-status").textContent+=" · 전체 메시를 검사하지 못했습니다.";
 }
-function exportPrecisionReport(){
+function collectPrecisionReport(){
   checkInterferences();
   const data={schema:"axoo-modeling-precision-v1",project:$("project-name").value,
     site:siteFileName,artwork:artFileName,masterLocked:approvedMaster,
@@ -496,6 +497,10 @@ function exportPrecisionReport(){
     })),
     warning:"CAD 실측 검증이나 충돌 메시 삼각형 판정이 아닙니다. 실제 현장 도면 및 전문가 검토가 필요합니다."
   };
+  return data;
+}
+function exportPrecisionReport(){
+  const data=collectPrecisionReport();
   download(safeFileName()+"-precision-audit.json",new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
 }
 function selectedCanEdit() {
@@ -2443,7 +2448,7 @@ initVisualReview({
   isMasterApproved:()=>approvedMaster,
   getMaster:()=>masterSnapshots[masterSnapshots.length-1] || null
 });
-initReadiness({getScene:()=>{
+const readinessBridge=initReadiness({getScene:()=>{
   const master=masterSnapshots[masterSnapshots.length-1] || null;
   const bounds=new THREE.Box3().setFromObject(artRoot);
   const size=bounds.isEmpty()?new THREE.Vector3(0,0,0):bounds.getSize(new THREE.Vector3());
@@ -2463,6 +2468,21 @@ initReadiness({getScene:()=>{
     revision:master?.revision||null,
     approvedAt:master?.approvedAt||null,
     masterMatches:!!master && masterConsistency(master,baselineForMaster()).ok
+  };
+}});
+const proposalBridge=initProposalExport({getContext:()=>{
+  const master=masterSnapshots[masterSnapshots.length-1] || null;
+  const bounding=new THREE.Box3().setFromObject(artRoot);
+  const dims=bounding.isEmpty()?new THREE.Vector3(0,0,0):bounding.getSize(new THREE.Vector3());
+  return {
+    locked:approvedMaster,
+    master,
+    matchesMaster:!!master && masterConsistency(master,baselineForMaster()).ok,
+    config:sceneConfig(),
+    readiness:readinessBridge.getReport(),
+    precision:collectPrecisionReport(),
+    artworkDimensions:dims.toArray(),
+    artworkPosition:artRoot.position.toArray()
   };
 }});
 $("export-glb").addEventListener("click", exportGLB);
