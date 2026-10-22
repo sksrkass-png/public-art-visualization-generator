@@ -124,5 +124,16 @@ for(const marker of ["initVisualReview","validManifest","humanApprovedCount","in
   "verifiedMaster","visual-review.json"])
   assert.ok(reviewSource.includes(marker),"v0.9 review data safeguard missing: "+marker);
 assert.match(js,/initVisualReview\(/,"render reviewer must be initialized");
+for(const id of ["release-readiness","readiness-scan","readiness-export","readiness-status","readiness-badge",
+ "ready-dimensions","ready-artwork","ready-placement","ready-render"])
+  assert.ok(unique.has(id),"v1.0 readiness control missing: "+id);
+const integrityCode=fs.readFileSync(path.join(base,"studio/integrity.js"),"utf8");
+for(const marker of ["makeIntegrityManifest","verifyIntegrityManifest","SHA-256","project.json","assets/site"])
+  assert.ok(integrityCode.includes(marker),"checksum routine missing: "+marker);
+const readinessCode=fs.readFileSync(path.join(base,"studio/readiness.js"),"utf8");
+for(const marker of ["initReadiness","validateReadiness","ready-for-internal-review","needs-human-or-source-review"])
+  assert.ok(readinessCode.includes(marker),"readiness guard missing: "+marker);
+assert.match(js,/integrity\.json/,"checksum must be saved in full project ZIP");
+assert.match(js,/verifyIntegrityManifest\(zip\)/,"checksum must be checked on ZIP import");
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");

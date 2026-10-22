@@ -133,3 +133,11 @@
 .review-checks input{margin:3px 0 0}
 #review-status,#review-counter{overflow-wrap:anywhere}
 #review-counter{font-weight:700}
+
+/* v1.0 internal release-preflight panel */
+#release-readiness{border-top:2px solid #95a9b6;background:linear-gradient(#fafcfe,#fff)}
+.readiness-checks{display:flex;flex-direction:column;gap:8px;margin:13px 0}
+.readiness-checks label{display:flex;gap:7px;align-items:flex-start;font-size:10.5px;line-height:1.5}
+.readiness-checks label input{margin-top:3px;accent-color:#4c6172}
+#readiness-status{white-space:pre-line;padding:9px;background:#eef1f4;border-radius:4px;line-height:1.65}
+#readiness-badge[data-ready="true"]{background:#e5f2e8;color:#265a35}

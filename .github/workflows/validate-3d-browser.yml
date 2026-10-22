@@ -20,7 +20,15 @@ jobs:
       - name: Install browser test runtime
         run: |
           npm install --no-save playwright@1.56.1
-          npx playwright install --with-deps chromium
+          # GitHub-hosted Ubuntu commonly includes Google Chrome. Prefer it to
+          # an additional 300 MB browser download when present.
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "AXOO_CHROME_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          elif command -v google-chrome-stable >/dev/null 2>&1; then
+            echo "AXOO_CHROME_PATH=$(command -v google-chrome-stable)" >> "$GITHUB_ENV"
+          else
+            npx playwright install --with-deps chromium
+          fi
       - name: Serve static app
         run: |
           python3 -m http.server 8787 --bind 127.0.0.1 > /tmp/axoo-studio-http.log 2>&1 &
