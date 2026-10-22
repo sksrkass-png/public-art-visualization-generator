@@ -616,6 +616,25 @@ function resize() {
 }
 function updateExtrasStatus() {
   $("extra-count").textContent = "추가된 오브제 " + extrasRoot.children.length + "개";
+  const list = $("extra-list");
+  const activeId = selectedRoot.userData.extraId;
+  const currentIds = [...list.children].map(node => Number(node.dataset.extraId));
+  const wantedIds = extrasRoot.children.map(node => node.userData.extraId);
+  if (currentIds.join(",") !== wantedIds.join(",")) {
+    list.replaceChildren();
+    for (const root of extrasRoot.children) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.extraId = String(root.userData.extraId);
+      button.textContent = root.name;
+      button.addEventListener("click", () => selectRoot(root));
+      list.append(button);
+    }
+  }
+  for (const button of list.children) {
+    button.classList.toggle("active", Number(button.dataset.extraId) === activeId);
+    button.disabled = approvedMaster;
+  }
   $("delete-selected").disabled = approvedMaster || selectedRoot === artRoot;
 }
 function selectRoot(object) {
