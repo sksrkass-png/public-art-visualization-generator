@@ -452,7 +452,8 @@ function validMasterSnapshot(entry) {
     typeof entry.artworkFile === "string" && typeof entry.siteFile === "string" &&
     validTransform(entry.artworkTransform) &&
     entry.camera && isTriple(entry.camera.position) && isTriple(entry.camera.target) &&
-    entry.lighting && typeof entry.lighting === "object";
+    entry.lighting && typeof entry.lighting === "object" &&
+    (entry.extras === undefined || validateExtras(entry.extras));
 }
 function renderMasterHistory() {
   const root = $("master-history");
