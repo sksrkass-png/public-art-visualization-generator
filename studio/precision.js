@@ -56,13 +56,13 @@ export function validExtraGrouping(data){
   return data.every(x=>x.groupId===undefined || x.groupId===null ||
     (Number.isInteger(x.groupId)&&x.groupId>=1&&x.groupId<=120));
 }
-export function translateGroupPeers(container,selected,delta) {
+export function translateGroupPeers(container,selected,delta,allowed=()=>true) {
   const id=selected?.userData?.groupId;
   if(!id || !delta?.isVector3)return 0;
   let moved=0;
   for(const peer of container.children){
     if(peer===selected || peer.userData.groupId!==id)continue;
-    if(peer.userData.layerLocked || peer.userData.layerHidden || !peer.visible)continue;
+    if(peer.userData.layerLocked || peer.userData.layerHidden || !peer.visible || !allowed(peer))continue;
     peer.position.add(delta);
     moved++;
   }
