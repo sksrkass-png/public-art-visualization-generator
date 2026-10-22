@@ -75,8 +75,119 @@ const assert = require("node:assert/strict");
       null, { timeout: 15000 }
     );
     assert.match(await page.locator("#site-filename").textContent(), /test-import-site\.glb/);
+    // Imported artwork source geometry MUST retain its real dimensions.
+    await page.locator("#art-height").fill("12");
+    await page.locator("#art-file").setInputFiles({
+      name: "saved-artwork.glb", mimeType: "model/gltf-binary", buffer: bytes
+    });
+    await page.waitForFunction(
+      () => document.querySelector("#art-filename")?.textContent.includes("saved-artwork.glb"),
+      null, { timeout: 15000 }
+    );
+    const sourceDims = await page.locator("#source-dimensions").textContent();
+    const [sourceWidth, sourceHeight, sourceDepth] = sourceDims.split(" m ")[0].split(" × ").map(Number);
+    assert.ok(sourceWidth > 2 && sourceHeight > 4 && sourceDepth > 2,
+      "reimported full scene geometry must retain original site extents");
+    const currentHeight = Number(await page.locator("#art-height").inputValue());
+    assert.ok(Math.abs(currentHeight - sourceHeight) < 0.03,
+      "artwork import should NOT silently resize to the previously entered 12 metres");
+    assert.equal(Number(await page.locator('[data-transform="scale"][data-axis="x"]').inputValue()), 1,
+      "initial artwork scale must stay 1 before user explicitly resizes");
+
+    // 2D site plan is also embedded in the portable ZIP package.
+    const pngPixel = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    await page.locator("#map-file").setInputFiles({ name: "site-plan.png", mimeType: "image/png", buffer: pngPixel });
+    await page.waitForFunction(
+      () => document.querySelector("#map-name")?.textContent.includes("site-plan.png"),
+      null, { timeout: 12000 }
+    );
+    // Snapshot retains actual position, lighting and camera.
+    const px = page.locator('[data-transform="position"][data-axis="x"]');
+    await px.fill("4.5"); await px.dispatchEvent("change");
+    await page.locator('[data-view="main"]').click();
+    await page.locator("#master-lock").click();
+    assert.equal(await px.isDisabled(), true);
+    assert.match(await page.locator("#master-summary").textContent(), /Revision 1/);
+    await page.locator('[data-view="rear"]').click();
+    await page.locator("#restore-master-camera").click();
+    const archiveDownloadEvent = page.waitForEvent("download", { timeout: 60000 });
+    await page.locator("#export-project").click();
+    const archiveDownload = await archiveDownloadEvent;
+    assert.match(archiveDownload.suggestedFilename(), /\.zip$/);
+    const archivePath = await archiveDownload.path();
+    const archiveData = fs.readFileSync(archivePath);
+    const archiveHeaders = archiveData.toString("latin1");
+    assert.ok(archiveData.length > 2000, "project ZIP must contain binary assets");
+    for (const entry of ["project.json", "assets/site", "assets/artwork", "assets/plan"]) {
+      assert.ok(archiveHeaders.includes(entry), "ZIP must contain " + entry);
+    }
+    // ZIP compression can be smaller than a single source GLB: compare entries,
+    // never compressed archive byte length against uncompressed model bytes.
+
+    // Unlock and discard the scene; the full package restores real source assets.
+    page.once("dialog", dialog => dialog.accept());
+    await page.locator("#master-lock").click();
+    await page.locator("#site-preset").selectOption("empty");
+    await page.locator("#sample-art").click();
+    assert.match(await page.locator("#art-filename").textContent(), /Sample Artwork/);
+    await page.locator("#import-project").setInputFiles({
+      name: "restored-project.zip", mimeType: "application/zip", buffer: archiveData
+    });
+    await page.waitForFunction(() =>
+      document.querySelector("#site-filename")?.textContent.includes("test-import-site.glb") &&
+      document.querySelector("#art-filename")?.textContent.includes("saved-artwork.glb") &&
+      document.querySelector("#object-state")?.textContent === "MASTER LOCK",
+      null, { timeout: 45000 }
+    );
+    assert.equal(Number(await px.inputValue()), 4.5, "ZIP restores saved model coordinates");
+    assert.match(await page.locator("#map-name").textContent(), /site-plan\.png/);
+    assert.match(await page.locator("#master-summary").textContent(), /Revision 1/);
+
+    // Both settings-only and portable-project imports must fail closed when locked.
+    await page.locator("#import-json").setInputFiles(jsonFile);
+    await page.waitForTimeout(150);
+    assert.equal(Number(await px.inputValue()), 4.5);
+    await page.locator("#import-project").setInputFiles({
+      name: "restored-project.zip", mimeType: "application/zip", buffer: archiveData
+    });
+    await page.waitForTimeout(150);
+    assert.equal(Number(await px.inputValue()), 4.5);
+
+    // An invalid ZIP cannot damage a currently loaded, unlocked scene.
+    page.once("dialog", dialog => dialog.accept());
+    await page.locator("#master-lock").click();
+    await page.locator("#import-project").setInputFiles({
+      name: "invalid.zip", mimeType: "application/zip", buffer: Buffer.from("invalid archive")
+    });
+    await page.waitForTimeout(250);
+    assert.equal(Number(await px.inputValue()), 4.5);
+    assert.match(await page.locator("#art-filename").textContent(), /saved-artwork\.glb/);
+    // Regression: approving MASTER during an unfinished GLB read must cancel
+    // the stale async import rather than replacing an already approved artwork.
+    await page.evaluate(() => {
+      const originalArrayBuffer = File.prototype.arrayBuffer;
+      window.__originalFileArrayBuffer = originalArrayBuffer;
+      File.prototype.arrayBuffer = async function () {
+        await new Promise(resolve => setTimeout(resolve, 850));
+        return originalArrayBuffer.call(this);
+      };
+    });
+    await page.locator("#art-file").setInputFiles({
+      name: "stale-import.glb", mimeType: "model/gltf-binary", buffer: bytes
+    });
+    await page.locator("#master-lock").click();
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { File.prototype.arrayBuffer = window.__originalFileArrayBuffer; });
+    assert.match(await page.locator("#art-filename").textContent(), /saved-artwork\.glb/,
+      "pending async import must not replace artwork after master approval");
+    assert.equal(Number(await px.inputValue()), 4.5,
+      "pending async import must preserve approved artwork placement");
+    assert.equal(await px.isDisabled(), true, "scene remains locked after asynchronous import resolves");
     assert.deepEqual(errors, [], "no uncaught runtime errors");
-    console.log("PASS studio browser: WebGL, edit, undo/redo, lights, views, lock, PNG, JSON roundtrip, GLB export");
+    console.log("PASS studio browser: WebGL, edit, undo/redo, lights, views, lock, PNG, JSON roundtrip, GLB export, source scale, master snapshot, ZIP recovery and locks");
   } finally {
     await browser.close();
   }

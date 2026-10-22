@@ -68,7 +68,8 @@
         <p id="art-filename" class="asset-caption">현재: 편집 가능한 샘플 조형물</p>
         <label for="art-height">작품 실제 높이 (m)</label>
         <div class="inline"><input id="art-height" type="number" min="0.05" max="100" step="0.1" value="3"><button id="apply-height" class="outline" type="button">높이 맞춤</button></div>
-        <p class="hint">업로드 모델은 원본 형상·구성요소를 변경하지 않고 높이만 비례 조정합니다.</p>
+        <p class="hint">업로드한 모델의 크기는 <strong>자동 변경하지 않습니다.</strong> GLB/OBJ/STL의 단위를 미터로 가정하며, 단위 확인 후 '높이 맞춤'으로만 변경됩니다.</p>
+        <p class="hint">불러온 모델 원본 크기: <strong id="source-dimensions">—</strong></p>
       </section>
       <div class="notice">현장 프리셋은 <strong>조작 확인용 예시 공간</strong>입니다. 실제 설계의 배치·입면·조경을 재현하려면 현장 모델(GLB) 또는 배치도 원본이 필요합니다.</div>
     </aside>
@@ -122,6 +123,9 @@
         </div>
         <button id="master-lock" class="lock-button" type="button">MASTER VIEW 승인 · 작품 잠금</button>
         <p id="lock-desc" class="hint">승인하면 위치·회전·배율을 고정합니다. 해제 전에는 작품을 편집할 수 없습니다.</p>
+        <p id="master-summary" class="hint" aria-live="polite">승인된 마스터 없음</p>
+        <button id="restore-master-camera" class="outline full" type="button" disabled>승인 마스터의 카메라·조명으로 복귀</button>
+        <div id="master-history" class="master-history" aria-label="승인 마스터 버전 이력"></div>
       </section>
       <section class="section">
         <h2>라이팅 / 조명</h2>
@@ -153,11 +157,15 @@
       </section>
       <section class="section">
         <h2>프로젝트 저장</h2>
+        <button id="export-project" class="primary full" type="button">전체 프로젝트 ZIP 저장 (모델 포함)</button>
+        <label class="file-button secondary" for="import-project">+ 전체 프로젝트 ZIP 불러오기</label>
+        <input id="import-project" class="sr-only" type="file" accept=".zip,application/zip">
+        <p class="hint">추천: 3D 모델·배치도·카메라·조명·MASTER 승인 이력까지 한 번에 보관합니다. ZIP은 브라우저에서만 처리됩니다.</p>
         <button id="export-json" class="outline full" type="button">프로젝트 설정 JSON 저장</button>
         <label class="file-button secondary" for="import-json">+ 프로젝트 설정 불러오기</label>
         <input id="import-json" class="sr-only" type="file" accept=".json,application/json">
         <button id="export-glb" class="outline full" type="button">현재 장면 GLB 내보내기</button>
-        <p class="hint">JSON은 변형·조명·카메라 설정을 저장합니다. 원본 3D 파일은 포함되지 않으며 다시 불러와야 합니다. GLB는 모델 메시를 포함합니다.</p>
+        <p class="hint">JSON은 설정만 저장하는 기존 방식으로 유지합니다. 모델 복원에는 위 ZIP을 이용하세요. GLB는 3D 메시 내보내기용입니다.</p>
       </section>
     </aside>
   </main>
