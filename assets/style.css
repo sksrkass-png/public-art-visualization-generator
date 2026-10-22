@@ -738,3 +738,8 @@ pre.out-body {
   .topbar { padding: 28px 20px 22px; }
   .wrap { padding: 0 20px 90px; }
 }
+
+/* Entry to the interactive 3D companion editor; legacy prompt UI is unchanged. */
+.studio-entry{display:inline-block;margin-left:auto;margin-right:22px;padding:9px 13px;border:1px solid var(--ink);background:var(--ink);color:white;font-size:10.5px;font-weight:800;letter-spacing:.065em;white-space:nowrap;text-decoration:none}
+.studio-entry:hover{background:#fff;color:var(--ink)}
+@media(max-width:640px){.studio-entry{margin:2px 0 4px auto}}
