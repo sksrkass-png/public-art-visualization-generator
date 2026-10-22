@@ -193,6 +193,7 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   else if(kind==="custom-glb"){
     const source=library?.get(assetId);
     if(!source)throw Error("사용자 GLB 원본이 없습니다: "+assetId);
+    root.userData.assetCategory=source.category;
     root.add(instantiateLibraryAsset(source));
     root.name=source.file.name.replace(/\.glb$/i,"")+" #"+id;
   }
