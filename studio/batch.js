@@ -82,6 +82,7 @@ export function masterConsistency(master, state) {
   compare(master.artworkTransform,state.artworkTransform,"작품 배치");
   compare(master.extras??[],state.extras,"식재·조명");
   if(master.layers!==undefined)compare(master.layers,state.layers,"레이어");
+  if(master.library!==undefined)compare(master.library,state.library,"참조 GLB 라이브러리");
   if(master.material!==undefined)compare(master.material,state.material,"작품 재질");
   if(master.siteFile!==state.siteFile)issues.push("현장 파일이 승인 당시와 다릅니다.");
   if(master.artworkFile!==state.artworkFile)issues.push("작품 파일이 승인 당시와 다릅니다.");
