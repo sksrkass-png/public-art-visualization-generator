@@ -1,0 +1,21 @@
+name: Validate static app
+
+on:
+  push:
+    branches: [main, feature/json-project-import]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: node --check assets/app.js
+      - name: Run JSON import regression tests
+        run: node tests/json-import.test.cjs
