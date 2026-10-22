@@ -4,6 +4,10 @@ import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
+import { PLYLoader } from "three/addons/loaders/PLYLoader.js";
+import { ColladaLoader } from "three/addons/loaders/ColladaLoader.js";
+import { TDSLoader } from "three/addons/loaders/TDSLoader.js";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 
@@ -144,6 +148,7 @@ function buildSite(preset) {
   siteFileName = "";
   siteSourceFile = null;
   $("site-filename").textContent = "업로드된 현장 모델 없음";
+  showSiteGeometryStats(null);
   $("site-status").textContent = preset === "empty" ? "빈 공간" : "예시 공간";
   if (preset === "plaza") {
     box(siteRoot, 18, 9, 2, -17, 4.5, -15);
@@ -548,20 +553,60 @@ function setTransformFromField(el) {
   commit(before);
   updateInspector();
 }
+const SITE_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl", "ply", "dae", "3ds"]);
+const ARTWORK_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "stl"]);
+
+function plainGeometryMesh(geometry, kind) {
+  if (!geometry.getAttribute("normal")) geometry.computeVertexNormals();
+  const hasVertexColors = !!geometry.getAttribute("color");
+  const material = new THREE.MeshStandardMaterial({
+    color: hasVertexColors ? 0xffffff : 0xc7d0d4,
+    metalness: kind === "stl" ? .55 : .06,
+    roughness: kind === "stl" ? .32 : .78,
+    vertexColors: hasVertexColors,
+    side: THREE.DoubleSide
+  });
+  return new THREE.Mesh(geometry, material);
+}
 async function decodeModel(file, isSite) {
   if (!file || file.size > 80 * 1024 * 1024) throw new Error("3D 모델은 80MB 이하여야 합니다.");
   const ext = file.name.split(".").pop().toLowerCase();
-  if ((isSite && !["glb", "gltf"].includes(ext)) || (!isSite && !["glb", "gltf", "obj", "stl"].includes(ext)))
-    throw new Error("지원하지 않는 모델 형식입니다.");
+  const formats = isSite ? SITE_MODEL_FORMATS : ARTWORK_MODEL_FORMATS;
+  if (!formats.includes(ext)) {
+    throw new Error(isSite
+      ? "현장 모델은 GLB, GLTF, OBJ, FBX, STL, PLY, DAE 또는 3DS 파일을 사용하세요. SKP/IFC/RVT/DWG는 GLB로 변환이 필요합니다."
+      : "작품 모델은 GLB, GLTF, OBJ, STL 형식만 지원합니다.");
+  }
   if (ext === "glb" || ext === "gltf") {
+    // A standalone .gltf requires embedded geometry/texture data.
+    // Prefer .glb when the source references additional .bin/images.
     const data = ext === "glb" ? await file.arrayBuffer() : await file.text();
-    const result = await new GLTFLoader().parseAsync(data, "");
-    return result.scene;
+    return (await new GLTFLoader().parseAsync(data, "")).scene;
   }
   if (ext === "obj") return new OBJLoader().parse(await file.text());
-  const geometry = new STLLoader().parse(await file.arrayBuffer());
-  geometry.computeVertexNormals();
-  return new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xc7d0d4, metalness: .55, roughness: .32 }));
+  if (ext === "stl") return plainGeometryMesh(new STLLoader().parse(await file.arrayBuffer()), "stl");
+  if (ext === "ply") return plainGeometryMesh(new PLYLoader().parse(await file.arrayBuffer()), "ply");
+  if (ext === "fbx") return new FBXLoader().parse(await file.arrayBuffer(), "");
+  if (ext === "dae") return new ColladaLoader().parse(await file.text(), "").scene;
+  if (ext === "3ds") return new TDSLoader().parse(await file.arrayBuffer(), "");
+  throw new Error("지원하지 않는 확장자입니다.");
+}
+function showSiteGeometryStats(stats) {
+  $("site-dimensions").textContent = stats
+    ? stats.size.toArray().map(value => value.toFixed(2)).join(" × ") + " (W×H×D, 파일 단위) · 메시 " + stats.meshCount + "개"
+    : "—";
+}
+function inspectSiteGeometry(model) {
+  let meshCount = 0;
+  model.traverse(object => {
+    if (object.isMesh && object.geometry && object.geometry.getAttribute("position")) meshCount++;
+  });
+  const bounds = new THREE.Box3().setFromObject(model);
+  const size = bounds.getSize(new THREE.Vector3());
+  if (!meshCount || bounds.isEmpty() || !size.toArray().every(Number.isFinite) || size.lengthSq() < 1e-10) {
+    throw new Error("현장 모델에 표시할 수 있는 3D 메시가 없습니다. 다른 형식으로 내보내 다시 시도하세요.");
+  }
+  return { meshCount, size };
 }
 async function importModel(file, isSite) {
   if (!file) return;
@@ -571,6 +616,7 @@ async function importModel(file, isSite) {
   try {
     notify("파일을 읽고 있습니다: " + file.name);
     const model = await decodeModel(file, isSite);
+    const siteStats = isSite ? inspectSiteGeometry(model) : null;
     if (approvedMaster || op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
     if (isSite) {
       clearGroup(siteRoot);
@@ -581,7 +627,8 @@ async function importModel(file, isSite) {
       $("site-status").textContent = "실제 모델";
       $("site-preset").value = "empty";
       setShadows(siteRoot);
-      notify("현장 모델을 불러왔습니다. 원본 좌표와 스케일이 유지됩니다.");
+      showSiteGeometryStats(siteStats);
+      notify("현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
     } else {
       // Imported geometry retains original dimensions; never fit to stale 3m field.
       setArtwork(model, file.name, { file });
@@ -642,6 +689,7 @@ function importSceneConfig(data) {
     buildSite("empty");
     $("site-status").textContent = "현장 파일 필요";
     $("site-filename").textContent = "재업로드 필요: " + data.site.file;
+    showSiteGeometryStats(null);
   } else if (!data.site.file) {
     const preset = ["empty", "plaza", "courtyard", "promenade"].includes(data.site.preset) ? data.site.preset : "empty";
     $("site-preset").value = preset;
@@ -764,6 +812,7 @@ async function importProjectArchive(file) {
       siteFile ? decodeModel(siteFile, true) : Promise.resolve(null),
       artFile ? decodeModel(artFile, false) : Promise.resolve(null)
     ]);
+    const siteStats = siteModel ? inspectSiteGeometry(siteModel) : null;
     if (artModel) {
       const preparedBounds = new THREE.Box3().setFromObject(artModel);
       if (preparedBounds.isEmpty() || preparedBounds.getSize(new THREE.Vector3()).y <= 0.000001) {
@@ -785,6 +834,7 @@ async function importProjectArchive(file) {
       $("site-status").textContent = "실제 모델";
       $("site-filename").textContent = siteFile.name;
       $("site-preset").value = "empty";
+      showSiteGeometryStats(siteStats);
       setShadows(siteRoot);
     } else {
       $("site-preset").value = data.site.preset;
