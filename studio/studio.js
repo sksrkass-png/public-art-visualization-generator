@@ -5,6 +5,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
+import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 
 const $ = id => document.getElementById(id);
 const viewport = $("viewport");
@@ -79,7 +80,9 @@ let approvedMaster = false, revision = 1, loadedPlanTexture = null;
 let lastDrag = null, mouseMoved = false, toastTimer = null;
 let undoStack = [], redoStack = [];
 let pendingArtwork = null;
-let activeSiteOperation = 0, activeArtOperation = 0;
+let activeSiteOperation = 0, activeArtOperation = 0, activePlanOperation = 0;
+let siteSourceFile = null, artSourceFile = null, planSourceFile = null;
+let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
 const MAX_UNDO = 40;
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -136,8 +139,10 @@ function tree(parent, x, z, height = 3.6) {
   parent.add(trunk, crown);
 }
 function buildSite(preset) {
+  activeSiteOperation++;
   clearGroup(siteRoot);
   siteFileName = "";
+  siteSourceFile = null;
   $("site-filename").textContent = "업로드된 현장 모델 없음";
   $("site-status").textContent = preset === "empty" ? "빈 공간" : "예시 공간";
   if (preset === "plaza") {
@@ -184,31 +189,36 @@ function normalizeArtwork(object) {
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
   if (size.y <= 0.000001) throw new Error("작품 높이를 측정할 수 없습니다.");
-  object.position.x -= center.x;
-  object.position.y -= bounds.min.y;
-  object.position.z -= center.z;
+  // Do not mutate the imported artwork's local transform. The external holder
+  // provides a practical center-ground pivot while preserving the source tree.
   const holder = new THREE.Group();
+  holder.position.set(-center.x, -bounds.min.y, -center.z);
   holder.add(object);
-  return holder;
+  return { holder, sourceSize: size };
 }
-function setArtwork(object, name, height = 3) {
+function setArtwork(object, name, options = {}) {
   transform.detach();
   clearGroup(artRoot);
   artRoot.position.set(0, 0, 0);
   artRoot.rotation.set(0, 0, 0);
   artRoot.scale.set(1, 1, 1);
   const aligned = normalizeArtwork(object);
-  artRoot.add(aligned);
+  artRoot.add(aligned.holder);
   artRoot.name = name;
   artFileName = name;
+  artSourceFile = options.file || null;
+  sourceDimensions = aligned.sourceSize.toArray();
+  $("source-dimensions").textContent = sourceDimensions.map(v => v.toFixed(3)).join(" × ") + " m (W×H×D)";
   setShadows(artRoot);
-  fitArtworkHeight(height);
   approvedMaster = false;
   revision = 1;
+  masterSnapshots = [];
   clearUndo();
+  if (Number.isFinite(options.height) && options.height > 0) fitArtworkHeight(options.height);
   transform.attach(artRoot);
-  updateInspector();
+  updateInspector(true);
   syncLock();
+  renderMasterHistory();
   $("art-filename").textContent = "현재: " + name;
   $("art-status").textContent = name === "Sample Artwork" ? "샘플" : "가져온 작품";
   $("object-name").textContent = name;
@@ -265,29 +275,50 @@ function updateGround() {
   if (old) old.dispose();
 }
 function syncPlanWidth() {
-  if (!planPlane.visible || !loadedPlanTexture) return;
+  if (approvedMaster || !planPlane.visible || !loadedPlanTexture) return;
   const img = loadedPlanTexture.image;
   if (!img || !img.width || !img.height) return;
   const w = safeNumber($("map-width").value, 40, 1, 1000);
   planPlane.scale.set(w, w * img.height / img.width, 1);
 }
-function loadPlan(file) {
+function decodePlanTexture(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    new THREE.TextureLoader().load(url, texture => {
+      URL.revokeObjectURL(url);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      resolve(texture);
+    }, undefined, err => {
+      URL.revokeObjectURL(url);
+      reject(err || new Error("배치도 이미지를 읽을 수 없습니다."));
+    });
+  });
+}
+function applyPlanTexture(texture, file) {
+  if (loadedPlanTexture) loadedPlanTexture.dispose();
+  loadedPlanTexture = texture;
+  planPlane.material.map = texture;
+  planPlane.material.needsUpdate = true;
+  planPlane.visible = true;
+  planFileName = file.name;
+  planSourceFile = file;
+  $("map-name").textContent = "배치도: " + file.name;
+  syncPlanWidth();
+}
+async function loadPlan(file) {
   if (!file || approvedMaster) return;
-  if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return notify("배치도는 PNG/JPG/WEBP 이미지만 지원합니다.");
-  const url = URL.createObjectURL(file);
-  new THREE.TextureLoader().load(url, texture => {
-    URL.revokeObjectURL(url);
-    if (loadedPlanTexture) loadedPlanTexture.dispose();
-    loadedPlanTexture = texture;
-    texture.colorSpace = THREE.SRGBColorSpace;
-    planPlane.material.map = texture;
-    planPlane.material.needsUpdate = true;
-    planPlane.visible = true;
-    planFileName = file.name;
-    $("map-name").textContent = "배치도: " + file.name;
-    syncPlanWidth();
+  if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 20 * 1024 * 1024) {
+    return notify("20MB 이하의 PNG/JPG/WEBP 이미지가 필요합니다.");
+  }
+  const token = ++activePlanOperation;
+  try {
+    const texture = await decodePlanTexture(file);
+    if (approvedMaster || token !== activePlanOperation) { texture.dispose(); return; }
+    applyPlanTexture(texture, file);
     notify("배치도 이미지를 현장의 수평면에 배치했습니다.");
-  }, undefined, () => { URL.revokeObjectURL(url); notify("배치도 이미지를 읽지 못했습니다."); });
+  } catch (error) {
+    notify("배치도 불러오기 실패: " + (error.message || "알 수 없는 오류"));
+  }
 }
 function snapshot() {
   return { p: artRoot.position.toArray(), r: artRoot.rotation.toArray().slice(0, 3), s: artRoot.scale.toArray() };
@@ -464,18 +495,20 @@ async function importModel(file, isSite) {
   try {
     notify("파일을 읽고 있습니다: " + file.name);
     const model = await decodeModel(file, isSite);
-    if (op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
+    if (approvedMaster || op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
     if (isSite) {
       clearGroup(siteRoot);
       siteRoot.add(model);
       siteFileName = file.name;
+      siteSourceFile = file;
       $("site-filename").textContent = file.name;
       $("site-status").textContent = "실제 모델";
       $("site-preset").value = "empty";
       setShadows(siteRoot);
       notify("현장 모델을 불러왔습니다. 원본 좌표와 스케일이 유지됩니다.");
     } else {
-      setArtwork(model, file.name, safeNumber($("art-height").value, 3, .05, 100));
+      // Imported geometry retains original dimensions; never fit to stale 3m field.
+      setArtwork(model, file.name, { file });
       if (pendingArtwork && pendingArtwork.source === file.name) {
         restore(pendingArtwork.transform);
         approvedMaster = !!pendingArtwork.locked;
@@ -618,7 +651,8 @@ $("grid").addEventListener("change", e => { grid.visible = e.target.checked; });
 $("snap").addEventListener("change", snapSetting);
 $("sample-art").addEventListener("click", () => {
   if (approvedMaster) return notify("MASTER LOCK 해제 후 작품을 변경하세요.");
-  setArtwork(sampleArtwork(), "Sample Artwork", 3); changeView("main");
+  activeArtOperation++;
+  setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 }); changeView("main");
 });
 $("apply-height").addEventListener("click", () => {
   if (approvedMaster) return;
@@ -697,7 +731,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 buildSite("plaza");
-setArtwork(sampleArtwork(), "Sample Artwork", 3);
+setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 });
 updateGround();
 syncLock();
 snapSetting();
