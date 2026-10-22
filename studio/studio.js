@@ -382,6 +382,7 @@ function buildSite(preset) {
     for (let z of [-9, 9]) for (let x = -24; x <= 24; x += 8) tree(siteRoot, x, z, 4);
     for (let z of [-18, 18]) box(siteRoot, 54, 6, 5, 0, 3, z, 0xc6c8c8);
   }
+  refreshLayers({redrawSite:true});
 }
 function syncGroundAvailability() {
   const imported = !!siteSourceFile;
@@ -575,6 +576,7 @@ function snapshot(root = artRoot) {
 }
 function editSnapshot() {
   return { artwork: snapshot(), extras: serializeExtras(extrasRoot),
+    layers:structuredClone(layerState),
     selectedId: selectedRoot === artRoot ? 0 : selectedRoot.userData.extraId };
 }
 function sameSnapshot(a, b) {
@@ -589,6 +591,8 @@ function restore(data) {
 function restoreEdit(state) {
   restore(state.artwork);
   restoreExtras(extrasRoot, state.extras);
+  if(state.layers) layerState=importLayerState(state.layers);
+  refreshLayers({redrawSite:true});
   nextExtraId = Math.max(1, ...state.extras.map(x => x.id + 1));
   const picked = state.selectedId ? extrasRoot.children.find(x => x.userData.extraId === state.selectedId) : artRoot;
   selectRoot(picked || artRoot);
@@ -635,6 +639,7 @@ function masterSnapshot() {
       .map(id => [id, Number($(id).value)])),
     shadows: $("shadows").checked,
     extras: serializeExtras(extrasRoot),
+    layers:structuredClone(layerState),
     planAlignment: planAlignmentSnapshot()
   };
 }
@@ -645,7 +650,8 @@ function validMasterSnapshot(entry) {
     validTransform(entry.artworkTransform) &&
     entry.camera && isTriple(entry.camera.position) && isTriple(entry.camera.target) &&
     entry.lighting && typeof entry.lighting === "object" &&
-    (entry.extras === undefined || validateExtras(entry.extras));
+    (entry.extras === undefined || validateExtras(entry.extras)) &&
+    (entry.layers === undefined || validateLayerState(entry.layers));
 }
 function renderMasterHistory() {
   const root = $("master-history");
@@ -700,7 +706,7 @@ function syncLock() {
     activePlanOperation++;
     transform.detach();
   }
-  else if (selectedRoot) transform.attach(selectedRoot);
+  else if (selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
   ["site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
     "plan-pick-center", "plan-visible", "map-file", "map-width", "plan-x", "plan-z",
@@ -718,12 +724,14 @@ function syncLock() {
     ? "승인된 작품 위치·회전·배율이 고정되었습니다. 잠금을 해제하면 새로운 수정 버전이 시작됩니다."
     : "승인하면 현재 작품의 배치를 잠급니다. 현장 모델은 항상 편집 대상에서 제외됩니다.";
   buttons.forEach(el => el.disabled = approvedMaster);
+  refreshLayers({redrawSite:true});
   updateUndoButtons();
 }
 function updateInspector(force = false) {
   const state = snapshot(selectedRoot);
   const values = { position: state.p, rotation: state.r.map(v => THREE.MathUtils.radToDeg(v)), scale: state.s };
   controls.forEach(el => {
+    el.disabled=!selectedCanEdit();
     if (!force && document.activeElement === el) return;
     const axis = { x: 0, y: 1, z: 2 }[el.dataset.axis];
     el.value = Number(values[el.dataset.transform][axis].toFixed(3));
@@ -740,7 +748,7 @@ function updateInspector(force = false) {
     $("extra-light-power-value").textContent = light.intensity.toFixed(1);
     $("extra-light-color").value = "#" + light.color.getHexString();
   }
-  $("delete-selected").disabled = approvedMaster || selectedRoot === artRoot;
+  $("delete-selected").disabled = !selectedCanEdit() || selectedRoot === artRoot;
   if (selectedRoot === artRoot) $("art-height").value = d.y ? Number(d.y.toFixed(2)) : 0;
 }
 function changeMode(mode) {
@@ -835,16 +843,17 @@ function updateExtrasStatus() {
     const object = extrasRoot.children.find(node => node.userData.extraId === Number(button.dataset.extraId));
     if (object) button.textContent = object.name;
     button.classList.toggle("active", Number(button.dataset.extraId) === activeId);
-    button.disabled = approvedMaster;
+    button.disabled = !object || !canEditObject(object,artRoot,layerState,approvedMaster);
   }
-  $("delete-selected").disabled = approvedMaster || selectedRoot === artRoot;
+  $("delete-selected").disabled = !selectedCanEdit() || selectedRoot === artRoot;
 }
 function selectRoot(object) {
   selectedRoot = object || artRoot;
-  if (!approvedMaster && selectedRoot) transform.attach(selectedRoot);
+  if (selectedCanEdit()) transform.attach(selectedRoot);
   else transform.detach();
   updateInspector(true);
   updateExtrasStatus();
+  refreshLayers();
 }
 function setPlacement(kind) {
   if (approvedMaster) return;
@@ -872,7 +881,7 @@ function createPlacedExtra(kind, position) {
   return root;
 }
 function deleteSelectedExtra() {
-  if (approvedMaster || selectedRoot === artRoot || !selectedRoot.parent) return;
+  if (!selectedCanEdit() || selectedRoot === artRoot || !selectedRoot.parent) return;
   const before = editSnapshot();
   selectedRoot.parent.remove(selectedRoot);
   selectRoot(artRoot);
@@ -880,7 +889,7 @@ function deleteSelectedExtra() {
   notify("선택한 오브제를 삭제했습니다. Ctrl+Z로 복원할 수 있습니다.");
 }
 function groundSelected({ silent = false } = {}) {
-  if (approvedMaster) return null;
+  if (!selectedCanEdit()) return null;
   if (selectedRoot !== artRoot && extraLight(selectedRoot)) {
     if (!silent) notify("조명은 공중 설치가 가능하므로 자동 밀착하지 않습니다. 현장 클릭 재배치에서 높이를 조정하세요.");
     return null;
@@ -903,7 +912,7 @@ function groundSelected({ silent = false } = {}) {
   return result;
 }
 function placeSelectedOnSite(hit) {
-  if (approvedMaster || !hit) return;
+  if (!selectedCanEdit() || !hit) return;
   const before = editSnapshot();
   selectedRoot.position.x = hit.point.x;
   selectedRoot.position.z = hit.point.z;
@@ -961,14 +970,20 @@ function handleSelection(event) {
   mouse.y = -(event.clientY - rect.top) / rect.height * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
   const allHits = raycaster.intersectObjects([...extrasRoot.children, ...artRoot.children], true);
-  if (!allHits.length) return;
-  let candidate = allHits[0].object;
+  const first = allHits.find(hit=>{
+    let obj=hit.object;
+    while(obj.parent && obj.parent!==extrasRoot && obj.parent!==artRoot) obj=obj.parent;
+    const root=obj.parent===extrasRoot ? obj : artRoot;
+    return canEditObject(root,artRoot,layerState,false);
+  });
+  if (!first) return;
+  let candidate = first.object;
   while (candidate.parent && candidate.parent !== extrasRoot && candidate.parent !== artRoot) candidate = candidate.parent;
   if (candidate.parent === extrasRoot) selectRoot(candidate);
   else selectRoot(artRoot);
 }
 function setTransformFromField(el) {
-  if (approvedMaster) return;
+  if (!selectedCanEdit()) return;
   const current = selectedRoot[el.dataset.transform][el.dataset.axis];
   const raw = safeNumber(el.value, NaN);
   if (!Number.isFinite(raw)) return updateInspector();
@@ -1131,6 +1146,7 @@ function sceneConfig() {
       planAlignment: planAlignmentSnapshot() },
     groundPlacement: { auto: $("auto-ground").checked, offset: +$("ground-offset").value },
     extras: serializeExtras(extrasRoot),
+    layers:structuredClone(layerState),
     navSpeed: +$("nav-speed").value,
     lightPreset: $("light-preset").value,
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked },
@@ -1154,6 +1170,7 @@ function validateProjectConfig(data) {
       typeof data.artwork.source !== "string" || typeof data.site.file !== "string" ||
       !["empty", "plaza", "courtyard", "promenade"].includes(data.site.preset) ||
       (data.extras !== undefined && !validateExtras(data.extras)) ||
+      (data.layers !== undefined && !validateLayerState(data.layers)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
       (data.site.up !== undefined && !["y","z"].includes(data.site.up)) ||
       (data.site.planAlignment !== undefined && !validPlanAlignment(data.site.planAlignment)) ||
@@ -1211,6 +1228,14 @@ function importSceneConfig(data) {
   $("nav-speed").dispatchEvent(new Event("input"));
   updateLight();
   restoreExtras(extrasRoot, data.extras || []);
+  layerState=importLayerState(data.layers);
+  if(data.site.file && data.site.file!==siteFileName){
+    pendingSiteLayers={file:data.site.file,nodes:structuredClone(layerState.siteNodes)};
+    layerState.siteNodes={};
+  }else{
+    normalizeSiteAnnotations(layerState,siteRoot);
+  }
+  refreshLayers({redrawSite:true});
   nextExtraId = Math.max(1,...extrasRoot.children.map(x => x.userData.extraId+1));
   selectRoot(artRoot);
   $("uniform-scale").checked = data.artwork.uniformScale !== false;
