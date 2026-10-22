@@ -780,8 +780,60 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.locator("#readiness-scan").click();
     assert.match(await page.locator("#readiness-status").textContent(),/현재 MASTER VIEW가 승인되지 않았습니다/,
       "unlocking must invalidate internal READY status");
+
+    // v1.1: authentic glTF 2.0 external .bin dependency in a self-contained
+    // ZIP. Source origin is 15 km away: test reversible viewer recentering.
+    const gltfZip=execFileSync("python3",["-c",[
+      "import io,json,zipfile,struct,sys",
+      "coordinates=[15000.,1.,-4.,15000.,1.,4.,15004.,1.,4.]",
+      "payload=struct.pack('<9f',*coordinates)",
+      "scene={'asset':{'version':'2.0'},'scene':0,'scenes':[{'nodes':[0]}],",
+      "       'nodes':[{'mesh':0}],",
+      "       'meshes':[{'primitives':[{'attributes':{'POSITION':0},'mode':4}]}],",
+      "       'accessors':[{'bufferView':0,'componentType':5126,'count':3,'type':'VEC3',",
+      "                     'min':[15000,1,-4],'max':[15004,1,4]}],",
+      "       'bufferViews':[{'buffer':0,'byteOffset':0,'byteLength':len(payload)}],",
+      "       'buffers':[{'byteLength':len(payload),'uri':'terrain.bin'}]}",
+      "out=io.BytesIO()",
+      "with zipfile.ZipFile(out,'w',compression=zipfile.ZIP_DEFLATED) as z:",
+      "  z.writestr('site/scene.gltf',json.dumps(scene))",
+      "  z.writestr('site/terrain.bin',payload)",
+      "sys.stdout.buffer.write(out.getvalue())"].join("\n")],{timeout:15000});
+    await page.locator("#site-file").setInputFiles({
+      name:"surveyed-site-gltf.zip",mimeType:"application/zip",buffer:gltfZip
+    });
+    await page.waitForFunction(()=>document.querySelector("#site-filename")?.textContent===
+      "surveyed-site-gltf.zip",null,{timeout:20000});
+    assert.match(await page.locator("#site-preflight-summary").textContent(),/삼각형 1개/);
+    assert.match(await page.locator("#site-preflight-summary").textContent(),/원점에서 멀리 떨어져/);
+    await page.locator("#site-center-origin").check();
+    const reportDownload=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#site-preflight-export").click();
+    const report=JSON.parse(fs.readFileSync(await (await reportDownload).path(),"utf8"));
+    assert.equal(report.schema,"axoo-site-import-preflight-v1");
+    assert.equal(report.source.triangles,1);
+    assert.equal(report.viewerCentering,true);
+    assert.ok(report.source.center[0]>14000,"source coordinates must be preserved");
+    assert.ok(Math.abs(report.rendered.centerMeters[0])<.001,"recentered viewport origin must be near zero");
+    assert.ok(report.warnings.some(w=>w.includes("원점에서 멀리")));
+
+    // New site packages must persist their original external .bin/glTF ZIP
+    // through a full project ZIP save, then restore source and origin toggle.
+    const bundledProject=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#export-project").click();
+    const bundledProjectBytes=fs.readFileSync(await (await bundledProject).path());
+    await page.locator("#site-preset").selectOption("empty");
+    assert.equal(await page.locator("#site-center-origin").isChecked(),false);
+    await page.locator("#import-project").setInputFiles({
+      name:"full-glTF-package.zip",mimeType:"application/zip",buffer:bundledProjectBytes
+    });
+    await page.waitForFunction(()=>document.querySelector("#site-filename")?.textContent===
+      "surveyed-site-gltf.zip" && document.querySelector("#site-center-origin")?.checked,
+      null,{timeout:40000});
+    assert.match(await page.locator("#site-preflight-summary").textContent(),/삼각형 1개/);
+    assert.ok(await page.locator("#site-preflight-export").isEnabled());
     assert.deepEqual(errors, [], "no uncaught runtime errors");
-    console.log("PASS studio browser: v0.8 approved eight-view batch ZIP, 8 real 16:9 PNGs, contact sheet, QA integrity manifest, immutable scene restoration plus existing editor regression suite");
+    console.log("PASS studio browser: v1.1 external-resource glTF ZIP, preflight geometry diagnostics, non-destructive origin recenter and full-project recovery plus v1.0 regressions");
   } finally {
     await browser.close();
   }
