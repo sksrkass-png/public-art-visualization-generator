@@ -14,6 +14,8 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import { ART_MATERIALS, validMaterialConfig, validRenderConfig, normalizeRenderConfig,
   targetSize, makeMaterial } from "./rendering.js";
+import { STANDARD_VIEWS, createStandardCameras, captureSceneIntegrity,
+  masterConsistency, validateBatchManifest } from "./batch.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
 import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
@@ -853,6 +855,7 @@ function syncLock() {
     ? "승인된 작품 위치·회전·배율이 고정되었습니다. 잠금을 해제하면 새로운 수정 버전이 시작됩니다."
     : "승인하면 현재 작품의 배치를 잠급니다. 현장 모델은 항상 편집 대상에서 제외됩니다.";
   buttons.forEach(el => el.disabled = approvedMaster);
+  syncBatchAvailability();
   refreshLayers({redrawSite:true});
   updateUndoButtons();
 }
@@ -1554,6 +1557,239 @@ async function importProjectArchive(file) {
   }
 }
 
+function masterBatchReady() {
+  return approvedMaster && masterSnapshots.length > 0;
+}
+function syncBatchAvailability(){
+  $("export-master-pack").disabled = !masterBatchReady();
+  if(!masterBatchReady())$("batch-status").textContent="먼저 MASTER VIEW를 승인하면 일괄 출력할 수 있습니다.";
+}
+function baselineForMaster(){
+  return {
+    artworkTransform:snapshot(),
+    extras:serializeExtras(extrasRoot),
+    layers:structuredClone(layerState),
+    material:structuredClone(artworkMaterialState),
+    artworkFile:artFileName,siteFile:siteFileName
+  };
+}
+async function createContactSheet(images) {
+  const itemW=560,itemH=315,titleH=46,padding=22,columns=2,rows=4;
+  const canvas=document.createElement("canvas");
+  canvas.width=(itemW+padding)*columns+padding;
+  canvas.height=(itemH+titleH+padding)*rows+padding+78;
+  const ctx=canvas.getContext("2d");
+  if(!ctx)throw Error("컨택트 시트 2D 캔버스를 생성할 수 없습니다.");
+  ctx.fillStyle="#14181e";ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#fff";ctx.font="bold 26px Arial, sans-serif";
+  ctx.fillText("AXOO / MASTER 8-VIEW",padding,44);
+  ctx.font="14px Arial, sans-serif";ctx.fillStyle="#c4cbd1";
+  ctx.fillText("Architectural visualization contact sheet · verify site and artwork placement",padding,66);
+  for(let index=0;index<images.length;index++){
+    const [name,data]=images[index];
+    const column=index%columns,row=Math.floor(index/columns);
+    const x=padding+column*(itemW+padding);
+    const y=88+padding+row*(itemH+titleH+padding);
+    const img=new Image();
+    img.src=data;
+    await img.decode();
+    ctx.fillStyle="#252b33";
+    ctx.fillRect(x,y,itemW,itemH);
+    ctx.drawImage(img,x,y,itemW,itemH);
+    ctx.fillStyle="#f1f4f8";ctx.font="bold 17px Arial, sans-serif";
+    ctx.fillText(STANDARD_VIEWS[index].label,x,y+itemH+27);
+  }
+  return canvas.toDataURL("image/png").split(",")[1];
+}
+async function exportMasterPack() {
+  if(!masterBatchReady())return notify("먼저 MASTER VIEW를 승인해 주세요.");
+  const master=masterSnapshots[masterSnapshots.length-1];
+  const consistency=masterConsistency(master,baselineForMaster());
+  if(!consistency.ok){
+    $("batch-status").textContent="검수 실패: "+consistency.issues.join(" / ");
+    return notify("MASTER 승인본과 장면이 다릅니다. 수정 이력을 확인하세요.");
+  }
+  if(master.render?.environmentMode==="hdr" &&
+    master.render.environmentFile!==hdrSourceFile?.name){
+    $("batch-status").textContent="승인 당시 HDRI 파일이 필요합니다: "+master.render.environmentFile;
+    return notify("승인 당시 HDRI 파일을 다시 불러온 후 출력하세요.");
+  }
+  const artBounds=new THREE.Box3().setFromObject(artRoot);
+  if(artBounds.isEmpty() || !Number.isFinite(artBounds.getSize(new THREE.Vector3()).length()))
+    return notify("작품 모델이 없어 MASTER 8컷을 생성할 수 없습니다.");
+  const cameraMaster=master.camera;
+  const viewCamera={
+    position:cameraMaster.position,target:cameraMaster.target,
+    fov:Number.isFinite(cameraMaster.fov)?cameraMaster.fov:camera.fov
+  };
+  const views=createStandardCameras(viewCamera,artBounds);
+  if(views.length!==8)return notify("렌더 시점 정의가 올바르지 않습니다.");
+  const sceneBefore=captureSceneIntegrity({
+    artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState
+  });
+  const pose={
+    position:camera.position.toArray(),target:orbit.target.toArray(),
+    fov:camera.fov,aspect:camera.aspect,ratio:renderer.getPixelRatio(),
+    width:viewport.clientWidth,height:viewport.clientHeight
+  };
+  const lights=Object.fromEntries(["sun-azimuth","sun-elevation","sun-strength","ambient","exposure"]
+    .map(id=>[id,$(id).value]));
+  const originalShadows=$("shadows").checked;
+  const originalPreset=$("light-preset").value;
+  const originalEnvMode=$("env-mode").value;
+  const originalEnvStrength=$("env-strength").value;
+  const states={
+    grid:grid.visible,gizmo:transform.getHelper().visible,
+    sun:sunGuide.visible,
+    highlight:siteHighlight?.visible
+  };
+  const editorIcons=[];
+  extrasRoot.traverse(node=>{
+    if(node.userData.editorOnly)editorIcons.push([node,node.visible]);
+  });
+  const mult=Number($("batch-quality").value);
+  const size=targetSize(pose.width,pose.height,"landscape16x9",mult,
+    renderer.capabilities.maxTextureSize,14000000);
+  const files=[];
+  const zip=new JSZip();
+  const manifest={
+    schema:"axoo-master-render-pack-v1",
+    version:"0.8", createdAt:new Date().toISOString(),
+    renderer:"Three.js WebGL PBR (not AI photorealization)",
+    project:$("project-name").value,
+    master:{revision:master.revision,approvedAt:master.approvedAt,
+      site:master.siteFile,artwork:master.artworkFile},
+    dimensions:{siteModelImported:!!siteSourceFile,
+      artworkMeters:artBounds.getSize(new THREE.Vector3()).toArray().map(n=>Number(n.toFixed(5))),
+      artworkWorldPosition:artRoot.position.toArray(),
+      artworkWorldScale:artRoot.scale.toArray()},
+    artworkMaterial:structuredClone(artworkMaterialState),
+    layers:structuredClone(layerState),
+    render:{aspect:"16:9",width:size.width,height:size.height,multiplier:mult,
+      cappedByGPU:size.limited},
+    qa:{approvedMaster:true,unchangedSceneBefore:true,unchangedSceneAfter:false,
+      sceneSignaturePreserved:false,sourceGeometryNotAltered:true,
+      actualDimensionsSurveyVerified:false,
+      warning:"In-memory geometry/transform checks do not verify surveyed drawings, real-world dimensions or photorealism."},
+    warnings:[
+      ...(!siteSourceFile?["예시 현장입니다. 실제 건축 모델을 불러오지 않았습니다."]:[]),
+      ...(artFileName==="Sample Artwork"?["예시 작품입니다. 실제 작가 원본 모델을 사용하지 않았습니다."]:[]),
+      "원본 재질·형상·배치 검수는 렌더 결과와 별도로 담당자가 확인해야 합니다.",
+      "HDRI 환경 반사·PBR 렌더는 사진 수준 AI 실사화가 아닙니다."
+    ],
+    views:[]
+  };
+  let renderError=null;
+  $("export-master-pack").disabled=true;
+  $("batch-status").textContent="MASTER 8컷 렌더 준비 중…";
+  try{
+    // Image capture is synchronous so the user's edit state cannot interleave.
+    for(const [id,value] of Object.entries(master.lighting || {})){
+      if(lights[id]!==undefined && Number.isFinite(value))$(id).value=String(value);
+    }
+    $("shadows").checked=!!master.shadows;
+    if(master.render){
+      $("env-mode").value=master.render.environmentMode==="hdr" ? "hdr" :
+        master.render.environmentMode;
+      $("env-strength").value=String(master.render.envIntensity);
+    }
+    updateLight();applyEnvironment();
+    renderer.setPixelRatio(1);
+    renderer.setSize(size.width,size.height,false);
+    grid.visible=false;
+    transform.getHelper().visible=false;
+    sunGuide.visible=false;
+    if(siteHighlight)siteHighlight.visible=false;
+    for(const [node] of editorIcons)node.visible=false;
+    for(let index=0;index<views.length;index++){
+      const view=views[index];
+      camera.position.fromArray(view.position);
+      orbit.target.fromArray(view.target);
+      camera.fov=view.fov;
+      camera.aspect=size.width/size.height;
+      camera.lookAt(orbit.target);
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld(true);
+      renderer.render(scene,camera);
+      const data=renderer.domElement.toDataURL("image/png");
+      if(!data.startsWith("data:image/png;base64,"))throw Error("PNG 생성 실패: "+view.key);
+      const file=view.key+".png";
+      zip.file(file,data.split(",")[1],{base64:true});
+      files.push([file,data]);
+      manifest.views.push({...view,filename:file,width:size.width,height:size.height});
+    }
+  }catch(error){
+    renderError=error;
+    console.error(error);
+  }finally{
+    for(const [id,value] of Object.entries(lights))$(id).value=value;
+    $("shadows").checked=originalShadows;
+    $("light-preset").value=originalPreset;
+    $("env-mode").value=originalEnvMode;
+    $("env-strength").value=originalEnvStrength;
+    updateLight();applyEnvironment();
+    camera.position.fromArray(pose.position);
+    orbit.target.fromArray(pose.target);
+    camera.fov=pose.fov;
+    camera.aspect=pose.aspect;
+    camera.updateProjectionMatrix();
+    orbit.update();
+    renderer.setPixelRatio(pose.ratio);
+    renderer.setSize(pose.width,pose.height,false);
+    grid.visible=states.grid;
+    transform.getHelper().visible=states.gizmo;
+    sunGuide.visible=states.sun;
+    if(siteHighlight)siteHighlight.visible=states.highlight;
+    for(const [node,wasVisible] of editorIcons)node.visible=wasVisible;
+  }
+  if(renderError){
+    $("batch-status").textContent="일괄 렌더 실패: "+(renderError.message || "GPU 오류");
+    syncBatchAvailability();
+    return notify("8컷 렌더 실패 · 기존 장면은 복원됐습니다.");
+  }
+  const sceneAfter=captureSceneIntegrity({
+    artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState
+  });
+  manifest.qa.unchangedSceneAfter=masterConsistency(master,baselineForMaster()).ok;
+  manifest.qa.sceneSignaturePreserved=sceneBefore===sceneAfter;
+  if(!manifest.qa.unchangedSceneAfter || !manifest.qa.sceneSignaturePreserved){
+    $("batch-status").textContent="검수 차이 발견 · ZIP을 생성하지 않았습니다.";
+    syncBatchAvailability();
+    return notify("MASTER 배치·재질·현장 상태에 차이가 있어 렌더 패키지를 차단했습니다.");
+  }
+  try{
+    if($("batch-contact").checked){
+      const sheet=await createContactSheet(files);
+      zip.file("00-contact-sheet.png",sheet,{base64:true});
+      manifest.contactSheet="00-contact-sheet.png";
+    }
+    if(!validateBatchManifest(manifest))throw Error("렌더 촬영 메타데이터가 유효하지 않습니다.");
+    zip.file("render-manifest.json",JSON.stringify(manifest,null,2));
+    zip.file("REVIEW_NOTES.txt",
+      "AXOO MASTER 8-VIEW QA\\n\\n"+[
+        "Approved revision: "+master.revision,
+        "Approved at: "+master.approvedAt,
+        "Source site: "+(master.siteFile||"Example scene"),
+        "Source artwork: "+master.artworkFile,
+        "Scene geometry/material/placement unchanged: YES",
+        "Eight standard viewpoints, 16:9 PNG. Camera restored after capture: YES",
+        "IMPORTANT: This is WebGL PBR preview rendering, not photo-realistic generative AI.",
+        "VERIFY: actual measured site/art dimensions, installation position, artist-approved materials, composition."
+      ].join("\\n"));
+    const bytes=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:4}});
+    download(safeFileName()+"-MASTER-REV"+master.revision+"-8views.zip",bytes);
+    $("batch-status").textContent=
+      "출력 완료 · 8개 시점 / "+size.width+" × "+size.height+
+      " px / MASTER REV "+master.revision+" · 장면 일치 검사 통과";
+    notify("승인된 MASTER 8컷 이미지·검수 기록 ZIP 저장 완료");
+  }catch(error){
+    console.error(error);
+    $("batch-status").textContent="렌더 ZIP 생성 실패: "+(error.message||"파일 저장 오류");
+    notify("렌더 결과 압축 실패 · 장면은 변경되지 않았습니다.");
+  }finally{
+    syncBatchAvailability();
+  }
+}
 function exportImage() {
   const w=Math.max(1,Math.round(viewport.clientWidth));
   const h=Math.max(1,Math.round(viewport.clientHeight));
@@ -1771,6 +2007,7 @@ $("master-lock").addEventListener("click", () => {
   }
   syncLock();
   renderMasterHistory();
+  syncBatchAvailability();
   notify(approvedMaster ? "MASTER VIEW 승인 · 작품, 현장, 카메라 기준 저장" : "MASTER LOCK 해제 · Revision " + revision);
 });
 $("restore-master-camera").addEventListener("click", () => restoreMasterCamera(masterSnapshots.length - 1));
@@ -1784,6 +2021,7 @@ $("redo").addEventListener("click", redo);
 document.querySelectorAll("[data-view]").forEach(el => el.addEventListener("click", () => changeView(el.dataset.view)));
 $("focus").addEventListener("click", fitCamera);
 $("shot-export").addEventListener("click", exportImage);
+$("export-master-pack").addEventListener("click",exportMasterPack);
 $("export-glb").addEventListener("click", exportGLB);
 $("export-project").addEventListener("click", exportProjectArchive);
 $("import-project").addEventListener("change", e => {

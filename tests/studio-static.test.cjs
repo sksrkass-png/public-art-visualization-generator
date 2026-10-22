@@ -102,6 +102,17 @@ assert.match(js, /function exportProjectArchive/, "portable project exporter req
 assert.match(js, /function importProjectArchive/, "portable project importer required");
 assert.match(js, /function masterSnapshot/, "master snapshot required");
 assert.match(js, /function restoreMasterCamera/, "approved camera restore required");
+for(const id of ["master-render-panel","batch-quality","batch-contact","export-master-pack","batch-status"])
+  assert.ok(unique.has(id), "v0.8 8-view UI missing: "+id);
+for(const marker of ["function exportMasterPack","function createContactSheet","function baselineForMaster","function syncBatchAvailability","masterConsistency("])
+  assert.ok(js.includes(marker), "v0.8 batch export wiring missing: "+marker);
+assert.match(js,/new JSZip\(\)/,"ZIP batch export required");
+assert.match(js,/render-manifest\.json/,"QA JSON manifest required");
+assert.match(js,/REVIEW_NOTES\.txt/,"human review notes required");
+const batchScript=fs.readFileSync(path.join(base,"studio/batch.js"),"utf8");
+for(const marker of ["createStandardCameras","captureSceneIntegrity","masterConsistency","validateBatchManifest"])
+  assert.ok(batchScript.includes(marker),"standard 8-view integrity helper missing: "+marker);
+
 for (const id of ["export-project", "import-project", "source-dimensions", "master-summary", "master-history", "restore-master-camera"])
   assert.ok(unique.has(id), "v0.2 safety control missing: " + id);
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");

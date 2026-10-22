@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>BETA 0.7</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>BETA 0.8</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -293,6 +293,25 @@
         <select id="render-resolution"><option value="2">2배 · 기본 고품질</option><option value="3">3배 · 고해상도</option><option value="4">4배 · 최고해상도</option></select>
         <p id="render-size-label" class="hint">예상 출력 크기 계산 중</p>
         <p class="hint">렌더 시 그리드·조작 기즈모·태양 위치 표시는 제외됩니다. GPU 한계를 넘는 설정은 자동 축소합니다. Blender Cycles나 이미지 생성 AI 실사화는 아닙니다.</p>
+      </section>
+      <section class="section" id="master-render-panel">
+        <div class="section-title"><h2>MASTER 8-VIEW RENDER</h2><span class="tag">v0.8</span></div>
+        <p class="hint">승인한 MASTER VIEW를 기준으로 8개 시점을 자동 생성합니다. 렌더 중 현장·작품·재질·레이어는 수정하지 않으며 원래 카메라로 복귀합니다.</p>
+        <div class="batch-view-grid" aria-label="8개 표준 렌더 시점">
+          <span>01 Main Perspective</span><span>02 Eye Level</span>
+          <span>03 Left 3/4</span><span>04 Right 3/4</span>
+          <span>05 Rear</span><span>06 Aerial</span>
+          <span>07 Long Shot</span><span>08 Close-up</span>
+        </div>
+        <label for="batch-quality">일괄 렌더 크기</label>
+        <select id="batch-quality">
+          <option value="1">표준 · 16:9 / 1배 (빠른 검토)</option>
+          <option value="2" selected>제안서용 · 16:9 / 2배</option>
+        </select>
+        <label class="toggle"><input id="batch-contact" type="checkbox" checked> 8컷 컨택트 시트 PNG 함께 저장</label>
+        <button id="export-master-pack" class="primary full" type="button" disabled>MASTER 8컷 ZIP 렌더 저장</button>
+        <p id="batch-status" class="hint" aria-live="polite">먼저 MASTER VIEW를 승인하면 일괄 출력할 수 있습니다.</p>
+        <p class="hint">ZIP에는 8개 PNG, 촬영 메타데이터, 기준 시안 검수 정보와 선택한 경우 컨택트 시트가 포함됩니다. 3D 원본까지 보관하려면 아래 전체 프로젝트 ZIP을 사용하세요.</p>
       </section>
       <section class="section">
         <h2>프로젝트 저장</h2>

@@ -111,3 +111,11 @@
 #art-material-color{height:37px;width:100%;border-radius:5px;border:1px solid #d5d9dc;padding:3px;background:#fff}
 #render-size-label{font-variant-numeric:tabular-nums;font-weight:700;color:#465360}
 #env-filename,#material-status{word-break:break-word}
+
+/* v0.8 approved MASTER batch output */
+#master-render-panel{background:linear-gradient(180deg,#fafbfc,#fff);border-top:2px solid #aab2be}
+#master-render-panel .section-title{margin-bottom:10px}
+.batch-view-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:12px 0}
+.batch-view-grid span{font-size:10px;font-weight:650;padding:7px 6px;border:1px solid #e2e5e8;border-radius:4px;color:#454d55;background:#fff}
+#batch-status{font-weight:650;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#export-master-pack:disabled{opacity:.54;cursor:not-allowed}
