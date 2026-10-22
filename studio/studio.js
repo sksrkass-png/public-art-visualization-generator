@@ -360,9 +360,79 @@ function redo() {
   restore(redoStack.pop());
   updateUndoButtons();
 }
+function masterSnapshot() {
+  return {
+    revision,
+    approvedAt: new Date().toISOString(),
+    artworkFile: artFileName,
+    siteFile: siteFileName,
+    planFile: planFileName,
+    artworkTransform: snapshot(),
+    camera: { position: camera.position.toArray(), target: orbit.target.toArray(), fov: camera.fov },
+    lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"]
+      .map(id => [id, Number($(id).value)])),
+    shadows: $("shadows").checked
+  };
+}
+function validMasterSnapshot(entry) {
+  return entry && Number.isInteger(entry.revision) && entry.revision >= 1 &&
+    typeof entry.approvedAt === "string" && !Number.isNaN(Date.parse(entry.approvedAt)) &&
+    typeof entry.artworkFile === "string" && typeof entry.siteFile === "string" &&
+    validTransform(entry.artworkTransform) &&
+    entry.camera && isTriple(entry.camera.position) && isTriple(entry.camera.target) &&
+    entry.lighting && typeof entry.lighting === "object";
+}
+function renderMasterHistory() {
+  const root = $("master-history");
+  root.replaceChildren();
+  const latest = masterSnapshots[masterSnapshots.length - 1];
+  $("master-summary").textContent = latest
+    ? "승인 기록 " + masterSnapshots.length + "개 · 마지막 승인 Revision " + latest.revision +
+      " (" + new Date(latest.approvedAt).toLocaleString("ko-KR") + ")"
+    : "승인된 마스터 없음";
+  $("restore-master-camera").disabled = !latest;
+  masterSnapshots.slice().reverse().forEach((entry, reverseIndex) => {
+    const row = document.createElement("div");
+    row.className = "master-item";
+    const label = document.createElement("span");
+    label.textContent = "REV " + entry.revision + " · " + new Date(entry.approvedAt).toLocaleString("ko-KR");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "master-item__button";
+    button.textContent = "시점 복귀";
+    button.addEventListener("click", () => restoreMasterCamera(masterSnapshots.length - 1 - reverseIndex));
+    row.append(label, button);
+    root.appendChild(row);
+  });
+}
+function restoreMasterCamera(index) {
+  const saved = masterSnapshots[index];
+  if (!saved) return;
+  camera.position.fromArray(saved.camera.position);
+  orbit.target.fromArray(saved.camera.target);
+  if (Number.isFinite(saved.camera.fov)) {
+    camera.fov = saved.camera.fov;
+    camera.updateProjectionMatrix();
+  }
+  for (const id of ["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"]) {
+    if (typeof saved.lighting[id] === "number" && Number.isFinite(saved.lighting[id])) {
+      $(id).value = String(saved.lighting[id]);
+    }
+  }
+  $("shadows").checked = !!saved.shadows;
+  orbit.update();
+  updateLight();
+  notify("승인 Revision " + saved.revision + "의 카메라·조명으로 돌아왔습니다. 작품·현장 위치는 변경되지 않습니다.");
+}
 function syncLock() {
   transform.enabled = !approvedMaster;
-  if (approvedMaster) transform.detach();
+  if (approvedMaster) {
+    // Even a file read that began before approval must not replace the master.
+    activeSiteOperation++;
+    activeArtOperation++;
+    activePlanOperation++;
+    transform.detach();
+  }
   else if (artRoot.children.length) transform.attach(artRoot);
   controls.forEach(el => el.disabled = approvedMaster);
   ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale"]
@@ -468,7 +538,11 @@ function setTransformFromField(el) {
   const next = el.dataset.transform === "rotation" ? THREE.MathUtils.degToRad(raw) : raw;
   if (Math.abs(current - next) < 1e-8) return;
   const before = snapshot();
-  if (el.dataset.transform === "scale" && $("uniform-scale").checked) artRoot.scale.setScalar(next);
+  if (el.dataset.transform === "scale" && $("uniform-scale").checked) {
+    // Preserve the existing XYZ ratio rather than forcing all values equal.
+    const previousAxis = artRoot.scale[el.dataset.axis];
+    if (Math.abs(previousAxis) > 1e-8) artRoot.scale.multiplyScalar(next / previousAxis);
+  }
   else artRoot[el.dataset.transform][el.dataset.axis] = next;
   commit(before);
   updateInspector();
@@ -531,6 +605,7 @@ function sceneConfig() {
     site: { file: siteFileName, preset: $("site-preset").value, floor: $("floor-map").value,
       planFile: planFileName, planWidth: +$("map-width").value },
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked },
+    masterSnapshots,
     lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"].map(id => [id, +$(id).value])),
     shadows: $("shadows").checked,
     camera: { position: camera.position.toArray(), target: orbit.target.toArray() }
@@ -544,6 +619,7 @@ function validTransform(t) {
     t.s.every(v => v > .00001 && v < 1000);
 }
 function importSceneConfig(data) {
+  if (approvedMaster) throw new Error("MASTER LOCK을 해제한 후 프로젝트를 불러오세요.");
   if (!data || data.schema !== "axoo-public-art-3d-studio-v1" || !data.site || !data.artwork ||
       !validTransform(data.artwork.transform) || !data.lighting || !data.camera ||
       !isTriple(data.camera.position) || !isTriple(data.camera.target)) {
@@ -594,6 +670,16 @@ function importSceneConfig(data) {
   camera.position.fromArray(data.camera.position);
   orbit.target.fromArray(data.camera.target);
   orbit.update();
+  if (Array.isArray(data.masterSnapshots)) {
+    if (data.masterSnapshots.length > 40 || !data.masterSnapshots.every(validMasterSnapshot)) {
+      throw new Error("마스터 승인 이력이 올바르지 않습니다.");
+    }
+    masterSnapshots = structuredClone(data.masterSnapshots);
+  } else {
+    // Backwards-compatible v0.1 JSON had only a boolean lock, not a snapshot.
+    masterSnapshots = approvedMaster ? [masterSnapshot()] : [];
+  }
+  renderMasterHistory();
   clearUndo();
 }
 function exportImage() {
@@ -645,7 +731,7 @@ $("site-preset").addEventListener("change", e => {
 $("site-file").addEventListener("change", e => importModel(e.target.files[0], true));
 $("art-file").addEventListener("change", e => importModel(e.target.files[0], false));
 $("map-file").addEventListener("change", e => loadPlan(e.target.files[0]));
-$("map-width").addEventListener("change", syncPlanWidth);
+$("map-width").addEventListener("change", () => { if (!approvedMaster) syncPlanWidth(); });
 $("floor-map").addEventListener("change", () => { if (!approvedMaster) updateGround(); });
 $("grid").addEventListener("change", e => { grid.visible = e.target.checked; });
 $("snap").addEventListener("change", snapSetting);
@@ -666,10 +752,19 @@ buttons.forEach(el => el.addEventListener("click", () => changeMode(el.dataset.m
 controls.forEach(el => el.addEventListener("change", () => setTransformFromField(el)));
 $("master-lock").addEventListener("click", () => {
   if (approvedMaster && !window.confirm("MASTER LOCK을 해제하고 새 수정 버전을 시작하시겠습니까?")) return;
-  if (approvedMaster) { revision++; approvedMaster = false; } else approvedMaster = true;
+  if (approvedMaster) {
+    revision++;
+    approvedMaster = false;
+  } else {
+    masterSnapshots.push(masterSnapshot());
+    if (masterSnapshots.length > 40) masterSnapshots.shift();
+    approvedMaster = true;
+  }
   syncLock();
-  notify(approvedMaster ? "MASTER VIEW 승인 완료 · 작품 잠금" : "MASTER LOCK 해제 · Revision " + revision);
+  renderMasterHistory();
+  notify(approvedMaster ? "MASTER VIEW 승인 · 작품, 현장, 카메라 기준 저장" : "MASTER LOCK 해제 · Revision " + revision);
 });
+$("restore-master-camera").addEventListener("click", () => restoreMasterCamera(masterSnapshots.length - 1));
 $("undo").addEventListener("click", undo);
 $("redo").addEventListener("click", redo);
 ["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure", "shadows"]
