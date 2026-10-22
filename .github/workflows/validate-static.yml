@@ -22,6 +22,7 @@ jobs:
           node --check studio/extras.js
           node --check studio/placement.js
           node --check studio/layers.js
+          node --check studio/rendering.js
       - name: Run JSON import regression tests
         run: |
           node tests/json-import.test.cjs
