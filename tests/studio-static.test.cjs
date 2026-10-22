@@ -170,5 +170,17 @@ for(const fn of ["pairMeasurement","sceneInterferences","translateGroupPeers","b
   assert.ok(precisionSource.includes(fn),"v1.3 precise geometry helper missing: "+fn);
 assert.match(js,/restoreExtras\(extrasRoot, state\.extras,assetLibrary,artRoot\)/,
   "artist duplicate source required for undo restore");
+for(const id of ["proposal-export-panel","proposal-render-file","proposal-artwork-title",
+  "proposal-artist","proposal-site-label","proposal-note","proposal-export","proposal-status","proposal-refresh"])
+  assert.ok(unique.has(id),"v1.4 proposal UI missing: "+id);
+for(const marker of ["initProposalExport","collectPrecisionReport","readinessBridge.getReport()"])
+  assert.ok(js.includes(marker),"v1.4 proposal app integration missing: "+marker);
+const proposalModule=fs.readFileSync(path.join(base,"studio/proposal.js"),"utf8");
+for(const marker of ["validateProposalArchive","makeProposalData","proposalHtml","MASTER","README.txt",
+  "proposal-data.json","proposal-sheets.html","ready-for-internal-review"])
+  assert.ok(proposalModule.includes(marker),"v1.4 proposal module missing: "+marker);
+assert.match(proposalModule,/escapeHtml/,"escape user metadata before HTML export");
+assert.match(proposalModule,/Content-Security-Policy/,"prevent external scripts and images in proposal sheets");
+assert.match(proposalModule,/images\//,"embed linked original eight render PNGs in ZIP");
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");

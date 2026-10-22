@@ -30,6 +30,7 @@ jobs:
           node --check studio/site-import.js
           node --check studio/assets.js
           node --check studio/precision.js
+          node --check studio/proposal.js
       - name: Run JSON import regression tests
         run: |
           node tests/json-import.test.cjs

@@ -1065,8 +1065,86 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       "  print(json.dumps({'sources':len(p['library'])}))"
     ].join("\n"),secondPath],{encoding:"utf8",timeout:25000}).trim());
     assert.equal(secondAudit.sources,2);
+
+    // v1.4 requires a currently approved MASTER; unsigned project state
+    // cannot be packaged as a valid proposal image set.
+    assert.equal(await page.locator("#proposal-export").isDisabled(),true);
+    await page.locator("#master-lock").click();
+    assert.equal(await page.locator("#export-master-pack").isEnabled(),true);
+    await page.locator("#batch-quality").selectOption("1");
+    const pRenderEvent=page.waitForEvent("download",{timeout:90000});
+    await page.locator("#export-master-pack").click();
+    const pRender=fs.readFileSync(await (await pRenderEvent).path());
+    await page.locator("#proposal-render-file").setInputFiles({
+      name:"approved-8views-v14.zip",mimeType:"application/zip",buffer:pRender
+    });
+    await page.waitForFunction(()=>document.querySelector("#proposal-status")?.textContent.includes("원본 8컷 확인 완료"),
+      null,{timeout:45000});
+    assert.equal(await page.locator("#proposal-export").isEnabled(),true);
+    await page.locator("#proposal-artwork-title").fill('Urban Waves <img src="https://bad.invalid/x.png">');
+    await page.locator("#proposal-artist").fill("AXOO TEST ARTIST");
+    await page.locator("#proposal-site-label").fill("Goyang / Test installation site");
+    await page.locator("#proposal-note").fill("Model geometry checked in scene preview; physical measurements remain unverified.");
+    const pBeforeDownload=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const pBefore=JSON.parse(fs.readFileSync(await (await pBeforeDownload).path(),"utf8"));
+
+    const proposalDownload=page.waitForEvent("download",{timeout:90000});
+    await page.locator("#proposal-export").click();
+    const proposalArchive=await proposalDownload;
+    assert.match(proposalArchive.suggestedFilename(),/proposal-DRAFT-REV\d+\.zip$/);
+    const proposalFile=await proposalArchive.path();
+    const proposalAudit=JSON.parse(execFileSync("python3",["-c",[
+      "import json,sys,zipfile,struct",
+      "with zipfile.ZipFile(sys.argv[1]) as z:",
+      "  entries=z.namelist()",
+      "  assert 'proposal-sheets.html' in entries",
+      "  assert 'proposal-data.json' in entries",
+      "  assert 'README.txt' in entries",
+      "  assert 'precision-audit.json' in entries",
+      "  assert 'readiness.json' in entries",
+      "  data=json.loads(z.read('proposal-data.json'))",
+      "  assert data['schema']=='axoo-proposal-export-v1'",
+      "  assert data['status']=='DRAFT'",
+      "  assert data['artwork']['viewerBoundsWHDMeters'][0] is not None",
+      "  assert data['audit']['schema']=='axoo-modeling-precision-v1'",
+      "  assert len(data['render']['views'])==8",
+      "  html=z.read('proposal-sheets.html').decode('utf8')",
+      "  assert '<script' not in html.lower()",
+      "  assert '<img src=\"https://bad.invalid/x.png\">' not in html",
+      "  assert '&lt;img src=&quot;https://bad.invalid/x.png&quot;&gt;' in html",
+      "  assert 'Content-Security-Policy' in html",
+      "  assert 'page-break-after:always' in html",
+      "  assert '16in 9in' in html",
+      "  for v in data['render']['views']:",
+      "    path=v['filename']",
+      "    assert path in entries",
+      "    png=z.read(path)",
+      "    assert png[:8]==b'\\x89PNG\\r\\n\\x1a\\n'",
+      "    w,h=struct.unpack('>II',png[16:24])",
+      "    assert w==v['width'] and h==v['height']",
+      "  print(json.dumps({'images':len(data['render']['views']),'slides':html.count('class=\"slide'), 'status':data['status']}))"
+    ].join("\n"),proposalFile],{encoding:"utf8",timeout:45000}).trim());
+    assert.equal(proposalAudit.images,8);
+    assert.equal(proposalAudit.slides,11); // cover + source summary + eight views + audit
+
+    const pAfterDownload=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const pAfter=JSON.parse(fs.readFileSync(await (await pAfterDownload).path(),"utf8"));
+    delete pBefore.createdAt;delete pAfter.createdAt;
+    assert.deepEqual(pBefore,pAfter,
+      "compiling a proposal must leave artwork/site/extras/camera/MASTER unchanged");
+
+    // Approval revision must match the imported render pack exactly:
+    // stale frames must be blocked even after a fresh master approval.
+    page.once("dialog",dialog=>dialog.accept());
+    await page.locator("#master-lock").click();
+    assert.equal(await page.locator("#proposal-export").isDisabled(),true);
+    await page.locator("#master-lock").click();
+    assert.equal(await page.locator("#proposal-export").isDisabled(),true);
+
     assert.deepEqual(errors, [], "no uncaught runtime errors");
-    console.log("PASS studio browser: v1.3 real sculpture duplicate, group translation/Undo, object and surface measurement, AABB report, MASTER lock, source-consistent ZIP restoration + legacy regressions");
+    console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
     await browser.close();
   }

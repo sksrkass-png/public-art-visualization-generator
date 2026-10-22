@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 1.3</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 1.4</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -430,6 +430,27 @@
         <p id="readiness-status" class="hint" aria-live="polite">프로젝트 검수 결과 계산 중</p>
         <button id="readiness-export" class="outline full" type="button">사내 검수 리포트 JSON 저장</button>
         <p class="hint">READY는 사내 검토 준비 상태입니다. 실제 현장 승인, 엔지니어 검토, 작가 허락을 자동으로 인증하지 않습니다.</p>
+      </section>
+      <section class="section" id="proposal-export-panel">
+        <div class="section-title"><h2>PROPOSAL EXPORT / 제안서 패키지</h2><span class="tag">v1.4</span></div>
+        <p class="hint">현재 승인 MASTER에서 생성한 8컷 렌더 ZIP을 가져와 16:9 발표용 HTML 시트, 이미지, 제원·배치 요약, 측정·검수 보고서를 한 번에 만듭니다.</p>
+        <label class="file-button secondary" for="proposal-render-file">+ 승인 MASTER 8컷 ZIP 불러오기</label>
+        <input class="sr-only" id="proposal-render-file" type="file" accept=".zip,application/zip">
+        <label for="proposal-artwork-title">작품명 (필요 시 직접 입력)</label>
+        <input id="proposal-artwork-title" type="text" maxlength="130" placeholder="작품명 / 미입력 시 미확인 표시">
+        <label for="proposal-artist">작가명</label>
+        <input id="proposal-artist" type="text" maxlength="130" placeholder="작가명 / 미입력 시 미확인 표시">
+        <label for="proposal-site-label">현장 표기</label>
+        <input id="proposal-site-label" type="text" maxlength="160" placeholder="예: 프로젝트명 · 블록 · 설치구역">
+        <label for="proposal-note">담당자 제안 및 검토 메모</label>
+        <textarea id="proposal-note" rows="3" maxlength="1600" placeholder="제안 핵심 의도, 설치 위치, 검토 사항을 작성하세요. 확인되지 않은 내용은 자동 생성하지 않습니다."></textarea>
+        <label class="toggle"><input id="proposal-confirmed" type="checkbox"> 이번 MASTER의 작품명·작가·현장 정보와 실측 검토 여부를 담당자가 직접 확인했습니다.</label>
+        <div class="inline">
+          <button class="outline full" id="proposal-refresh" type="button">MASTER 일치 상태 점검</button>
+          <button class="primary full" id="proposal-export" type="button" disabled>제안서 ZIP 만들기</button>
+        </div>
+        <p id="proposal-status" class="hint" aria-live="polite">MASTER 8컷 ZIP을 가져오면 제안서 패키지를 제작할 수 있습니다.</p>
+        <p class="hint">압축 해제 후 <code>proposal-sheets.html</code>을 브라우저에서 열어 확인하고 필요 시 인쇄→PDF로 저장하세요. 원본 작품·현장 모델은 변경하지 않습니다. 자동 작성된 실측·인허가 확정 정보는 포함되지 않습니다.</p>
       </section>
       <section class="section">
         <h2>프로젝트 저장</h2>
