@@ -254,6 +254,10 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(await page.locator("#sun-elevation").inputValue(), "17");
     assert.equal(await page.locator("#sun-helper").isChecked(), true);
 
+    // A vertical-only imported mesh is not a verified ground surface.
+    // Switch to the original demonstration plaza for legacy v0.4 free placement.
+    // v0.5 separately tests grounding against a surveyed horizontal site mesh.
+    await page.locator("#site-preset").selectOption("plaza");
     // Add two distinct foliage presets, a shrub, and two physically working lights.
     const canvas = page.locator("#viewport canvas");
     await page.locator('[data-view="aerial"]').click();
@@ -302,6 +306,10 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     });
     assert.equal(await page.locator("#extra-light-power-value").textContent(), "8.0");
 
+    // Source site model can be reloaded without altering the placed trees.
+    await page.locator("#site-file").setInputFiles(objFile);
+    await page.waitForFunction(() => document.querySelector("#site-filename")?.textContent === "test-site.obj",
+      null, {timeout:15000});
     // Light and foliage transforms persist through full project ZIP recovery.
     await page.locator("#select-artwork").click();
     const extraZipEvent = page.waitForEvent("download", {timeout:60000});
