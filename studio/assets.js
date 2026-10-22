@@ -54,6 +54,19 @@ export async function parseLibraryGLB(file,id,category="planting") {
   if(view.getUint32(0,true)!==0x46546c67 || view.getUint32(4,true)!==2 ||
     view.getUint32(8,true)!==buffer.byteLength)
     throw Error("유효한 glTF 2.0 GLB 파일이 아닙니다.");
+  // Reject linked external URLs: the whole asset must reside in its source GLB.
+  // This protects against remote texture fetches and incomplete project ZIPs.
+  const jsonLength=view.getUint32(12,true);
+  const jsonType=view.getUint32(16,true);
+  if(jsonType!==0x4e4f534a || jsonLength<2 || 20+jsonLength>buffer.byteLength)
+    throw Error("GLB JSON 블록이 유효하지 않습니다.");
+  let gltf;
+  try{gltf=JSON.parse(new TextDecoder().decode(new Uint8Array(buffer,20,jsonLength)));}
+  catch{throw Error("GLB JSON 구조를 읽을 수 없습니다.");}
+  for(const part of [...(gltf.buffers||[]),...(gltf.images||[])]){
+    if(part.uri && !part.uri.startsWith("data:"))
+      throw Error("외부 텍스처·BIN 링크가 포함된 GLB는 지원하지 않습니다. 파일에 리소스를 내장해 주세요.");
+  }
   let model;
   try {
     model=(await new GLTFLoader().parseAsync(buffer,"")).scene;
