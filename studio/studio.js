@@ -805,6 +805,8 @@ function restoreMasterCamera(index) {
     }
   }
   $("shadows").checked = !!saved.shadows;
+  $("camera-focal").value=String(Math.round(camera.getFocalLength()));
+  $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
   orbit.update();
   updateLight();
   notify("승인 Revision " + saved.revision + "의 카메라·조명으로 돌아왔습니다. 작품·현장 위치는 변경되지 않습니다.");
@@ -827,6 +829,7 @@ function syncLock() {
     "plan-rotation", "plan-elevation", "plan-opacity"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   document.querySelectorAll("[data-add-extra]").forEach(btn => { btn.disabled = approvedMaster; });
+  ["art-material","art-material-color","apply-material","reset-material"].forEach(id=>{$(id).disabled=approvedMaster;});
   updateExtrasStatus();
   controls.forEach(el => el.disabled = approvedMaster);
   ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale"]
@@ -1268,6 +1271,7 @@ function sceneConfig() {
     navSpeed: +$("nav-speed").value,
     lightPreset: $("light-preset").value,
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked },
+    render:currentRenderConfig(),
     masterSnapshots,
     lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"].map(id => [id, +$(id).value])),
     shadows: $("shadows").checked,
@@ -1289,6 +1293,7 @@ function validateProjectConfig(data) {
       !["empty", "plaza", "courtyard", "promenade"].includes(data.site.preset) ||
       (data.extras !== undefined && !validateExtras(data.extras)) ||
       (data.layers !== undefined && !validateLayerState(data.layers)) ||
+      (data.render !== undefined && !validRenderConfig(data.render)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
       (data.site.up !== undefined && !["y","z"].includes(data.site.up)) ||
       (data.site.planAlignment !== undefined && !validPlanAlignment(data.site.planAlignment)) ||
@@ -1374,6 +1379,15 @@ function importSceneConfig(data) {
   camera.position.fromArray(data.camera.position);
   orbit.target.fromArray(data.camera.target);
   orbit.update();
+  // Apply render settings while the scene is temporarily unlocked so only
+  // the user-authored material override is restored; original assets survive.
+  const originalApproval=approvedMaster;
+  approvedMaster=false;
+  restoreRenderConfig(data.render);
+  approvedMaster=originalApproval;
+  if(data.render?.environmentMode==="hdr" && !hdrTexture){
+    $("env-filename").textContent="재업로드 필요: "+data.render.environmentFile;
+  }
   if (Array.isArray(data.masterSnapshots)) {
     masterSnapshots = structuredClone(data.masterSnapshots);
   } else {
@@ -1401,6 +1415,7 @@ async function exportProjectArchive() {
     if (siteSourceFile) zip.file("assets/site", siteSourceFile);
     if (artSourceFile) zip.file("assets/artwork", artSourceFile);
     if (planSourceFile) zip.file("assets/plan", planSourceFile);
+    if (hdrSourceFile) zip.file("assets/environment", hdrSourceFile);
     $("save-status").textContent = "프로젝트 패키지 저장 중…";
     const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
     download(safeFileName() + "-project.zip", blob);
@@ -1435,7 +1450,7 @@ async function importProjectArchive(file) {
   if (file.size > MAX_ZIP_BYTES) return notify("ZIP 파일은 200MB 이하여야 합니다.");
   const op = ++activeProjectOperation;
   $("save-status").textContent = "프로젝트 파일 검증 중…";
-  let planTexture = null;
+  let planTexture = null, preparedHDR=null, recoveredHDRFile=null;
   try {
     const zip = await JSZip.loadAsync(file);
     if (Object.keys(zip.files).length > 10) throw new Error("허용되지 않는 파일이 너무 많습니다.");
@@ -1449,12 +1464,14 @@ async function importProjectArchive(file) {
     const siteEntry = checkedArchiveEntry(zip, "assets/site", MAX_MODEL_BYTES, !!data.site.file);
     const artEntry = checkedArchiveEntry(zip, "assets/artwork", MAX_MODEL_BYTES, data.artwork.source !== "Sample Artwork");
     const planEntry = checkedArchiveEntry(zip, "assets/plan", MAX_MAP_BYTES, !!data.site.planFile);
+    const hdrEntry = checkedArchiveEntry(zip,"assets/environment",MAX_MAP_BYTES,!!data.render?.environmentFile);
     const siteFile = await recoverArchiveAsset(siteEntry, data.site.file, MAX_MODEL_BYTES);
     const artFile = await recoverArchiveAsset(artEntry, data.artwork.source, MAX_MODEL_BYTES);
     const planName = String(data.site.planFile || "");
     const planType = /\.png$/i.test(planName) ? "image/png" :
       /\.webp$/i.test(planName) ? "image/webp" : "image/jpeg";
     const planFile = await recoverArchiveAsset(planEntry, planName, MAX_MAP_BYTES, planType);
+    recoveredHDRFile=await recoverArchiveAsset(hdrEntry,data.render?.environmentFile || "",MAX_MAP_BYTES,"image/vnd.radiance");
     const [siteModel, artModel] = await Promise.all([
       siteFile ? decodeModel(siteFile, true) : Promise.resolve(null),
       artFile ? decodeModel(artFile, false) : Promise.resolve(null)
@@ -1467,8 +1484,10 @@ async function importProjectArchive(file) {
       }
     }
     if (planFile) planTexture = await decodePlanTexture(planFile);
+    if(recoveredHDRFile) preparedHDR=await decodeHDR(recoveredHDRFile);
     if (approvedMaster || op !== activeProjectOperation) {
       if (planTexture) planTexture.dispose();
+      if(preparedHDR)preparedHDR.dispose();
       return notify("작업 상태가 변경되어 이전 파일 로딩을 취소했습니다.");
     }
     // Commit an already validated package. No user's original file is uploaded.
@@ -1502,11 +1521,15 @@ async function importProjectArchive(file) {
       planPlane.visible = false;
       $("map-name").textContent = "배치도 없음";
     }
+    if(hdrTexture)hdrTexture.dispose();
+    hdrTexture=preparedHDR;hdrSourceFile=recoveredHDRFile;
+    preparedHDR=null;
     importSceneConfig(data);
     pendingArtwork = null;
     notify("전체 프로젝트 복원 완료 · 원본 모델과 MASTER 승인 이력 적용");
   } catch (err) {
     if (planTexture) planTexture.dispose();
+    if(preparedHDR)preparedHDR.dispose();
     console.error(err);
     notify("전체 프로젝트 불러오기 실패: " + (err.message || "파일 확인 필요"));
   } finally {
