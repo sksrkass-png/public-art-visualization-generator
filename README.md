@@ -66,7 +66,7 @@ Everything runs client-side. Nothing is uploaded anywhere; history and drafts li
 /
 ├── index.html          # 4-step wizard markup: topbar/mode toggle, stepper, step panels, result section
 ├── assets/
-│   ├── style.css        # Design tokens + components (cream/white/lime-green system, wizard/preset/tooltip UI)
+│   ├── style.css        # Monochrome editorial design tokens + wizard/preset/tooltip UI
 │   └── app.js            # Prompt engine (unchanged) + wizard/mode/preset/recommendation UI layer
 └── README.md
 ```
@@ -79,7 +79,7 @@ Everything runs client-side. Nothing is uploaded anywhere; history and drafts li
 4. Select branch `main` and folder `/ (root)`, then Save.
 5. GitHub will publish the site at `https://sksrkass-png.github.io/public-art-visualization-generator/`.
 
-No build step, no GitHub Actions workflow required — this is a static site served as-is.
+No build step is needed for deployment — this is a static site served as-is. An optional GitHub Actions validation workflow (`.github/workflows/validate-static.yml`) runs JavaScript syntax checks and dependency-free JSON-import regression tests on pushes and pull requests. To run the checks locally, use `node --check assets/app.js` and `node tests/json-import.test.cjs` (Node 22+).
 
 ### Git commands (if the GitHub repo hasn't been created yet)
 
