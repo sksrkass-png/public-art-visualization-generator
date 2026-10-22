@@ -237,6 +237,7 @@
         <label class="file-button secondary" for="env-file">+ HDRI 환경맵 불러오기 <small>Radiance .HDR / 20 MB 이하</small></label>
         <input id="env-file" class="sr-only" type="file" accept=".hdr,image/vnd.radiance">
         <p class="hint" id="env-filename">HDRI 미설정 · 로컬 파일을 업로드하면 프로젝트 ZIP에도 포함됩니다.</p>
+        <button id="clear-hdr" class="outline full" type="button">현재 HDRI 파일 해제</button>
         <label for="env-strength">환경 반사 강도 <output id="env-strength-value">1.0</output></label>
         <input id="env-strength" type="range" min="0" max="3" step=".1" value="1">
         <p class="hint">기본 모드는 실제 HDRI 사진이 아닌 환경광 프리셋입니다. .HDR 파일을 업로드해야 사진 기반 환경 반사를 사용합니다.</p>
