@@ -79,7 +79,7 @@ let approvedMaster = false, revision = 1, loadedPlanTexture = null;
 let lastDrag = null, mouseMoved = false, toastTimer = null;
 let undoStack = [], redoStack = [];
 let pendingArtwork = null;
-let activeFileOperation = 0;
+let activeSiteOperation = 0, activeArtOperation = 0;
 let selectedMode = "translate";
 const MAX_UNDO = 40;
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -272,7 +272,7 @@ function syncPlanWidth() {
   planPlane.scale.set(w, w * img.height / img.width, 1);
 }
 function loadPlan(file) {
-  if (!file) return;
+  if (!file || approvedMaster) return;
   if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return notify("배치도는 PNG/JPG/WEBP 이미지만 지원합니다.");
   const url = URL.createObjectURL(file);
   new THREE.TextureLoader().load(url, texture => {
@@ -334,7 +334,8 @@ function syncLock() {
   if (approvedMaster) transform.detach();
   else if (artRoot.children.length) transform.attach(artRoot);
   controls.forEach(el => el.disabled = approvedMaster);
-  $("apply-height").disabled = approvedMaster;
+  ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale"]
+    .forEach(id => { $(id).disabled = approvedMaster; });
   $("master-lock").classList.toggle("locked", approvedMaster);
   $("master-lock").textContent = approvedMaster ? "🔒 MASTER LOCK 승인됨 · 수정하려면 잠금 해제" : "MASTER VIEW 승인 · 작품 잠금";
   $("object-state").textContent = approvedMaster ? "MASTER LOCK" : "편집 가능";
@@ -458,11 +459,12 @@ async function decodeModel(file, isSite) {
 }
 async function importModel(file, isSite) {
   if (!file) return;
-  const op = ++activeFileOperation;
+  if (approvedMaster) return notify("MASTER LOCK을 먼저 해제해야 작품·공간 모델을 변경할 수 있습니다.");
+  const op = isSite ? ++activeSiteOperation : ++activeArtOperation;
   try {
     notify("파일을 읽고 있습니다: " + file.name);
     const model = await decodeModel(file, isSite);
-    if (op !== activeFileOperation) return;
+    if (op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
     if (isSite) {
       clearGroup(siteRoot);
       siteRoot.add(model);
@@ -495,7 +497,7 @@ function sceneConfig() {
     createdAt: new Date().toISOString(),
     site: { file: siteFileName, preset: $("site-preset").value, floor: $("floor-map").value,
       planFile: planFileName, planWidth: +$("map-width").value },
-    artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision },
+    artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked },
     lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"].map(id => [id, +$(id).value])),
     shadows: $("shadows").checked,
     camera: { position: camera.position.toArray(), target: orbit.target.toArray() }
@@ -541,6 +543,7 @@ function importSceneConfig(data) {
     }
   }
   $("shadows").checked = !!data.shadows; updateLight();
+  $("uniform-scale").checked = data.artwork.uniformScale !== false;
   if (data.artwork.source === originalArt) {
     approvedMaster = false;
     restore(data.artwork.transform);
@@ -548,6 +551,9 @@ function importSceneConfig(data) {
     revision = safeNumber(data.artwork.revision, 1, 1, 1e6);
     syncLock();
   } else {
+    // Mismatched assets cannot be silently substituted by the sample model.
+    approvedMaster = false;
+    syncLock();
     pendingArtwork = data.artwork;
     $("art-filename").textContent = "재업로드 필요: " + data.artwork.source;
     notify("작품 모델 파일을 다시 업로드해야 저장된 좌표·승인을 적용합니다.");
@@ -599,15 +605,21 @@ async function exportGLB() {
 }
 
 // Event connections
-$("site-preset").addEventListener("change", e => { buildSite(e.target.value); notify("예시 현장 프리셋을 적용했습니다."); });
+$("site-preset").addEventListener("change", e => {
+  if (approvedMaster) return;
+  buildSite(e.target.value); notify("예시 현장 프리셋을 적용했습니다.");
+});
 $("site-file").addEventListener("change", e => importModel(e.target.files[0], true));
 $("art-file").addEventListener("change", e => importModel(e.target.files[0], false));
 $("map-file").addEventListener("change", e => loadPlan(e.target.files[0]));
 $("map-width").addEventListener("change", syncPlanWidth);
-$("floor-map").addEventListener("change", updateGround);
+$("floor-map").addEventListener("change", () => { if (!approvedMaster) updateGround(); });
 $("grid").addEventListener("change", e => { grid.visible = e.target.checked; });
 $("snap").addEventListener("change", snapSetting);
-$("sample-art").addEventListener("click", () => { setArtwork(sampleArtwork(), "Sample Artwork", 3); changeView("main"); });
+$("sample-art").addEventListener("click", () => {
+  if (approvedMaster) return notify("MASTER LOCK 해제 후 작품을 변경하세요.");
+  setArtwork(sampleArtwork(), "Sample Artwork", 3); changeView("main");
+});
 $("apply-height").addEventListener("click", () => {
   if (approvedMaster) return;
   const h = safeNumber($("art-height").value, NaN, .05, 100);
@@ -649,6 +661,15 @@ transform.addEventListener("dragging-changed", e => { orbit.enabled = !e.value; 
 transform.addEventListener("mouseDown", () => { lastDrag = snapshot(); });
 transform.addEventListener("mouseUp", () => { if (lastDrag) commit(lastDrag); lastDrag = null; updateInspector(); });
 transform.addEventListener("objectChange", () => {
+  // Keep size proportional by default, including direct gizmo manipulation.
+  // The axis with the strongest deviation from the drag's starting scale wins.
+  if (!approvedMaster && selectedMode === "scale" && $("uniform-scale").checked && lastDrag) {
+    const current = artRoot.scale.toArray();
+    const delta = current.map((v, i) => Math.abs(v / lastDrag.s[i] - 1));
+    const axis = delta.indexOf(Math.max(...delta));
+    const factor = current[axis] / lastDrag.s[axis];
+    artRoot.scale.fromArray(lastDrag.s.map(v => v * factor));
+  }
   // Artistic geometry is never rebuilt. All transforms are on the root group.
   updateInspector();
   sun.target.position.copy(artRoot.position);
