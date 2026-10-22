@@ -157,3 +157,14 @@
 .asset-library-panel .file-button{margin:6px 0 12px}
 #library-status{font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere;line-height:1.6}
 #library-place{margin-top:9px}
+
+/* v1.3 measured spatial tools; all original artwork/site source data stays intact */
+#precision-modeling{border-top:2px solid #a4afbd;background:linear-gradient(#fafbfc,#fff)}
+.precision-group-fieldset{border:1px solid #dce1e7;border-radius:5px;padding:8px;margin:13px 0}
+.precision-group-fieldset legend{font-size:10px;font-weight:700}
+.precision-group-list{max-height:136px;overflow-y:auto;padding:4px 0}
+.precision-group-list label{display:flex;gap:7px;align-items:flex-start;padding:4px 0;font-size:10.5px}
+.precision-group-list input{margin-top:2px}
+#precision-modeling h3{font-size:12px;margin:18px 0 8px}
+#precision-modeling select{width:100%}
+#precision-collision-status,#measure-objects-status,#measure-site-status{white-space:pre-line;line-height:1.6;overflow-wrap:anywhere}
