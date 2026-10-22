@@ -231,8 +231,92 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("SKP/IFC"),
       null, { timeout: 10000 });
     assert.equal(await page.locator("#site-filename").textContent(), "test-site.obj");
+
+    // v0.4: real imported site hides the redundant fallback ground mapping.
+    assert.equal(await page.locator("#fallback-ground").isHidden(), true);
+    assert.equal(await page.locator("#site-ground-note").isVisible(), true);
+    await page.locator("#site-unit").selectOption("cm");
+    assert.match(await page.locator("#site-dimensions").textContent(), /0\.03 × 0\.02 × 0\.01/,
+      "cm-to-m correction changes site display, not source mesh");
+    await page.locator("#site-up").selectOption("z");
+    assert.match(await page.locator("#site-dimensions").textContent(), /0\.03 × 0\.01 × 0\.02/,
+      "Z-up should rotate source site axes into Y-up world");
+    await page.locator("#site-unit").selectOption("m");
+    await page.locator("#site-up").selectOption("y");
+
+    // Fast navigation is configurable without changing the camera pose or scene.
+    await page.locator("#nav-speed").evaluate(el => {
+      el.value="4";
+      el.dispatchEvent(new Event("input", {bubbles:true}));
+    });
+    assert.equal(await page.locator("#nav-speed-value").textContent(), "4.0×");
+    await page.locator("#light-preset").selectOption("golden");
+    assert.equal(await page.locator("#sun-elevation").inputValue(), "17");
+    assert.equal(await page.locator("#sun-helper").isChecked(), true);
+
+    // Add two distinct foliage presets, a shrub, and two physically working lights.
+    const canvas = page.locator("#viewport canvas");
+    await page.locator('[data-view="aerial"]').click();
+    const bounds = await canvas.boundingBox();
+    assert.ok(bounds?.width && bounds?.height);
+    for (const [kind, expected] of [
+      ["tree-round", 1], ["tree-cone", 2], ["shrub", 3], ["point-light", 4], ["spot-light", 5]
+    ]) {
+      await page.locator('[data-add-extra="'+kind+'"]').click();
+      await page.mouse.click(bounds.x+bounds.width*.65,bounds.y+bounds.height*.82);
+      await page.waitForFunction(expectedCount =>
+        document.querySelectorAll("#extra-list button").length === expectedCount,
+        expected, {timeout:10000});
+    }
+    assert.match(await page.locator("#extra-count").textContent(), /5개/);
+    assert.equal(await page.locator("#delete-selected").isEnabled(), true);
+    await page.locator("#extra-list button").first().click();
+    assert.match(await page.locator("#object-name").textContent(), /활엽수/);
+    const extraX = page.locator('[data-transform="position"][data-axis="x"]');
+    await extraX.fill("6.5"); await extraX.dispatchEvent("change");
+    assert.equal(Number(await extraX.inputValue()), 6.5, "selected foliage uses transform inspector");
+    await page.locator("#delete-selected").click();
+    assert.equal(await page.locator("#extra-list button").count(), 4);
+    await page.locator("#undo").click();
+    assert.equal(await page.locator("#extra-list button").count(), 5, "undo restores removed foliage");
+    await page.locator("#extra-list button").last().click();
+    assert.match(await page.locator("#object-name").textContent(), /스폿 조명/);
+    assert.equal(await page.locator("#extra-light-controls").isVisible(), true);
+    await page.locator("#extra-light-power").evaluate(el => {
+      el.value="8";
+      el.dispatchEvent(new Event("input",{bubbles:true}));
+    });
+    assert.equal(await page.locator("#extra-light-power-value").textContent(), "8.0");
+
+    // Light and foliage transforms persist through full project ZIP recovery.
+    await page.locator("#select-artwork").click();
+    const extraZipEvent = page.waitForEvent("download", {timeout:60000});
+    await page.locator("#export-project").click();
+    const extraZip = fs.readFileSync(await (await extraZipEvent).path());
+    await page.locator("#site-preset").selectOption("empty");
+    assert.equal(await page.locator("#fallback-ground").isVisible(),true);
+    await page.locator("#import-project").setInputFiles({
+      name:"full-scene-v04.zip", mimeType:"application/zip", buffer:extraZip
+    });
+    await page.waitForFunction(() =>
+      document.querySelectorAll("#extra-list button").length===5 &&
+      document.querySelector("#site-filename")?.textContent==="test-site.obj",
+      null,{timeout:45000}
+    );
+    assert.equal(await page.locator("#fallback-ground").isHidden(),true);
+    await page.locator("#extra-list button").last().click();
+    assert.equal(await page.locator("#extra-light-power-value").textContent(),"8.0");
+    await page.locator("#select-artwork").click();
+
+    // Render image is a real PNG even with overlays visible in editing view.
+    const imgEvent=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#shot-export").click();
+    const img=fs.readFileSync(await (await imgEvent).path());
+    assert.equal(img.toString("hex",0,8),"89504e470d0a1a0a");
+    assert.ok(img.readUInt32BE(16)>bounds.width,"high resolution export increases image width");
+
     assert.deepEqual(errors, [], "no uncaught runtime errors");
-    console.log("PASS studio browser: WebGL, edit, undo/redo, lights, views, lock, PNG, JSON roundtrip, GLB export, source scale, master snapshot, ZIP recovery, multi-format site models and locks");
+    console.log("PASS studio browser: WebGL, edit, undo/redo, lights, views, lock, PNG, JSON roundtrip, GLB export, source scale, master snapshot, ZIP recovery, multi-format site models, site units, foliage/lights, high-res render, and locks");
   } finally {
     await browser.close();
   }
