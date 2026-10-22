@@ -17,6 +17,7 @@ import { ART_MATERIALS, validMaterialConfig, validRenderConfig, normalizeRenderC
 import { STANDARD_VIEWS, createStandardCameras, captureSceneIntegrity,
   masterConsistency, validateBatchManifest } from "./batch.js";
 import { initVisualReview } from "./review.js";
+import { makeIntegrityManifest, verifyIntegrityManifest } from "./integrity.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
 import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
@@ -1435,10 +1436,13 @@ async function exportProjectArchive() {
     if (artSourceFile) zip.file("assets/artwork", artSourceFile);
     if (planSourceFile) zip.file("assets/plan", planSourceFile);
     if (hdrSourceFile) zip.file("assets/environment", hdrSourceFile);
-    $("save-status").textContent = "프로젝트 패키지 저장 중…";
+    $("save-status").textContent = "SHA-256 원본 검증 정보 생성 중…";
+    const integrity=await makeIntegrityManifest(zip);
+    zip.file("integrity.json",JSON.stringify(integrity,null,2));
+    $("save-status").textContent = "검증 가능한 프로젝트 패키지 저장 중…";
     const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
     download(safeFileName() + "-project.zip", blob);
-    notify("프로젝트 ZIP에 현장·작품 원본 파일과 승인 이력을 포함했습니다.");
+    notify("프로젝트 ZIP 저장 완료 · 원본과 SHA-256 손상 검증 정보 포함");
   } catch (err) {
     console.error(err);
     notify("프로젝트 저장 실패: " + (err.message || "메모리 용량 확인 필요"));
@@ -1473,6 +1477,10 @@ async function importProjectArchive(file) {
   try {
     const zip = await JSZip.loadAsync(file);
     if (Object.keys(zip.files).length > 10) throw new Error("허용되지 않는 파일이 너무 많습니다.");
+    const integrityResult=await verifyIntegrityManifest(zip);
+    $("save-status").textContent=integrityResult.verified
+      ? "ZIP 모든 파일 SHA-256 검사 통과"
+      : "구형 ZIP · 무결성 정보가 없어 호환 모드로 읽습니다.";
     const metaEntry = checkedArchiveEntry(zip, "project.json", 1024 * 1024, true);
     const metadata = await metaEntry.async("string");
     if (metadata.length > 1024 * 1024) throw new Error("프로젝트 설정 정보가 너무 큽니다.");
@@ -1547,7 +1555,9 @@ async function importProjectArchive(file) {
     preparedHDR=null;
     importSceneConfig(data);
     pendingArtwork = null;
-    notify("전체 프로젝트 복원 완료 · 원본 모델과 MASTER 승인 이력 적용");
+    notify(integrityResult.verified
+      ? "프로젝트 파일 SHA-256 검증 통과 · 원본 모델과 MASTER 이력 복원 완료"
+      : "구형 프로젝트 복원 완료 · 무결성 검사 정보는 없습니다.");
   } catch (err) {
     if (planTexture) planTexture.dispose();
     if(preparedHDR)preparedHDR.dispose();
