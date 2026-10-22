@@ -780,8 +780,10 @@ async function importModel(file, isSite) {
       $("site-filename").textContent = file.name;
       $("site-status").textContent = "실제 모델";
       $("site-preset").value = "empty";
+      $("site-unit").value = "m"; $("site-up").value = "y";
+      applySiteUnits(); syncGroundAvailability();
       setShadows(siteRoot);
-      showSiteGeometryStats(siteStats);
+      showSiteGeometryStats(inspectSiteGeometry(siteRoot));
       notify("현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
     } else {
       // Imported geometry retains original dimensions; never fit to stale 3m field.
@@ -806,7 +808,11 @@ function sceneConfig() {
     projectName: $("project-name").value,
     createdAt: new Date().toISOString(),
     site: { file: siteFileName, preset: $("site-preset").value, floor: $("floor-map").value,
+      unit: $("site-unit").value, up: $("site-up").value,
       planFile: planFileName, planWidth: +$("map-width").value },
+    extras: serializeExtras(extrasRoot),
+    navSpeed: +$("nav-speed").value,
+    lightPreset: $("light-preset").value,
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked },
     masterSnapshots,
     lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"].map(id => [id, +$(id).value])),
@@ -988,7 +994,9 @@ async function importProjectArchive(file) {
       $("site-status").textContent = "실제 모델";
       $("site-filename").textContent = siteFile.name;
       $("site-preset").value = "empty";
-      showSiteGeometryStats(siteStats);
+      $("site-unit").value = "m"; $("site-up").value = "y";
+      applySiteUnits(); syncGroundAvailability();
+      showSiteGeometryStats(inspectSiteGeometry(siteRoot));
       setShadows(siteRoot);
     } else {
       $("site-preset").value = data.site.preset;
