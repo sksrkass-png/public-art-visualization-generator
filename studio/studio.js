@@ -833,6 +833,9 @@ function validateProjectConfig(data) {
       !isTriple(data.camera.position) || !isTriple(data.camera.target) ||
       typeof data.artwork.source !== "string" || typeof data.site.file !== "string" ||
       !["empty", "plaza", "courtyard", "promenade"].includes(data.site.preset) ||
+      (data.extras !== undefined && !validateExtras(data.extras)) ||
+      (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
+      (data.site.up !== undefined && !["y","z"].includes(data.site.up)) ||
       (data.masterSnapshots !== undefined &&
         (!Array.isArray(data.masterSnapshots) || data.masterSnapshots.length > 40 ||
           !data.masterSnapshots.every(validMasterSnapshot)))) {
@@ -855,6 +858,10 @@ function importSceneConfig(data) {
     $("site-preset").value = preset;
     buildSite(preset);
   }
+  $("site-unit").value = Object.hasOwn(SITE_UNIT_TO_M,data.site.unit) ? data.site.unit : "m";
+  $("site-up").value = data.site.up === "z" ? "z" : "y";
+  applySiteUnits();
+  syncGroundAvailability();
   if (["concrete", "pavers", "grass", "asphalt", "white"].includes(data.site.floor)) {
     $("floor-map").value = data.site.floor; updateGround();
   }
@@ -869,7 +876,14 @@ function importSceneConfig(data) {
       $(id).value = String(data.lighting[id]);
     }
   }
-  $("shadows").checked = !!data.shadows; updateLight();
+  $("shadows").checked = !!data.shadows;
+  $("light-preset").value = ["clear","cloudy","golden","night"].includes(data.lightPreset) ? data.lightPreset : "custom";
+  $("nav-speed").value = safeNumber(data.navSpeed, 2.6, .5, 5);
+  $("nav-speed").dispatchEvent(new Event("input"));
+  updateLight();
+  restoreExtras(extrasRoot, data.extras || []);
+  nextExtraId = Math.max(1,...extrasRoot.children.map(x => x.userData.extraId+1));
+  selectRoot(artRoot);
   $("uniform-scale").checked = data.artwork.uniformScale !== false;
   if (data.artwork.source === originalArt) {
     approvedMaster = false;
@@ -895,6 +909,7 @@ function importSceneConfig(data) {
     masterSnapshots = approvedMaster ? [masterSnapshot()] : [];
   }
   renderMasterHistory();
+  syncLock();
   clearUndo();
 }
 // The portable project ZIP stores the actual original bytes, not just filenames.
