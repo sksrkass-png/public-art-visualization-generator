@@ -771,7 +771,7 @@
           return o.value === value;
         })) throw new Error("지원하지 않는 선택 항목이 있습니다.");
         if (el && el.type === "number" && value !== "" &&
-            (!/^\\d+(\\.\\d+)?$/.test(value) || !Number.isFinite(Number(value)))) {
+            (!/^\d+(\.\d+)?$/.test(value) || !Number.isFinite(Number(value)))) {
           throw new Error("작품 규격에 올바르지 않은 숫자가 있습니다.");
         }
         restored[key] = value;
