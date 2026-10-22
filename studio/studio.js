@@ -18,6 +18,7 @@ import { STANDARD_VIEWS, createStandardCameras, captureSceneIntegrity,
   masterConsistency, validateBatchManifest } from "./batch.js";
 import { initVisualReview } from "./review.js";
 import { makeIntegrityManifest, verifyIntegrityManifest } from "./integrity.js";
+import { initReadiness } from "./readiness.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
 import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
@@ -2037,6 +2038,28 @@ initVisualReview({
   isMasterApproved:()=>approvedMaster,
   getMaster:()=>masterSnapshots[masterSnapshots.length-1] || null
 });
+initReadiness({getScene:()=>{
+  const master=masterSnapshots[masterSnapshots.length-1] || null;
+  const bounds=new THREE.Box3().setFromObject(artRoot);
+  const size=bounds.isEmpty()?new THREE.Vector3(0,0,0):bounds.getSize(new THREE.Vector3());
+  return {
+    project:$("project-name").value,
+    siteFile:siteFileName,
+    artworkFile:artFileName,
+    realSite:!!siteSourceFile,
+    realArtwork:!!artSourceFile,
+    siteUnit:$("site-unit").value,
+    siteUp:$("site-up").value,
+    sourceUnitsSelected:["m","cm","mm","ft"].includes($("site-unit").value)
+      && ["y","z"].includes($("site-up").value),
+    artworkDimensions:size.toArray(),
+    artworkHeight:size.y,
+    masterApproved:approvedMaster,
+    revision:master?.revision||null,
+    approvedAt:master?.approvedAt||null,
+    masterMatches:!!master && masterConsistency(master,baselineForMaster()).ok
+  };
+}});
 $("export-glb").addEventListener("click", exportGLB);
 $("export-project").addEventListener("click", exportProjectArchive);
 $("import-project").addEventListener("change", e => {
