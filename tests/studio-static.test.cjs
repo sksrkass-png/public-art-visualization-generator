@@ -156,6 +156,6 @@ const extrasModule=fs.readFileSync(path.join(base,"studio/extras.js"),"utf8");
 for(const marker of ["tree-autumn","person-standing","park-bench","round-planter","custom-glb"])
  assert.ok(extrasModule.includes(marker),"v1.2 scene asset missing: "+marker);
 const integrity=fs.readFileSync(path.join(base,"studio/integrity.js"),"utf8");
-assert.match(integrity,/assets\\/library/,"checksums for external GLB sources required");
+assert.ok(integrity.includes("assets/library/"),"checksums for external GLB sources required");
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");
