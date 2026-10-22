@@ -459,7 +459,8 @@ function masterSnapshot() {
     lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"]
       .map(id => [id, Number($(id).value)])),
     shadows: $("shadows").checked,
-    extras: serializeExtras(extrasRoot)
+    extras: serializeExtras(extrasRoot),
+    planAlignment: planAlignmentSnapshot()
   };
 }
 function validMasterSnapshot(entry) {
@@ -897,6 +898,34 @@ async function importModel(file, isSite) {
     notify("불러오기 실패: " + (error.message || "파일 형식 확인 필요"));
   }
 }
+function planAlignmentSnapshot() {
+  return {
+    visible: $("plan-visible").checked,
+    x: +$("plan-x").value,
+    z: +$("plan-z").value,
+    rotation: +$("plan-rotation").value,
+    elevation: +$("plan-elevation").value,
+    opacity: +$("plan-opacity").value
+  };
+}
+function validPlanAlignment(value) {
+  return value && typeof value.visible === "boolean" &&
+    ["x","z","rotation","elevation","opacity"].every(field =>
+      typeof value[field] === "number" && Number.isFinite(value[field])) &&
+    value.opacity >= 10 && value.opacity <= 100 &&
+    Math.abs(value.x) <= 10000 && Math.abs(value.z) <= 10000 &&
+    value.elevation >= -50 && value.elevation <= 1000 &&
+    Math.abs(value.rotation) <= 36000;
+}
+function restorePlanAlignment(value) {
+  const plan = validPlanAlignment(value) ? value :
+    {visible:true, x:0, z:0, rotation:0, elevation:.05, opacity:55};
+  $("plan-visible").checked = plan.visible;
+  for (const id of ["x","z","rotation","elevation","opacity"]) {
+    $("plan-"+id).value = String(plan[id]);
+  }
+  syncPlanOverlay();
+}
 function sceneConfig() {
   return {
     schema: "axoo-public-art-3d-studio-v1",
@@ -904,7 +933,9 @@ function sceneConfig() {
     createdAt: new Date().toISOString(),
     site: { file: siteFileName, preset: $("site-preset").value, floor: $("floor-map").value,
       unit: $("site-unit").value, up: $("site-up").value,
-      planFile: planFileName, planWidth: +$("map-width").value },
+      planFile: planFileName, planWidth: +$("map-width").value,
+      planAlignment: planAlignmentSnapshot() },
+    groundPlacement: { auto: $("auto-ground").checked, offset: +$("ground-offset").value },
     extras: serializeExtras(extrasRoot),
     navSpeed: +$("nav-speed").value,
     lightPreset: $("light-preset").value,
@@ -931,6 +962,12 @@ function validateProjectConfig(data) {
       (data.extras !== undefined && !validateExtras(data.extras)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
       (data.site.up !== undefined && !["y","z"].includes(data.site.up)) ||
+      (data.site.planAlignment !== undefined && !validPlanAlignment(data.site.planAlignment)) ||
+      (data.groundPlacement !== undefined &&
+        (!data.groundPlacement || typeof data.groundPlacement.auto !== "boolean" ||
+          typeof data.groundPlacement.offset !== "number" ||
+          !Number.isFinite(data.groundPlacement.offset) ||
+          data.groundPlacement.offset < -20 || data.groundPlacement.offset > 50)) ||
       (data.masterSnapshots !== undefined &&
         (!Array.isArray(data.masterSnapshots) || data.masterSnapshots.length > 40 ||
           !data.masterSnapshots.every(validMasterSnapshot)))) {
@@ -961,6 +998,9 @@ function importSceneConfig(data) {
     $("floor-map").value = data.site.floor; updateGround();
   }
   $("map-width").value = safeNumber(data.site.planWidth, 40, 1, 1000);
+  restorePlanAlignment(data.site.planAlignment);
+  $("auto-ground").checked = !!data.groundPlacement?.auto;
+  $("ground-offset").value = toFinite(data.groundPlacement?.offset, 0, -20, 50);
   syncPlanWidth();
   if (data.site.planFile && data.site.planFile !== planFileName) {
     $("map-name").textContent = "배치도 다시 업로드 필요: " + data.site.planFile;
