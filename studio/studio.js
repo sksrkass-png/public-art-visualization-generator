@@ -16,6 +16,7 @@ import { ART_MATERIALS, validMaterialConfig, validRenderConfig, normalizeRenderC
   targetSize, makeMaterial } from "./rendering.js";
 import { STANDARD_VIEWS, createStandardCameras, captureSceneIntegrity,
   masterConsistency, validateBatchManifest } from "./batch.js";
+import { initVisualReview } from "./review.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
 import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
@@ -2022,6 +2023,10 @@ document.querySelectorAll("[data-view]").forEach(el => el.addEventListener("clic
 $("focus").addEventListener("click", fitCamera);
 $("shot-export").addEventListener("click", exportImage);
 $("export-master-pack").addEventListener("click",exportMasterPack);
+initVisualReview({
+  isMasterApproved:()=>approvedMaster,
+  getMaster:()=>masterSnapshots[masterSnapshots.length-1] || null
+});
 $("export-glb").addEventListener("click", exportGLB);
 $("export-project").addEventListener("click", exportProjectArchive);
 $("import-project").addEventListener("change", e => {
