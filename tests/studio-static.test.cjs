@@ -13,7 +13,9 @@ const css = fs.readFileSync(path.join(base, "studio/studio.css"), "utf8");
 const js = fs.readFileSync(path.join(base, "studio/studio.js"), "utf8");
 const legacy = fs.readFileSync(path.join(base, "index.html"), "utf8");
 
-assert.doesNotThrow(() => new Function(js.replace(/^import .*?;\s*$/gm, "")), "studio module parses after stripping top-level static imports");
+// The shipped module has multiline imports; the workflow's node --check
+// is the real syntax check (stripping imports with a line regex is unsound).
+assert.match(js, /from "\.\/layers\.js"/, "v0.6 layer module must be imported");
 assert.match(legacy, /href="studio\/"/, "main application links to studio");
 assert.match(html, /"three":\s*"https:\/\/cdn\.jsdelivr\.net\/npm\/three@0\.186\.1/, "pin exact Three.js version");
 assert.match(html, /type="module" src="\.\/studio\.js"/, "app must be a browser ES module");
