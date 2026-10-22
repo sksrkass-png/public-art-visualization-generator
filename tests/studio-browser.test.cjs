@@ -165,6 +165,27 @@ const assert = require("node:assert/strict");
     await page.waitForTimeout(250);
     assert.equal(Number(await px.inputValue()), 4.5);
     assert.match(await page.locator("#art-filename").textContent(), /saved-artwork\.glb/);
+    // Regression: approving MASTER during an unfinished GLB read must cancel
+    // the stale async import rather than replacing an already approved artwork.
+    await page.evaluate(() => {
+      const originalArrayBuffer = File.prototype.arrayBuffer;
+      window.__originalFileArrayBuffer = originalArrayBuffer;
+      File.prototype.arrayBuffer = async function () {
+        await new Promise(resolve => setTimeout(resolve, 850));
+        return originalArrayBuffer.call(this);
+      };
+    });
+    await page.locator("#art-file").setInputFiles({
+      name: "stale-import.glb", mimeType: "model/gltf-binary", buffer: bytes
+    });
+    await page.locator("#master-lock").click();
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { File.prototype.arrayBuffer = window.__originalFileArrayBuffer; });
+    assert.match(await page.locator("#art-filename").textContent(), /saved-artwork\.glb/,
+      "pending async import must not replace artwork after master approval");
+    assert.equal(Number(await px.inputValue()), 4.5,
+      "pending async import must preserve approved artwork placement");
+    assert.equal(await px.isDisabled(), true, "scene remains locked after asynchronous import resolves");
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: WebGL, edit, undo/redo, lights, views, lock, PNG, JSON roundtrip, GLB export, source scale, master snapshot, ZIP recovery and locks");
   } finally {
