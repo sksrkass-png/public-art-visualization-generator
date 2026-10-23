@@ -1479,6 +1479,55 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(restoredConfig.site.preset,"courtyard");
     assert.equal(restoredConfig.render.visual?.guide||"none","none");
     await sitePage.close();
+    // v2.2 curator workflow: compact-by-default UI, multiple independent arts,
+    // released asset quota, circular black pedestal, full project ZIP.
+    const ux=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
+    ux.on("pageerror",e=>errors.push(e.stack||e.message));
+    await ux.goto("http://127.0.0.1:8787/studio/",{waitUntil:"domcontentloaded",timeout:60000});
+    await ux.locator("#viewport canvas").waitFor({timeout:20000});
+    assert.ok(await ux.locator("details.inspector-fold:not([open])").count()>3,
+      "ordinary visitors should get a genuinely compact inspector");
+    assert.equal(await ux.locator("#site-import-inspector").isVisible(),false);
+    assert.equal(await ux.locator("#asset-library-panel").isVisible(),false);
+    await ux.locator("details.inspector-fold").evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
+    for(let i=1;i<=4;i++){
+      await ux.locator("#multi-art-file").setInputFiles({
+        name:"extra-art-"+i+".glb",mimeType:"model/gltf-binary",buffer:bytes
+      });
+      await ux.waitForFunction(n=>
+        document.querySelector("#multi-art-status")?.textContent.includes("작품 "+n+"/5개"),i+1,
+        {timeout:25000});
+    }
+    assert.equal(await ux.locator("#multi-art-file").isDisabled(),true);
+    const fifth=ux.waitForEvent("download",{timeout:20000});
+    await ux.locator("#export-json").click();
+    const withFive=JSON.parse(fs.readFileSync(await (await fifth).path(),"utf8"));
+    assert.equal(withFive.extras.filter(x=>x.kind==="custom-glb").length,4);
+    await ux.locator("#delete-selected").click();
+    assert.equal(await ux.locator("#multi-art-file").isEnabled(),true);
+    assert.match(await ux.locator("#multi-art-status").textContent(),/작품 4\/5개/);
+    await ux.locator("#multi-art-file").setInputFiles({
+      name:"replacement-art.glb",mimeType:"model/gltf-binary",buffer:bytes
+    });
+    await ux.waitForFunction(()=>
+      document.querySelector("#multi-art-status")?.textContent.includes("작품 5/5개"),null,
+      {timeout:25000});
+    await ux.locator("#select-artwork").click();
+    await ux.locator("#plinth-shape").selectOption("round");
+    await ux.locator("#plinth-finish").selectOption("black");
+    await ux.locator("#plinth-create").click();
+    const uxDL=ux.waitForEvent("download",{timeout:20000});
+    await ux.locator("#export-json").click();
+    const uxJSON=JSON.parse(fs.readFileSync(await (await uxDL).path(),"utf8"));
+    assert.equal(uxJSON.extras.filter(x=>x.kind==="custom-glb").length,4);
+    const plinth=uxJSON.extras.find(x=>x.kind==="plinth");
+    assert.equal(plinth.shape,"round");
+    assert.equal(plinth.finish,"black");
+    await ux.locator("#project-name").fill("Curator UX Visual Test");
+    const quickDL=ux.waitForEvent("download",{timeout:90000});
+    await ux.locator("#project-quick-save").click();
+    assert.match((await quickDL).suggestedFilename(),/Curator/i);
+    await ux.close();
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
