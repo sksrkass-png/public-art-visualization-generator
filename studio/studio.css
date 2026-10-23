@@ -193,3 +193,5 @@
 .collab-history{display:grid;gap:5px;max-height:250px;overflow-y:auto}
 .collab-history-row{display:grid;gap:3px;background:white;border:1px solid #e1e5eb;border-radius:4px;padding:9px}
 .collab-history-row strong{font-size:10px}.collab-history-row span{color:#666e78;font-size:10px;overflow-wrap:anywhere}
+
+.collab-feedback{white-space:pre-line;overflow-wrap:anywhere;line-height:1.6;font-size:10.5px;background:white;border:1px solid #e1e5eb;border-radius:4px;padding:9px}
