@@ -185,7 +185,7 @@ assert.match(proposalModule,/images\//,"embed linked original eight render PNGs 
 // v1.5 team review must remain strictly offline and bound to approved MASTER.
 for(const id of ["team-collaboration-panel","collab-active","collab-author","collab-reviewer",
  "collab-note","collab-request","collab-attest","collab-changes","collab-approve",
- "collab-export","collab-import","collab-history","collab-status"])
+ "collab-export","collab-import","collab-history","collab-status","collab-feedback"])
  assert.ok(unique.has(id),"v1.5 review control missing: "+id);
 for(const token of ["initTeamCollaboration","validateCollaborationState",
  "collaboration:collaborationBridge?.getState()","collaborationBridge.setState(data.collaboration)",
