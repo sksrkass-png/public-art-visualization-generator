@@ -1051,6 +1051,8 @@ function masterSnapshot() {
     artworkFile: artFileName,
     siteFile: siteFileName,
     planFile: planFileName,
+    siteSetup:{unit:$("site-unit").value,up:$("site-up").value,
+      centerOrigin:$("site-center-origin").checked},
     artworkTransform: snapshot(),
     camera: { position: camera.position.toArray(), target: orbit.target.toArray(), fov: camera.fov },
     lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"]
@@ -1075,7 +1077,11 @@ function validMasterSnapshot(entry) {
     (entry.library === undefined || validLibraryManifest(entry.library)) &&
     (entry.layers === undefined || validateLayerState(entry.layers)) &&
     (entry.material === undefined || validMaterialConfig(entry.material)) &&
-    (entry.render === undefined || validRenderConfig(entry.render));
+    (entry.render === undefined || validRenderConfig(entry.render)) &&
+    (entry.siteSetup === undefined ||
+      (entry.siteSetup && Object.hasOwn(SITE_UNIT_TO_M,entry.siteSetup.unit) &&
+        ["y","z"].includes(entry.siteSetup.up) &&
+        typeof entry.siteSetup.centerOrigin==="boolean"));
 }
 function renderMasterHistory() {
   const root = $("master-history");
@@ -1961,7 +1967,9 @@ function baselineForMaster(){
     library:libraryManifest(assetLibrary),
     layers:structuredClone(layerState),
     material:structuredClone(artworkMaterialState),
-    artworkFile:artFileName,siteFile:siteFileName
+    artworkFile:artFileName,siteFile:siteFileName,
+    siteSetup:{unit:$("site-unit").value,up:$("site-up").value,
+      centerOrigin:$("site-center-origin").checked}
   };
 }
 async function createContactSheet(images) {
