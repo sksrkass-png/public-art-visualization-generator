@@ -257,5 +257,21 @@ assert.match(plinthModule,/PLINTH_MATERIALS/);
 assert.match(plinthModule,/kind==="plinth"/);
 assert.match(plinthModule,/applyPlinthFinish/);
 assert.match(fs.readFileSync(path.join(base,"studio/dimensioning.js"),"utf8"),/fitDimensionScale/);
+// v2.2: visual-only site controls and export safety.
+for(const id of ["site-visibility-studio","site-view-mode","site-focus-radius",
+  "site-section-side","site-section-offset","site-view-apply","site-view-reset",
+  "site-navigation-performance","site-view-stat"])
+ assert.ok(unique.has(id),"v2.2 site preview control absent: "+id);
+for(const marker of ["createSiteViewportController","applySitePreview()",
+  "invalidateSiteMeshIndex(siteRoot)","restoreSitePreview()",
+  "siteViewport.suspend()","setupNavigationPerformance"])
+ assert.ok(js.includes(marker),"v2.2 controller contract missing: "+marker);
+const vp=fs.readFileSync(path.join(base,"studio/site-viewport.js"),"utf8");
+assert.match(vp,/MAX_VIEW_MESHES=10000/);
+assert.match(vp,/original\.clone\(\)/,"temporary site material must be a clone");
+assert.match(vp,/mesh\.material=old\.material/,"original materials must be restored");
+assert.match(vp,/mesh\.visible=old\.visible/,"visibility must be restored");
+assert.match(vp,/renderer\.localClippingEnabled/);
+assert.doesNotMatch(vp,/geometry\.dispose\(/,"source geometry must remain unchanged");
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");
