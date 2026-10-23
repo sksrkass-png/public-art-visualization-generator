@@ -42,6 +42,10 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
         " errors "+JSON.stringify(errors)+" diagnostics "+JSON.stringify(diagnostics)+" / "+err.message);
     }
     await page.waitForFunction(() => document.querySelector("#art-filename")?.textContent.includes("Sample Artwork"), null, { timeout: 30000 });
+    // Preserve deep legacy regression coverage while optional creator UI folds
+    // default to closed for real users. Creator test below checks those defaults.
+    for(const id of ["site-inspector-fold","site-plan-fold","asset-library-fold"])
+      await page.locator("#"+id).evaluate(el=>{el.open=true;});
     assert.equal(await page.locator("#site-status").textContent(), "예시 공간");
     assert.equal(await page.locator("#export-master-pack").isDisabled(),true,
       "unapproved scene must not export MASTER batch images");
