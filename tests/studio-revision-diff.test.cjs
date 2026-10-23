@@ -12,6 +12,7 @@ const first={
   artworkFile:"sculpture.glb",siteFile:"plaza.glb",planFile:"plan.png",
   artworkTransform:{p:[0,0,0],r:[0,0,0],s:[1,1,1]},
   material:{preset:"original",color:"#d0d6db"},
+  siteSetup:{unit:"m",up:"y",centerOrigin:false},
   extras:[{id:10,kind:"tree-round",transform:{p:[2,0,1],r:[0,0,0],s:[1,1,1]},hidden:false}],
   library:[],layers:{groups:{artwork:{locked:true},site:{locked:true}}},
   planAlignment:{x:0,z:0},camera:{position:[5,4,6],target:[0,0,0],fov:45},
@@ -61,6 +62,12 @@ function revised(fn){const copy=clone(first);copy.revision=2;copy.approvedAt="20
 {
  const b=revised(v=>{v.extras[0].transform.p[0]+=.000001;});
  assert.equal(compareMasterRevisions(first,b).total,0,"floating-point jitter is ignored");
+}
+{
+ const b=revised(v=>{v.siteSetup.unit="cm";v.siteSetup.centerOrigin=true;});
+ const report=compareMasterRevisions(first,b);
+ assert.equal(report.counts.critical,2,"site units and origin changes must be critical");
+ assert.ok(report.changes.some(item=>item.label.includes("centerOrigin")));
 }
 assert.throws(()=>compareMasterRevisions(first,first),/서로 다르게/);
 assert.throws(()=>compareMasterRevisions(revised(()=>{}),first),/앞서야/);
