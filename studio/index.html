@@ -667,6 +667,9 @@
 </div>
 <script>
 (function(){
+  if(new URLSearchParams(location.search).get("panels")==="open"){
+    document.documentElement.classList.add("studio-advanced-mode");
+  }
   // Compact, independently collapsible inspector panels without replacing their controls.
   for(const section of document.querySelectorAll(".sidepanel.right > section.section")){
     const heading=section.querySelector("h2");
