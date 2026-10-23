@@ -30,10 +30,11 @@ import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precis
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
 import { decodeSiteBundle, inspectImportedSite, validSiteAlignment } from "./site-import.js";
-import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish } from "./extras.js";
+import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape } from "./extras.js";
 import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
   validPlacementReference,validatePlinthDimensions} from "./dimensioning.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
+import {putLocalProject,loadLocalProject,listLocalProjects,deleteLocalProject,validLocalProjectName} from "./local-projects.js";
 import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
   enumerateSiteMeshes, invalidateSiteMeshIndex, applyLayerVisibility, normalizeSiteAnnotations, canEditObject,
   layerForObject } from "./layers.js";
@@ -146,6 +147,7 @@ let sourceSiteInspection = null;
 let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
 let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
+let gizmoRequested=false;
 const groupChecked=new Set();
 let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=null;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
@@ -542,7 +544,7 @@ function refreshLayers({redrawSite = false} = {}) {
   renderExtraLayerRows();
   refreshPrecisionUI();
   if(!selectedCanEdit()) transform.detach();
-  else if(!transform.dragging && transform.object!==selectedRoot) transform.attach(selectedRoot);
+  else if(gizmoRequested && !transform.dragging && transform.object!==selectedRoot) transform.attach(selectedRoot);
   controls.forEach(input=>{input.disabled=!selectedCanEdit();});
   $("delete-selected").disabled=!selectedCanEdit() || selectedRoot===artRoot;
   $("ground-selected").disabled=!selectedCanEdit();
@@ -1191,6 +1193,7 @@ function refreshPlinthControls(){
     if(document.activeElement!==$("plinth-depth"))$("plinth-depth").value=selected.scale.z.toFixed(3);
     if(document.activeElement!==$("plinth-height"))$("plinth-height").value=selected.scale.y.toFixed(3);
     if(document.activeElement!==$("plinth-finish"))$("plinth-finish").value=selected.userData.plinthFinish||"concrete";
+    $("plinth-shape").value=selected.userData.plinthShape||"box";
   }
 }
 function plinthInputs(){
@@ -1221,7 +1224,7 @@ function createPlinth(){
     const bounds=artworkWorldBox();
     const center=bounds.getCenter(new THREE.Vector3());
     const before=editSnapshot();
-    const root=makeExtra("plinth",nextExtraId++,2);
+    const root=makeExtra("plinth",nextExtraId++,2,null,null,null,$("plinth-shape").value);
     root.scale.set(w,h,d);
     root.position.set(center.x,bounds.min.y,center.z);
     applyPlinthFinish(root,finish);
@@ -1244,6 +1247,7 @@ function updateSelectedPlinth(){
     const before=editSnapshot();
     selectedRoot.scale.set(w,h,d);
     applyPlinthFinish(selectedRoot,finish);
+    applyPlinthShape(selectedRoot,$("plinth-shape").value);
     commit(before);updateInspector(true);
     $("plinth-status").textContent="선택 기단의 W/D/H와 마감 수정 완료 · 작품은 움직이지 않았습니다.";
   }catch(error){$("plinth-status").textContent=error.message;notify(error.message);}
@@ -1473,7 +1477,7 @@ function syncLock() {
     activePlanOperation++;
     transform.detach();
   }
-  else if (selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
+  else if (selectedRoot && selectedCanEdit() && gizmoRequested) transform.attach(selectedRoot);
   ["library-place","library-asset-file","library-asset-category",
     "site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
@@ -1486,7 +1490,7 @@ function syncLock() {
   controls.forEach(el => el.disabled = approvedMaster);
   ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale",
     "dimension-width","dimension-depth","dimension-height","dimension-mode","dimension-distortion","dimension-apply",
-    "plinth-width","plinth-depth","plinth-height","plinth-finish","plinth-create","plinth-update","plinth-align",
+    "plinth-width","plinth-depth","plinth-height","plinth-finish","plinth-shape","plinth-create","plinth-update","plinth-align",
     "anchor-mode","anchor-x","anchor-y","anchor-z","anchor-pick","anchor-apply"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   $("master-lock").classList.toggle("locked", approvedMaster);
@@ -1632,6 +1636,7 @@ function updateExtrasStatus() {
 }
 function selectRoot(object) {
   selectedRoot = object || artRoot;
+  gizmoRequested=true;
   if (selectedCanEdit()) transform.attach(selectedRoot);
   else transform.detach();
   updateInspector(true);
@@ -1663,7 +1668,7 @@ function createPlacedExtra(kind, position) {
   if(kind==="custom-glb" && !assetLibrary.has(assetId))return notify("에셋을 선택하세요.");
   const root = makeExtra(kind, nextExtraId++,2,assetId,assetLibrary,artRoot);
   root.position.copy(position);
-  if (kind.includes("light")) root.position.y += 3;
+  if (kind.includes("light") && kind!=="point-light") root.position.y += 3;
   extrasRoot.add(root);
   if (!kind.includes("light")) {
     snapRootToSurface(root, siteRoot, { allowFallback: !siteSourceFile,
@@ -1732,7 +1737,7 @@ function placeSelectedOnSite(hit) {
     selectedRoot.position.x = hit.point.x;
     selectedRoot.position.z = hit.point.z;
     if (selectedRoot !== artRoot && extraLight(selectedRoot)) {
-    selectedRoot.position.y = hit.point.y + 3 + toFinite($("ground-offset").value, 0, -20, 50);
+    selectedRoot.position.y = hit.point.y + (selectedRoot.userData.extraKind==="point-light"?0:3) + toFinite($("ground-offset").value, 0, -20, 50);
     } else {
       const box = new THREE.Box3().setFromObject(selectedRoot);
       selectedRoot.position.y += hit.point.y + toFinite($("ground-offset").value, 0, -20, 50) - box.min.y;
@@ -1800,7 +1805,7 @@ function handleSelection(event) {
     const root=obj.parent===extrasRoot ? obj : artRoot;
     return canEditObject(root,artRoot,layerState,false);
   });
-  if (!first) return;
+  if (!first){gizmoRequested=false;transform.detach();return;}
   let candidate = first.object;
   while (candidate.parent && candidate.parent !== extrasRoot && candidate.parent !== artRoot) candidate = candidate.parent;
   if (candidate.parent === extrasRoot) selectRoot(candidate);
@@ -2842,6 +2847,7 @@ $("sample-art").addEventListener("click", () => {
   activeProjectOperation++;
   setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 }); changeView("main");
 });
+$("plinth-shape").addEventListener("change",()=>{});
 $("dimension-apply").addEventListener("click",applyArtworkDimensions);
 $("plinth-create").addEventListener("click",createPlinth);
 $("plinth-update").addEventListener("click",updateSelectedPlinth);
@@ -3069,6 +3075,7 @@ buildSite("plaza");
 setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 });
 updateGround();
 syncLock();
+gizmoRequested=false;transform.detach();
 snapSetting();
 updateLight();
 applyEnvironment();
