@@ -177,3 +177,19 @@
 #proposal-export-panel button{font-size:10px}
 #proposal-status{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;padding:9px 8px;background:#eef1eb;border-radius:4px}
 #proposal-export-panel code{font-size:.95em;overflow-wrap:anywhere}
+
+/* v1.5 portable team review: no cloud sync or identity assertions */
+#team-collaboration-panel{border-top:2px solid #8694a9;background:linear-gradient(180deg,#f4f6f9,#fff)}
+#team-collaboration-panel h3{font-size:10px;letter-spacing:.06em;margin:17px 0 8px}
+#team-collaboration-panel textarea{min-height:72px;resize:vertical}
+#team-collaboration-panel .toggle{font-size:10px;line-height:1.55;display:flex;align-items:flex-start;gap:7px;margin:12px 0!important}
+#team-collaboration-panel .toggle input{flex:none;margin-top:2px}
+#team-collaboration-panel .collab-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px}
+#team-collaboration-panel .collab-actions button{font-size:10px;min-height:39px;padding:6px 4px}
+#team-collaboration-panel button:disabled{opacity:.48;cursor:not-allowed}
+#team-collaboration-panel input[type=text]{width:100%}
+#team-collaboration-panel .collab-active{background:#e8eef5;border:1px solid #cfdae6;border-radius:4px;padding:10px;line-height:1.6;font-weight:700;font-size:10.5px;overflow-wrap:anywhere}
+#collab-status{white-space:pre-line;overflow-wrap:anywhere;background:#f0f3f7;padding:9px;border-radius:4px;line-height:1.6}
+.collab-history{display:grid;gap:5px;max-height:250px;overflow-y:auto}
+.collab-history-row{display:grid;gap:3px;background:white;border:1px solid #e1e5eb;border-radius:4px;padding:9px}
+.collab-history-row strong{font-size:10px}.collab-history-row span{color:#666e78;font-size:10px;overflow-wrap:anywhere}
