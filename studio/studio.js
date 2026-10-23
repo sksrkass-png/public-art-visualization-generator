@@ -1846,6 +1846,8 @@ async function importModel(file, isSite) {
     const model = await decodeModel(file, isSite);
     if(!isSite && extrasRoot.children.some(o=>o.userData.extraKind==="artwork-copy"))
       throw Error("작품 복제본이 남아 있습니다. 복제본을 삭제한 뒤 원본 작품을 교체하세요.");
+    if(!isSite && linkedPlinths().length)
+      throw Error("작품 연결 기단을 먼저 삭제한 후 원본 작품을 교체하세요.");
     const siteStats = isSite ? inspectSiteGeometry(model) : null;
     const inspected = isSite ? inspectImportedSite(model) : null;
     if (approvedMaster || op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
@@ -2758,6 +2760,8 @@ $("sample-art").addEventListener("click", () => {
   if (approvedMaster) return notify("MASTER LOCK 해제 후 작품을 변경하세요.");
   if(extrasRoot.children.some(o=>o.userData.extraKind==="artwork-copy"))
     return notify("기존 복제 작품을 삭제한 뒤 원본을 변경하세요.");
+  if(linkedPlinths().length)
+    return notify("작품에 연결된 기단을 먼저 삭제한 뒤 원본을 변경하세요.");
   activeArtOperation++;
   activeProjectOperation++;
   setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 }); changeView("main");
