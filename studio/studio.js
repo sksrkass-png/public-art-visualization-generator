@@ -542,7 +542,7 @@ function refreshLayers({redrawSite = false} = {}) {
   renderExtraLayerRows();
   refreshPrecisionUI();
   if(!selectedCanEdit()) transform.detach();
-  else if(!transform.dragging && transform.object!==selectedRoot) transform.attach(selectedRoot);
+  else if(gizmoRequested && !transform.dragging && transform.object!==selectedRoot) transform.attach(selectedRoot);
   controls.forEach(input=>{input.disabled=!selectedCanEdit();});
   $("delete-selected").disabled=!selectedCanEdit() || selectedRoot===artRoot;
   $("ground-selected").disabled=!selectedCanEdit();
@@ -1027,7 +1027,8 @@ function setArtwork(object, name, options = {}) {
   if(spatialBridge)spatialBridge.reset();
   clearUndo();
   if (Number.isFinite(options.height) && options.height > 0) fitArtworkHeight(options.height);
-  transform.attach(artRoot);
+  transform.detach();
+  gizmoRequested=false;
   updateInspector(true);
   syncLock();
   renderMasterHistory();
@@ -1476,7 +1477,7 @@ function syncLock() {
     activePlanOperation++;
     transform.detach();
   }
-  else if (selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
+  else if (gizmoRequested && selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
   ["library-place","library-asset-file","library-asset-category",
     "site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
@@ -1633,9 +1634,11 @@ function updateExtrasStatus() {
   $("delete-selected").disabled = !selectedCanEdit() || selectedRoot === artRoot;
   refreshPrecisionUI();
 }
-function selectRoot(object) {
+let gizmoRequested=false;
+function selectRoot(object, showGizmo=false) {
   selectedRoot = object || artRoot;
-  if (selectedCanEdit()) transform.attach(selectedRoot);
+  gizmoRequested=!!showGizmo;
+  if (gizmoRequested && selectedCanEdit())transform.attach(selectedRoot);
   else transform.detach();
   updateInspector(true);
   updateExtrasStatus();
@@ -2822,7 +2825,7 @@ $("measure-site-clear").addEventListener("click",()=>{
 $("measure-objects").addEventListener("click",showPairMeasurement);
 $("precision-collision").addEventListener("click",checkInterferences);
 $("precision-report").addEventListener("click",exportPrecisionReport);
-$("select-artwork").addEventListener("click", () => selectRoot(artRoot));
+$("select-artwork").addEventListener("click", () => selectRoot(artRoot,true));
 $("delete-selected").addEventListener("click", deleteSelectedExtra);
 $("extra-light-power").addEventListener("input", e => {
   if (approvedMaster) return;
