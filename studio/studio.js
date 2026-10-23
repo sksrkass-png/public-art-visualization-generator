@@ -686,6 +686,7 @@ function buildSite(preset) {
     for (let z of [-9, 9]) for (let x = -24; x <= 24; x += 8) tree(siteRoot, x, z, 4);
     for (let z of [-18, 18]) box(siteRoot, 54, 6, 5, 0, 3, z, 0xc6c8c8);
   }
+  invalidateSiteMeshIndex(siteRoot);
   refreshLayers({redrawSite:true});
 }
 function syncGroundAvailability() {
