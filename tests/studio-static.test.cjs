@@ -298,5 +298,21 @@ assert.match(focusMath,/MAX_FOCUS_DISTANCE=500000/);
 assert.match(js,/if \(!first\) \{ clearCanvasSelection\(\); return; \}/);
 assert.match(js,/selectionOutline.visible=states.selectionOutline/);
 assert.match(js,/selectionOutline.visible=originalSelection/);
+// v2.3–v2.5 visual workflow controls and non-destructive render staging.
+for(const id of ["visual-workflow-panel","installation-clearance","installation-check",
+ "pedestrian-eye-near","pedestrian-eye-approach","visual-option-status",
+ "visual-preflight","visual-preflight-status","visual-options-export",
+ "visual-options-export-status","visual-options-resolution"])
+ assert.ok(unique.has(id),"visual workflow control absent: "+id);
+for(const marker of ["assessInstallation()","pedestrianCamera(","saveVisualOption(",
+ "loadVisualOption(","visualVariants:structuredClone(visualVariants)",
+ "createVisualOptionStage(","exportVisualOptions(","captureSceneIntegrity({",
+ "refreshVisualSlots()"])
+ assert.ok(js.includes(marker),"visual workflow implementation missing: "+marker);
+const optionRender=fs.readFileSync(path.join(base,"studio/visual-option-render.js"),"utf8");
+assert.match(optionRender,/const staged=new THREE.Scene\(\)/);
+assert.match(optionRender,/siteRoot.clone\(true\)/);
+assert.match(optionRender,/artRoot.clone\(true\)/);
+assert.doesNotMatch(optionRender,/artRoot.position.fromArray/,"render must never move live art");
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");

@@ -317,3 +317,19 @@
 .camera-focus-status{display:block;font-size:10px;line-height:1.6;color:#555;
   padding:5px 10px;background:#f4f5f6;overflow-wrap:anywhere}
 @media(max-width:850px){.scene-focus-tools button{font-size:10px;padding:7px 5px}}
+
+/* v2.3–v2.5 / Curator-first visual option comparison and installation preliminaries. */
+#visual-workflow-panel{border-left:3px solid #bd9b31;background:#fbfbf7}
+#visual-workflow-panel .section-title h2{letter-spacing:.04em}
+#visual-workflow-panel>h3{font-size:11px;margin:15px 0 7px;line-height:1.4}
+#visual-workflow-panel button:disabled{opacity:.48;cursor:not-allowed}
+.visual-option-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:8px 0}
+.visual-option-grid>div{min-width:0;display:flex;flex-direction:column;gap:5px;
+  padding:8px 5px;border-radius:5px;background:#f3f1e9;border:1px solid #dedbd2}
+.visual-option-grid strong{text-align:center;color:#31302b;font-size:12px}
+.visual-option-grid button{min-width:0;width:100%;white-space:normal;word-break:keep-all;
+  font:inherit;font-size:10px;line-height:1.4;padding:7px 3px;background:#fff;
+  border:1px solid #cdc8b8;border-radius:3px;cursor:pointer}
+.visual-option-grid button:hover:not(:disabled){background:#222;color:#fff}
+#visual-option-status,#visual-preflight-status,#visual-options-export-status,
+#installation-check-status{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}

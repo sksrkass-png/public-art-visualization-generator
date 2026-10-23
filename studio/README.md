@@ -1,6 +1,25 @@
-# AXOO Public Art 3D Studio — v2.2
+# AXOO Public Art 3D Studio — v2.5
 
 Static browser-based public-art modeling editor. v1.5 review exchange is local and file-based; it is not real-time cloud collaboration.
+
+## v2.3–v2.5 — Public-art visual production (not reports or paperwork)
+
+This combined release prioritizes 3D architectural proposal views, install-location decision support and repeatable image production.
+
+### v2.3: Site-to-art clearance and human perspective
+- Installation panel compares the main artwork, artwork copies, independent GLB artworks and plinths against **explicitly categorized visible building meshes**. Use `SCENE LAYERS` to classify imported architectural meshes. Minimum world-axis AABB gaps within the curator's 0–25m threshold are listed; overlaps are reported as *candidates*, not exact mesh collisions. Bounds-based analyses may yield false positives for rotated/sculptural models, so no statutory setback, pedestrian clearance, building code compliance or structural safety certification is implied. Existing model geometry remains intact.
+- **Pedestrian near/approach cameras** target the artwork from a height of 1.60 metres above the installation base, including the bottom of a linked plinth. Actual site ground/grade and user route still require human review. Camera changes never edit geometry or approved installation.
+
+### v2.4: Three design choices A / B / C
+- Save each option from the current artist-authorized scene: primary artwork transform, extras and independent GLB positions, plinth finishes/shapes, site/artwork layer visibility, materials, sun/ambient/exposure, camera bearing/FOV, and output look. Saving a slot does not overwrite the other slots.
+- Load A/B/C into an **unapproved** editable revision. Model transform changes are undoable. Once MASTER is approved, A/B/C scene loading and slot overwrites are disabled; the user must unlock and create a new approved revision to change the model. Camera positions alone may continue to be inspected without modifying MASTER scene.
+- Saved options live **inside project JSON and the original-asset ZIP**, not permanent cloud storage. Referenced model names, site presets and GLB library signatures are checked before restoration, preventing stale models from masquerading as another design. Projects saved before v2.4 remain importable with zero option slots.
+
+### v2.5: Final visual options QA / image comparison
+- **시안 품질·설치 위치 예비 점검** shows warnings for sample vs actual imported site/artwork, dimensional errors, incomplete building classification, candidate AABB overlap and MASTER approval consistency. Warnings are advisory and do not purport to certify field surveys, legal clearances or precise collisions.
+- **A/B/C 시안 PNG 비교 ZIP** creates one landscape 16:9 render per saved option and a 3-column visual comparison PNG. Each option is rendered in a **separate detached Three.js staging scene** cloned from the original artwork and site objects, with own extras, lighting, materials and camera. GPU-bounded resolution (1×/2×) and stored source files are checked. The live modeling geometry and camera are not replaced during image production; a before/after full scene-integrity signature blocks download if scene objects were unexpectedly changed. No actor or site geometry is simplified or edited.
+- The existing **MASTER eight approved views** remain the dedicated approved proposal-image pathway. A/B/C option outputs are labeled draft options; rendering alternative artwork designs never silently updates MASTER, and an official 8-view export still enforces strict source/placement/material consistency.
+- Browser WebGL PBR, *not* Blender Cycles physically traced lighting or AI-created photo-real composite. The exported metadata carries these caveats; no new PDF, report, CRM or document functionality was built.
 
 ## v2.2.1 — Click selection / no-outline exports / large OBJ smart framing
 
