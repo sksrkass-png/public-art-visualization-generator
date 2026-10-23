@@ -2911,8 +2911,16 @@ transform.addEventListener("mouseUp", () => {
     ?lastDrag.extras.find(x=>x.id===selectedRoot.userData.extraId)?.transform.p : null;
   if (lastDrag && !approvedMaster && selectedMode === "translate" && $("auto-ground").checked &&
       !extraLight(selectedRoot)) {
-    snapRootToSurface(selectedRoot, siteRoot, { allowFallback: !siteSourceFile,
-      offset: toFinite($("ground-offset").value, 0, -20, 50) });
+    const linked=selectedRoot===artRoot?linkedPlinths():[];
+    const target=linked[0]||selectedRoot;
+    const result=snapRootToSurface(target,siteRoot,{
+      allowFallback:!siteSourceFile,
+      offset:toFinite($("ground-offset").value,0,-20,50)
+    });
+    if(result&&linked.length){
+      artRoot.position.y+=result.deltaY;
+      for(const other of linked.slice(1))other.position.y+=result.deltaY;
+    }
   }
   if(lastDrag && !approvedMaster && selectedMode==="translate" && dragStart){
     const delta=selectedRoot.position.clone().sub(new THREE.Vector3().fromArray(dragStart));
