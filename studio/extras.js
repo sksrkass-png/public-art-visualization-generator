@@ -159,7 +159,8 @@ function roundPlanter(root){
   foliage.scale.set(1,.7,1);foliage.position.y=1.02;root.add(foliage);
 }
 export const PLINTH_MATERIALS=Object.freeze({
-  concrete:{color:0xeeeeeb,roughness:.78,metalness:0},
+  concrete:{color:0xb1b4b3,roughness:.9,metalness:0},
+  white:{color:0xeeeeeb,roughness:.78,metalness:0},
   black:{color:0x1f2227,roughness:.45,metalness:.12},
   stone:{color:0x999991,roughness:.7,metalness:0},
   metal:{color:0x8c9499,roughness:.3,metalness:.85}
