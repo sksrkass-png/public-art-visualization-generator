@@ -151,6 +151,10 @@
           <button type="button" data-mode="rotate" class="tool" title="회전 (R)">회전 <kbd>R</kbd></button>
           <button type="button" data-mode="scale" class="tool" title="크기 (S)">크기 <kbd>S</kbd></button>
         </div>
+        <div class="toolgroup scene-focus-tools" role="group" aria-label="3D 카메라 빠른 시점 맞춤">
+          <button type="button" class="tool" id="focus-selected-quick" title="선택한 작품·객체 맞춤 (F)">선택 맞춤 <kbd>F</kbd></button>
+          <button type="button" class="tool" id="focus-site-quick" title="현장 모델 전체 맞춤 (Shift+F)">현장 전체 <kbd>⇧F</kbd></button>
+        </div>
         <div class="toolgroup">
           <label class="toggle"><input id="snap" type="checkbox"> 스냅 0.5m</label>
           <label class="toggle"><input id="grid" type="checkbox" checked> 그리드</label>
@@ -163,6 +167,7 @@
         <div id="spatial-pin-overlay" class="spatial-pin-overlay" aria-label="승인 MASTER 검토 핀"></div>
       </div>
       <span id="coords" class="viewport-coords">X 0.00 · Y 0.00 · Z 0.00</span>
+      <span id="camera-focus-status" class="camera-focus-status" aria-live="polite">왼쪽 클릭: 객체 선택 · 배경 클릭: 선택 해제 · F: 선택 맞춤 · Shift+F: 현장 전체</span>
       <div id="placement-hint" class="placement-hint" hidden>현장 바닥을 클릭해 오브제를 배치하세요 · Esc 취소</div>
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </section>
