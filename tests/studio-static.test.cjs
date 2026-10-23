@@ -182,5 +182,20 @@ for(const marker of ["validateProposalArchive","makeProposalData","proposalHtml"
 assert.match(proposalModule,/escapeHtml/,"escape user metadata before HTML export");
 assert.match(proposalModule,/Content-Security-Policy/,"prevent external scripts and images in proposal sheets");
 assert.match(proposalModule,/images\//,"embed linked original eight render PNGs in ZIP");
+// v1.5 team review must remain strictly offline and bound to approved MASTER.
+for(const id of ["team-collaboration-panel","collab-active","collab-author","collab-reviewer",
+ "collab-note","collab-request","collab-attest","collab-changes","collab-approve",
+ "collab-export","collab-import","collab-history","collab-status","collab-feedback"])
+ assert.ok(unique.has(id),"v1.5 review control missing: "+id);
+for(const token of ["initTeamCollaboration","validateCollaborationState",
+ "collaboration:collaborationBridge?.getState()","collaborationBridge.setState(data.collaboration)",
+ "collaborationBridge.reset()"])
+ assert.ok(js.includes(token),"v1.5 persistence or MASTER integration missing: "+token);
+const collaboration=fs.readFileSync(path.join(base,"studio/collaboration.js"),"utf8");
+for(const token of ["masterFingerprint","SHA-256","masterApprovedAt","director-approved",
+ "changes-requested","validateCollaborationState","crypto.subtle.digest","masterDigest"])
+ assert.ok(collaboration.includes(token),"v1.5 review guard missing: "+token);
+assert.doesNotMatch(collaboration,/innerHTML|\beval\(/,"reviewer-controlled HTML execution is forbidden");
+assert.match(css,/#team-collaboration-panel/,"v1.5 panel must be styled");
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");

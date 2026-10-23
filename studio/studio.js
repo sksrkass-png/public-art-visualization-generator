@@ -20,6 +20,7 @@ import { initVisualReview } from "./review.js";
 import { makeIntegrityManifest, verifyIntegrityManifest } from "./integrity.js";
 import { initReadiness } from "./readiness.js";
 import { initProposalExport } from "./proposal.js";
+import { initTeamCollaboration, validateCollaborationState } from "./collaboration.js";
 import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precision.js";
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
@@ -140,7 +141,7 @@ let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
 const groupChecked=new Set();
 let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=null;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
-let proposalBridge = null;
+let proposalBridge = null, collaborationBridge = null;
 const assetLibrary=new Map();
 let nextLibraryId=1,activeLibraryOperation=0;
 const neutralEnvironment=scene.environment;
@@ -860,6 +861,7 @@ function setArtwork(object, name, options = {}) {
   approvedMaster = false;
   revision = 1;
   masterSnapshots = [];
+  if(collaborationBridge)collaborationBridge.reset();
   clearUndo();
   if (Number.isFinite(options.height) && options.height > 0) fitArtworkHeight(options.height);
   transform.attach(artRoot);
@@ -1163,6 +1165,7 @@ function syncLock() {
   refreshLayers({redrawSite:true});
   updateUndoButtons();
   if(proposalBridge)proposalBridge.refresh();
+  if(collaborationBridge)collaborationBridge.refresh();
 }
 function updateInspector(force = false) {
   const state = snapshot(selectedRoot);
@@ -1621,6 +1624,7 @@ function sceneConfig() {
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked },
     render:currentRenderConfig(),
     masterSnapshots,
+    collaboration:collaborationBridge?.getState(),
     lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"].map(id => [id, +$(id).value])),
     shadows: $("shadows").checked,
     camera: { position: camera.position.toArray(), target: orbit.target.toArray() }
@@ -1654,6 +1658,7 @@ function validateProjectConfig(data) {
           typeof data.groundPlacement.offset !== "number" ||
           !Number.isFinite(data.groundPlacement.offset) ||
           data.groundPlacement.offset < -20 || data.groundPlacement.offset > 50)) ||
+      (data.collaboration !== undefined && !validateCollaborationState(data.collaboration)) ||
       (data.masterSnapshots !== undefined &&
         (!Array.isArray(data.masterSnapshots) || data.masterSnapshots.length > 40 ||
           !data.masterSnapshots.every(validMasterSnapshot)))) {
@@ -1761,6 +1766,7 @@ function importSceneConfig(data) {
     masterSnapshots = approvedMaster ? [masterSnapshot()] : [];
   }
   renderMasterHistory();
+  if(collaborationBridge)collaborationBridge.setState(data.collaboration);
   syncLock();
   clearUndo();
 }
@@ -2485,6 +2491,16 @@ proposalBridge=initProposalExport({getContext:()=>{
     precision:collectPrecisionReport(),
     artworkDimensions:dims.toArray(),
     artworkPosition:artRoot.position.toArray()
+  };
+}});
+collaborationBridge=initTeamCollaboration({getContext:()=>{
+  const master=masterSnapshots[masterSnapshots.length-1] || null;
+  return {
+    project:$("project-name").value,
+    master,
+    history:masterSnapshots,
+    locked:approvedMaster,
+    matchesMaster:!!master && masterConsistency(master,baselineForMaster()).ok
   };
 }});
 $("export-glb").addEventListener("click", exportGLB);

@@ -1,6 +1,14 @@
-# AXOO Public Art 3D Studio — v1.4
+# AXOO Public Art 3D Studio — v1.5
 
-Static, browser-based interactive editor for public-art proposal staging. Version 0.3 expands site model imports. It is a companion to the existing prompt generator: `/studio/` leaves the legacy app unchanged.
+Static browser-based public-art modeling editor. v1.5 review exchange is local and file-based; it is not real-time cloud collaboration.
+
+## v1.5 — Team Review / MASTER version tracking
+
+- **Review request:** Approve and lock a MASTER, enter a requester and click **현재 MASTER 검토 요청 만들기**. Each request belongs to one approved MASTER snapshot, revision and approval timestamp. A SHA-256 digest of the canonical saved MASTER binds reviews to that exact artwork/site/material/placement state. A digest is NOT an identity signature.
+- **Director response:** A reviewer different from the requester supplies a name and either enters explicit revision feedback (**수정 요청**) or checks the physical/visual human-verification attestation (**디렉터 수동 승인**). Statuses are pending, changes-requested and director-approved. Director approval is a manual review note, not an authenticated, legal, engineering, artist or public-agency approval.
+- **Between devices:** The owner sends the **full project ZIP** with original sources/master history and the **review JSON**; the director opens the exact ZIP, reviews, records the decision, exports JSON and sends it back. The owner imports this result into the matching locked MASTER and saves a fresh full ZIP backup. No automatic upload or sync occurs.
+- **Versioning:** Modification after feedback requires unlocking to start a new MASTER revision and another review request. The recent 40 MASTER revisions show review status; reviews survive whole-project ZIP round-trips. Older v1.4 ZIPs without this optional metadata remain compatible.
+- **Safety:** Review never edits scene geometry, materials or camera. JSON imports are bounded and schema-validated, stale/nonmatching MASTER fingerprints are rejected, and notes display as plain text. Users must independently verify the sender and file origin. Simultaneous edits, online conflict merging, authentication, signatures and remote account permissions are intentionally out of scope.
 
 ## v1.4 — Proposal Export / pack original views into a presentation
 

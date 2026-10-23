@@ -1143,7 +1143,61 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.locator("#master-lock").click();
     assert.equal(await page.locator("#proposal-export").isDisabled(),true);
 
-    assert.deepEqual(errors, [], "no uncaught runtime errors");
+    // v1.5: an approved, matching MASTER owns every offline review decision.
+    assert.equal(await page.locator("#collab-request").isEnabled(),true);
+    await page.locator("#collab-author").fill("AXOO Project Manager");
+    await page.locator("#collab-note").fill("Please review the locked geometry, setting and material.");
+    await page.locator("#collab-request").click();
+    await page.waitForFunction(()=>document.querySelector("#collab-active")?.textContent.includes("검토 대기"));
+    assert.equal(await page.locator("#collab-approve").isEnabled(),true);
+    const requestDl=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#collab-export").click();
+    const requestData=JSON.parse(fs.readFileSync(await (await requestDl).path(),"utf8"));
+    assert.equal(requestData.schema,"axoo-team-review-v1");
+    assert.equal(requestData.record.status,"pending");
+    assert.match(requestData.record.requestNote,/Please review/);
+    assert.match(requestData.record.masterDigest,/^[a-f0-9]{64}$/);
+    await page.locator("#collab-reviewer").fill("AXOO Director");
+    await page.locator("#collab-note").fill("Raise the label position and review from eye level.");
+    await page.locator("#collab-changes").click();
+    await page.waitForFunction(()=>document.querySelector("#collab-active")?.textContent.includes("수정 요청"));
+    const rev1Dl=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const rev1=JSON.parse(fs.readFileSync(await (await rev1Dl).path(),"utf8"));
+    assert.equal(rev1.collaboration.records.at(-1).status,"changes-requested",
+      "full project metadata must preserve review verdicts");
+    // A change request never edits the original MASTER.
+    assert.equal(await page.locator("#master-lock").textContent(),"🔒 MASTER LOCK 승인됨 · 수정하려면 잠금 해제");
+    page.once("dialog",dialog=>dialog.accept());
+    await page.locator("#master-lock").click();
+    assert.equal(await page.locator("#collab-request").isDisabled(),true);
+    await page.locator("#master-lock").click();
+    assert.equal(await page.locator("#collab-request").isEnabled(),true,
+      "next MASTER revision may be submitted independently");
+    await page.locator("#collab-note").fill("Follow-up MASTER revision for approval.");
+    await page.locator("#collab-request").click();
+    await page.waitForFunction(()=>document.querySelector("#collab-active")?.textContent.includes("검토 대기"));
+    // Older review file cannot be applied to a newly approved snapshot.
+    await page.locator("#collab-import").setInputFiles({
+      name:"old-review.json",mimeType:"application/json",
+      buffer:Buffer.from(JSON.stringify(requestData))
+    });
+    await page.waitForFunction(()=>document.querySelector("#collab-status")?.textContent.includes("가져오기 실패"));
+    assert.equal(await page.locator("#collab-approve").isEnabled(),true,
+      "rejected stale review cannot replace the pending active record");
+    await page.locator("#collab-note").fill("Confirmed architecture, artwork and installation against supplied data.");
+    await page.locator("#collab-attest").check();
+    await page.locator("#collab-approve").click();
+    await page.waitForFunction(()=>document.querySelector("#collab-active")?.textContent.includes("수동 승인"));
+    assert.equal(await page.locator("#collab-changes").isDisabled(),true);
+    const approvedDl=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const approvedData=JSON.parse(fs.readFileSync(await (await approvedDl).path(),"utf8"));
+    assert.equal(approvedData.collaboration.records.length,2,"two distinct MASTER revisions must be preserved");
+    assert.equal(approvedData.collaboration.records.at(-1).status,"director-approved");
+    assert.equal(approvedData.artwork.locked,true,"review never unlocks MASTER");
+    assert.match(await page.locator("#collab-history").textContent(),/디렉터 승인/);
+        assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
     await browser.close();
