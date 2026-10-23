@@ -750,11 +750,14 @@ function sceneFrame(mode){
   const site=new THREE.Box3().setFromObject(siteRoot);
   const siteSphere=site.isEmpty()?null:site.getBoundingSphere(new THREE.Sphere());
   let center=artSphere.center.clone();
+  let allRadius=siteSphere?.radius||artSphere.radius;
   if(mode==="site"&&siteSphere){
     const union=artwork.clone().union(site);
-    center=union.getCenter(new THREE.Vector3());
+    const both=union.getBoundingSphere(new THREE.Sphere());
+    center=both.center;
+    allRadius=both.radius;
   }
-  const radius=localContextRadius(artSphere.radius,siteSphere?.radius||artSphere.radius,mode);
+  const radius=localContextRadius(artSphere.radius,allRadius,mode);
   const distance=fitDistance(Math.max(.3,radius),camera.fov,camera.aspect,1.32);
   const delta=camera.position.clone().sub(orbit.target);
   if(delta.lengthSq()<.0001)delta.set(1,.45,1);
