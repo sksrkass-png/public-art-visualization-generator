@@ -2,6 +2,22 @@
 
 Static browser-based public-art modeling editor. v1.5 review exchange is local and file-based; it is not real-time cloud collaboration.
 
+## v2.2 User Workflow Patch — curator-first modeling screen (October 2026)
+
+Focused on fewer clicks and accurate art installations; no additional reports/PDFs were introduced.
+
+- **Project name and quick archive:** The first scene panel provides a convenient one-click full project ZIP download and full ZIP import. Both operate through the established browser-local SHA-256 checked source archive. No online/cloud permanent storage is implied.
+- **Smaller controls:** Non-essential site preflight, 2D plan overlay controls, and the temporary external GLB asset library controls are hidden (their internal compatibility and old ZIP metadata remain intact). Right-panel sections are individually collapsible, preserving the controls and scroll position. Narrow button groups wrap instead of overflowing to the right.
+- **More than one art model:** The project retains a primary source art model plus up to **four independently imported GLB artworks**, for up to five in the scene. Newly added artworks use their exact original GLB mesh/materials and separate transforms; choose an artwork in the scene or object's list and delete it to reclaim the GLB slot. Each imported GLB must be self-contained and no more than 20MB; the combined project GLB library remains limited to 60MB. The full project ZIP includes their original source files. Deleting an extra artwork unloads its unused source and clears Undo history, so reimport the GLB to restore it.
+- **Select-to-transform:** The position/rotation/scale 3D manipulator appears only after explicit artwork button or left-click object selection. Main scene startup no longer automatically overlays the object with axes.
+- **Pedestals:** Rectangular and circular plinths, white (legacy concrete ID), metal and black finishes. Shape and finish are recorded with every plinth and survive project ZIP restore. Previously saved rectangular stone/concrete plinths remain supported.
+- **Scaled figures/planting:** Human-scale schematic male 1.75m and female 1.60m mannequins, reproducible flowering shrub models. Detailed photogrammetric character accuracy is not claimed.
+- **Uplight:** New ground-mounted `point-light` entries are upward-facing spotlights with a subtle transparent 3D cone to indicate direction, plus a real illumination source. Historical v1/v2 point-light objects retain the original omni-light presentation to avoid silently revising an approved older scene; deprecated standalone spotlight remains restorable for compatibility but is no longer offered as a new asset.
+- **Clearer daytime shadows:** Reduced excessive hemispherical ambient lighting for new projects and revised clear/cloudy/golden light presets; actual visibility still depends on imported source normals, ground receiving shadows and sun direction.
+- **3D measurements:** When measuring two site points, a red point–line–point with a world-distance meter label follows the screen camera. This is a view-only SVG overlay and does not enter the original geometry or rendered screenshots.
+
+Limitations: additional artwork source import currently supports **GLB only**, while the primary artwork retains existing GLB/GLTF/OBJ/STL formats. Remote permanent model vault, precise BIM dimension certification and path-traced photographic realism are not implemented in this patch.
+
 ## v2.2 — Large site navigation / local focus / reversible scene clipping
 
 This release prioritizes **working with large, faithful 3D architecture and landscape scenes**, not administrative reports or paperwork.
