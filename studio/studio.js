@@ -30,7 +30,9 @@ import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precis
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
 import { decodeSiteBundle, inspectImportedSite, validSiteAlignment } from "./site-import.js";
-import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
+import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish } from "./extras.js";
+import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
+  validPlacementReference,validatePlinthDimensions} from "./dimensioning.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
 import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
   enumerateSiteMeshes, applyLayerVisibility, normalizeSiteAnnotations, canEditObject,
@@ -1166,6 +1168,7 @@ function masterSnapshot() {
     layers:structuredClone(layerState),
     material:structuredClone(artworkMaterialState),
     render:currentRenderConfig(),
+    placementReference:currentPlacementReference(),
     planAlignment: planAlignmentSnapshot()
   };
 }
@@ -1181,6 +1184,7 @@ function validMasterSnapshot(entry) {
     (entry.layers === undefined || validateLayerState(entry.layers)) &&
     (entry.material === undefined || validMaterialConfig(entry.material)) &&
     (entry.render === undefined || validRenderConfig(entry.render)) &&
+    (entry.placementReference === undefined || validPlacementReference(entry.placementReference)) &&
     (entry.siteSetup === undefined ||
       (entry.siteSetup && Object.hasOwn(SITE_UNIT_TO_M,entry.siteSetup.unit) &&
         ["y","z"].includes(entry.siteSetup.up) &&
@@ -1210,6 +1214,8 @@ function renderMasterHistory() {
   });
   if(revisionBridge)revisionBridge.refresh();
   if(spatialBridge)spatialBridge.refresh();
+  refreshPlinthControls();
+  updateArtworkDimensionReadout();
 }
 function restoreMasterCamera(index) {
   const saved = masterSnapshots[index];
@@ -1264,7 +1270,10 @@ function syncLock() {
   ["art-material","art-material-color","apply-material","reset-material"].forEach(id=>{$(id).disabled=approvedMaster;});
   updateExtrasStatus();
   controls.forEach(el => el.disabled = approvedMaster);
-  ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale"]
+  ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale",
+    "dimension-width","dimension-depth","dimension-height","dimension-mode","dimension-distortion","dimension-apply",
+    "plinth-width","plinth-depth","plinth-height","plinth-finish","plinth-create","plinth-update","plinth-align",
+    "anchor-mode","anchor-x","anchor-y","anchor-z","anchor-pick","anchor-apply"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   $("master-lock").classList.toggle("locked", approvedMaster);
   $("master-lock").textContent = approvedMaster ? "🔒 MASTER LOCK 승인됨 · 수정하려면 잠금 해제" : "MASTER VIEW 승인 · 작품 잠금";
@@ -1292,6 +1301,8 @@ function updateInspector(force = false) {
   const bounds = new THREE.Box3().setFromObject(selectedRoot);
   const d = bounds.getSize(new THREE.Vector3());
   $("dimensions").textContent = [d.x, d.y, d.z].map(v => v.toFixed(2)).join(" × ") + " m (W×H×D)";
+  updateArtworkDimensionReadout();
+  refreshPlinthControls();
   $("coords").textContent = ["X", "Y", "Z"].map((k, i) => k + " " + state.p[i].toFixed(2)).join(" · ");
   $("object-name").textContent = selectedRoot.name;
   const light = selectedRoot === artRoot ? null : extraLight(selectedRoot);
@@ -1527,6 +1538,9 @@ function handleSelection(event) {
     }
     if (kind === "measure-point") {
       addMeasuredPoint(hit.point);
+    } else if (kind === "art-anchor") {
+      ["x","y","z"].forEach((axis,i)=>{$("anchor-"+axis).value=hit.point.toArray()[i].toFixed(4);});
+      $("anchor-status").textContent="현장 클릭 기준점 "+hit.point.toArray().map(n=>n.toFixed(3)).join(" / ")+"m · 작품 이동 버튼을 눌러 적용하세요.";
     } else if (kind === "plan-center") {
       $("plan-x").value = hit.point.x.toFixed(3);
       $("plan-z").value = hit.point.z.toFixed(3);
@@ -1741,6 +1755,7 @@ function sceneConfig() {
     lightPreset: $("light-preset").value,
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked },
     render:currentRenderConfig(),
+    placementReference:currentPlacementReference(),
     masterSnapshots,
     collaboration:collaborationBridge?.getState(),
     spatialReview:spatialBridge?.getState(),
@@ -1768,6 +1783,7 @@ function validateProjectConfig(data) {
         !(data.library || []).some(a=>a.id===x.assetId)) ||
       (data.layers !== undefined && !validateLayerState(data.layers)) ||
       (data.render !== undefined && !validRenderConfig(data.render)) ||
+      (data.placementReference !== undefined && !validPlacementReference(data.placementReference)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
       (data.site.up !== undefined && !["y","z"].includes(data.site.up)) ||
       (data.site.alignment !== undefined && !validSiteAlignment(data.site.alignment)) ||
@@ -1879,6 +1895,7 @@ function importSceneConfig(data) {
   if(data.render?.environmentMode==="hdr" && !hdrTexture){
     $("env-filename").textContent="재업로드 필요: "+data.render.environmentFile;
   }
+  restorePlacementReference(data.placementReference);
   if (Array.isArray(data.masterSnapshots)) {
     masterSnapshots = structuredClone(data.masterSnapshots);
   } else {
@@ -2080,6 +2097,7 @@ function baselineForMaster(){
     layers:structuredClone(layerState),
     material:structuredClone(artworkMaterialState),
     artworkFile:artFileName,siteFile:siteFileName,
+    placementReference:currentPlacementReference(),
     siteSetup:{unit:$("site-unit").value,up:$("site-up").value,
       centerOrigin:$("site-center-origin").checked}
   };
