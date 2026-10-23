@@ -7,7 +7,7 @@ const {worldAabbDistance,preliminaryClearances,validVariant,validVariants,visual
 const bounds=(min,max)=>({min,max});
 assert.equal(worldAabbDistance(bounds([0,0,0],[2,2,2]),bounds([3,0,0],[5,2,2])),1);
 assert.equal(worldAabbDistance(bounds([0,0,0],[2,2,2]),bounds([1,1,1],[5,5,5])),0);
-assert.equal(worldAabbDistance(bounds([0,0,0],[1,1,1]),bounds([2,3,6],[4,5,7])),Math.hypot(1,2,5));
+assert.ok(Math.abs(worldAabbDistance(bounds([0,0,0],[1,1,1]),bounds([2,3,6],[4,5,7]))-Math.hypot(1,2,5))<1e-12);
 assert.throws(()=>worldAabbDistance(bounds([1,0,0],[0,0,0]),bounds([0,0,0],[1,1,1])));
 const found=preliminaryClearances([{name:"work",bounds:bounds([0,0,0],[2,3,2])}],
  [{name:"wall",bounds:bounds([3,0,0],[4,4,2])},
