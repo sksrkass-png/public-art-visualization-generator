@@ -273,5 +273,18 @@ assert.match(vp,/mesh\.material=old\.material/,"original materials must be resto
 assert.match(vp,/mesh\.visible=old\.visible/,"visibility must be restored");
 assert.match(vp,/renderer\.localClippingEnabled/);
 assert.doesNotMatch(vp,/geometry\.dispose\(/,"source geometry must remain unchanged");
+// v2.2 UX feedback: compact scene controls, multiple artwork slots and visible ruler.
+for(const id of ["multi-art-file","multi-art-status","project-quick-save","plinth-shape",
+  "measurement-overlay"])assert.ok(unique.has(id),"UX control missing: "+id);
+for(const hook of ["addArtworkGLB","additionalArtworks","updateMultiArtStatus",
+  "drawMeasurementOverlay","gizmoRequested","applyPlinthShape","project-quick-save"])
+  assert.ok(js.includes(hook),"UX scene workflow not wired: "+hook);
+const extraModel=fs.readFileSync(path.join(base,"studio/extras.js"),"utf8");
+for(const kind of ["shrub-flower","person-man","person-woman","applyPlinthShape",
+ "Visible architectural uplight beam"])
+  assert.ok(extraModel.includes(kind),"missing renderable UX asset: "+kind);
+assert.match(html,/fold.className="inspector-fold"/, "inspector sections should be folded after page load");
+assert.match(css,/\.inspector-fold/, "accordion styling must exist");
+assert.match(css,/\.measurement-overlay/, "ruler guide should have an overlay");
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");
