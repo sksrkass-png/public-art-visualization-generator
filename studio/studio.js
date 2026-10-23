@@ -614,7 +614,8 @@ function pedestrianCamera(type){
   if(out.lengthSq()<.000001)out.set(0,0,1);
   out.normalize();
   const d=type==="approach"?Math.max(25,height*8):Math.max(6,height*2.7);
-  const eye=new THREE.Vector3(center.x,box.min.y+WALKING_EYE_HEIGHT,center.z);
+  const base=artworkAssemblyBounds().min.y;
+  const eye=new THREE.Vector3(center.x,base+WALKING_EYE_HEIGHT,center.z);
   camera.position.copy(eye).addScaledVector(out,d);
   orbit.target.set(center.x,box.min.y+Math.max(1.2,Math.min(height*.58,3)),center.z);
   orbit.maxDistance=Math.max(800,d*3);
@@ -622,7 +623,7 @@ function pedestrianCamera(type){
   camera.updateProjectionMatrix();orbit.update();
   $("installation-check-status").textContent=
     (type==="approach"?"보행자 진입 원거리":"보행자 아이레벨 근거리")+
-    " · 카메라 높이 작품 하단 기준 "+WALKING_EYE_HEIGHT.toFixed(2)+
+    " · 카메라 높이 설치물 하단 기준 "+WALKING_EYE_HEIGHT.toFixed(2)+
     "m · 모델 형상/위치 변경 없음 (실제 지면 고도 별도 확인)";
 }
 function snapshotVisualVariant(slot){
@@ -2734,6 +2735,7 @@ async function exportVisualOptions(){
       const option=visualVariants[slot];
       const stage=createVisualOptionStage({
         option,artRoot,siteRoot,floor,sceneEnvironment:scene.environment,
+        neutralEnvironment,hdrEnvironment:hdrTexture,
         library:assetLibrary,originalArtMaterials,
         sourceArtFile:artFileName,sourceSiteFile:siteFileName
       });
