@@ -102,8 +102,11 @@ function flowerShrub(root){
 }
 function personScaled(root,height,color){
   standingPerson(root);
-  root.scale.setScalar(height/1.73);
-  for(const child of root.children)
+  const children=[...root.children];
+  const holder=new THREE.Group();root.add(holder);
+  for(const item of children)holder.add(item);
+  holder.scale.setScalar(height/1.73);
+  for(const child of holder.children)
     if(child.isMesh && child.material.color.getHex()===0x44576a)
       child.material.color.setHex(color);
 }
