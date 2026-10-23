@@ -284,6 +284,68 @@ function renderSiteLayerRows(entries) {
     ? matched.length+"개 중 80개 표시 · 검색어를 입력하면 원하는 메시를 찾을 수 있습니다."
     : (matched.length ? matched.length+"개 목록 · 분류 후 위 레이어 표시를 조절하세요." : "일치하는 메시 없음");
 }
+// Up to five independent sculptural models in the working scene:
+// primary artwork + four distinct supplemental source-embedded GLBs.
+function extraArtworkModels(){
+  return extrasRoot.children.filter(x=>x.userData.extraKind==="custom-glb"&&x.userData.assetCategory==="artwork");
+}
+function refreshMultiArtworkUI(){
+  const chosen=extraArtworkModels(),list=$("multi-art-list");
+  list.replaceChildren();
+  for(const root of chosen){
+    const row=document.createElement("div");row.className="multi-art-row";
+    const label=document.createElement("span");label.textContent=root.name;
+    const select=document.createElement("button");select.type="button";select.textContent="선택";
+    select.addEventListener("click",()=>selectRoot(root));
+    const del=document.createElement("button");del.type="button";del.textContent="삭제";
+    del.disabled=approvedMaster||!canEditObject(root,artRoot,layerState,approvedMaster);
+    del.addEventListener("click",()=>{selectRoot(root);deleteSelectedExtra();});
+    row.append(label,select,del);list.append(row);
+  }
+  $("multi-art-files").disabled=approvedMaster||chosen.length>=4||extrasRoot.children.length>=120;
+  $("multi-art-status").textContent="추가 작품 "+chosen.length+" / 4 · 전체 작품 "+(chosen.length+1)+
+    " / 5 · GLB 개별 20MB, 에셋 합계 60MB 제한 · 삭제 시 슬롯 복구";
+}
+async function addMultipleArtworks(files){
+  if(!files.length||approvedMaster)return;
+  if(!canEditObject(artRoot,artRoot,layerState,approvedMaster))
+    return notify("작품 레이어 잠금을 해제하세요.");
+  if(files.length+extraArtworkModels().length>4)
+    return notify("한 프로젝트에서 기본 작품 포함 최대 5개까지 불러올 수 있습니다.");
+  for(const file of files){
+    try{
+      if(approvedMaster)break;
+      if(extrasRoot.children.length>=120)throw Error("장면 오브제 최대 수를 초과했습니다.");
+      if(assetLibrary.size>=MAX_LIBRARY_ASSETS){
+        const inUse=new Set(extrasRoot.children.filter(x=>x.userData.extraKind==="custom-glb")
+          .map(x=>x.userData.assetId));
+        let purged=false;
+        for(const id of assetLibrary.keys())if(!inUse.has(id)){
+          assetLibrary.delete(id);purged=true;
+        }
+        if(purged)clearUndo(); // old deleted-GLB snapshots would now be un-restorable
+      }
+      if(assetLibrary.size>=MAX_LIBRARY_ASSETS)throw Error("기존 GLB 에셋 저장 공간이 가득 찼습니다.");
+      const total=[...assetLibrary.values()].reduce((n,a)=>n+a.file.size,0);
+      if(total+file.size>MAX_LIBRARY_BYTES)throw Error("GLB 에셋 파일 합계 60MB 한도를 초과했습니다.");
+      const id="lib"+nextLibraryId;
+      const asset=await parseLibraryGLB(file,id,"artwork");
+      if(approvedMaster)throw Error("MASTER 승인 중에는 추가 모델을 설치할 수 없습니다.");
+      const before=editSnapshot();
+      ++nextLibraryId;
+      assetLibrary.set(id,asset);
+      const number=extraArtworkModels().length+1;
+      const root=makeExtra("custom-glb",nextExtraId++,2,id,assetLibrary,artRoot);
+      const artBox=artworkWorldBox();
+      root.position.set(artBox.max.x+1+number*2,0,artRoot.position.z);
+      extrasRoot.add(root);
+      snapRootToSurface(root,siteRoot,{allowFallback:!siteSourceFile,offset:0});
+      selectRoot(root);refreshLayers({redrawSite:false});
+      updateExtrasStatus();commit(before);
+    }catch(error){$("multi-art-status").textContent="작품 추가 실패: "+error.message;notify(error.message);break;}
+  }
+  refreshAssetLibraryUI();refreshMultiArtworkUI();
+}
 function refreshAssetLibraryUI(){
   const chosen=$("library-asset-select").value;
   const select=$("library-asset-select");
@@ -306,6 +368,7 @@ function refreshAssetLibraryUI(){
     extrasRoot.children.length>=120;
   $("library-asset-file").disabled=approvedMaster || assetLibrary.size>=MAX_LIBRARY_ASSETS;
   $("library-asset-category").disabled=approvedMaster;
+  refreshMultiArtworkUI();
 }
 async function importLibraryGLB(file){
   if(!file || approvedMaster)return;
@@ -2834,6 +2897,11 @@ $("light-preset").addEventListener("change", e => {
   updateLight();
 });
 document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener("click", () => setPlacement(el.dataset.addExtra)));
+$("multi-art-files").addEventListener("change",e=>{
+  const files=Array.from(e.target.files||[]);
+  e.target.value="";
+  addMultipleArtworks(files);
+});
 $("library-asset-file").addEventListener("change",e=>{
   importLibraryGLB(e.target.files[0]);e.target.value="";
 });
