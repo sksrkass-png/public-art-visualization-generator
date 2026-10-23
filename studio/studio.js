@@ -1140,6 +1140,19 @@ function plinthInputs(){
   if(!validatePlinthDimensions(w,d,h))throw Error("기단 W/D/H는 각각 0.05~30m 범위여야 합니다.");
   return {w,d,h,finish:$("plinth-finish").value};
 }
+function linkedPlinths(){
+  return extrasRoot.children.filter(root=>root.userData.extraKind==="plinth" &&
+    root.userData.followArtwork===true);
+}
+function translateLinkedPlinths(delta){
+  if(!delta || delta.lengthSq()<1e-12)return;
+  for(const root of linkedPlinths())root.position.add(delta);
+}
+function artworkAssemblyBounds(){
+  const b=artworkWorldBox();
+  for(const root of linkedPlinths())b.union(new THREE.Box3().setFromObject(root));
+  return b;
+}
 function createPlinth(){
   if(approvedMaster||!canEditObject(artRoot,artRoot,layerState,approvedMaster))
     return notify("MASTER 잠금/작품 레이어 잠금을 해제하세요.");
@@ -1153,6 +1166,7 @@ function createPlinth(){
     root.scale.set(w,h,d);
     root.position.set(center.x,bounds.min.y,center.z);
     applyPlinthFinish(root,finish);
+    root.userData.followArtwork=true;
     extrasRoot.add(root);
     artRoot.position.y+=h;
     selectRoot(root);
@@ -1222,11 +1236,13 @@ function applyArtworkAnchor(){
   try{
     const ref=currentPlacementReference();
     if(!validPlacementReference(ref))throw Error("기준 좌표는 정확한 숫자여야 합니다.");
-    const box=artworkWorldBox();
+    const box=artworkAssemblyBounds();
     const delta=targetAnchorTranslation({min:box.min.toArray(),max:box.max.toArray()},
       ref.mode,ref.position);
     const before=editSnapshot();
-    artRoot.position.add(new THREE.Vector3(...delta));
+    const shift=new THREE.Vector3(...delta);
+    artRoot.position.add(shift);
+    translateLinkedPlinths(shift);
     commit(before);updateLight();updateInspector(true);
     $("anchor-status").textContent="기준점 이동 "+delta.map(v=>v.toFixed(3)).join(" / ")+
       "m · 지정 XYZ에 맞췄습니다. 월드 X/Z 기준이며 현장 방위·실측은 별도 확인하세요.";
@@ -1725,7 +1741,8 @@ function setTransformFromField(el) {
     if (Math.abs(previousAxis) > 1e-8) selectedRoot.scale.multiplyScalar(next / previousAxis);
   }
   else selectedRoot[el.dataset.transform][el.dataset.axis] = next;
-  if ($("auto-ground").checked && el.dataset.transform === "position" &&
+  if ($("auto-ground").checked && !(selectedRoot===artRoot&&linkedPlinths().length) &&
+      el.dataset.transform === "position" &&
       ["x","z"].includes(el.dataset.axis) && !extraLight(selectedRoot)) {
     snapRootToSurface(selectedRoot, siteRoot, {
       allowFallback: !siteSourceFile,
@@ -1734,6 +1751,8 @@ function setTransformFromField(el) {
   }
   if(el.dataset.transform==="position" && selectedRoot!==artRoot)
     shiftGroupMembers(selectedRoot,selectedRoot.position.clone().sub(oldPosition));
+  if(el.dataset.transform==="position" && selectedRoot===artRoot)
+    translateLinkedPlinths(selectedRoot.position.clone().sub(oldPosition));
   commit(before);
   updateInspector();
   if(selectedRoot===artRoot)updateLight();
@@ -2898,6 +2917,7 @@ transform.addEventListener("objectChange", () => {
   // Maintain solar direction during interactive artwork dragging; do not
   // recompute the expensive shadow fit until the drag is finished.
   const artDelta=artRoot.position.clone().sub(sun.target.position);
+  if(!approvedMaster && selectedRoot===artRoot)translateLinkedPlinths(artDelta);
   sun.position.add(artDelta);
   sun.target.position.copy(artRoot.position);
   sun.target.updateMatrixWorld();
