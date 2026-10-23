@@ -2164,35 +2164,77 @@ const PROJECT_ARCHIVE_SCHEMA = "axoo-public-art-portable-v1";
 const MAX_ZIP_BYTES = 200 * 1024 * 1024;
 const MAX_MODEL_BYTES = 80 * 1024 * 1024;
 const MAX_MAP_BYTES = 20 * 1024 * 1024;
-async function exportProjectArchive() {
-  try {
-    const zip = new JSZip();
-    const data = sceneConfig();
-    data.archiveSchema = PROJECT_ARCHIVE_SCHEMA;
-    // The source asset names are preserved in JSON. Fixed ZIP keys eliminate
-    // path traversal and prevent the archive from assuming a user's directory.
-    zip.file("project.json", JSON.stringify(data, null, 2));
-    if (siteSourceFile) zip.file("assets/site", siteSourceFile);
-    if (artSourceFile) zip.file("assets/artwork", artSourceFile);
-    if (planSourceFile) zip.file("assets/plan", planSourceFile);
-    if (hdrSourceFile) zip.file("assets/environment", hdrSourceFile);
-    for(const asset of assetLibrary.values())zip.file("assets/library/"+asset.id+".glb",asset.file);
-    $("save-status").textContent = "SHA-256 원본 검증 정보 생성 중…";
-    const integrity=await makeIntegrityManifest(zip);
-    zip.file("integrity.json",JSON.stringify(integrity,null,2));
-    $("save-status").textContent = "검증 가능한 프로젝트 패키지 저장 중…";
-    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
-    if(blob.size>MAX_ZIP_BYTES)
-      throw Error("ZIP 200MB 복원 한도를 초과했습니다. 현장·작품·에셋 파일을 경량화하세요.");
-    download(safeFileName() + "-project.zip", blob);
-    notify("프로젝트 ZIP 저장 완료 · 원본과 SHA-256 손상 검증 정보 포함");
-  } catch (err) {
-    console.error(err);
-    notify("프로젝트 저장 실패: " + (err.message || "메모리 용량 확인 필요"));
-  } finally {
-    $("save-status").textContent = "브라우저에서 로컬 처리";
-  }
+async function makeFullProjectZip(){
+  const zip = new JSZip();
+  const data = sceneConfig();
+  data.archiveSchema = PROJECT_ARCHIVE_SCHEMA;
+  // The source asset names are preserved in JSON. Fixed ZIP keys eliminate
+  // path traversal and prevent the archive from assuming a user's directory.
+  zip.file("project.json", JSON.stringify(data, null, 2));
+  if (siteSourceFile) zip.file("assets/site", siteSourceFile);
+  if (artSourceFile) zip.file("assets/artwork", artSourceFile);
+  if (planSourceFile) zip.file("assets/plan", planSourceFile);
+  if (hdrSourceFile) zip.file("assets/environment", hdrSourceFile);
+  for(const asset of assetLibrary.values())zip.file("assets/library/"+asset.id+".glb",asset.file);
+  $("save-status").textContent = "SHA-256 원본 검증 정보 생성 중…";
+  const integrity=await makeIntegrityManifest(zip);
+  zip.file("integrity.json",JSON.stringify(integrity,null,2));
+  $("save-status").textContent = "검증 가능한 프로젝트 패키지 저장 중…";
+  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
+  if(blob.size>MAX_ZIP_BYTES)
+    throw Error("ZIP 200MB 복원 한도를 초과했습니다. 현장·작품·에셋 파일을 경량화하세요.");
+
+  return blob;
 }
+async function exportProjectArchive(){
+  try{
+    const blob=await makeFullProjectZip();
+    download(safeFileName()+"-project.zip",blob);
+    notify("프로젝트 ZIP 저장 완료 · 원본과 SHA-256 손상 검증 정보 포함");
+  }catch(err){
+    console.error(err);
+    notify("프로젝트 저장 실패: "+(err.message||"용량 및 원본 파일 확인"));
+  }finally{$("save-status").textContent="브라우저에서 로컬 처리";}
+}
+async function refreshLocalProjectChoices(preferred=""){
+  const select=$("quick-project-select"),items=await listLocalProjects();
+  select.replaceChildren(new Option("저장된 프로젝트 선택",""));
+  for(const row of items)
+    select.add(new Option(row.name+" · "+new Date(row.savedAt).toLocaleString("ko-KR"),row.name));
+  if(preferred&&items.some(x=>x.name===preferred))select.value=preferred;
+  $("quick-save-status").textContent=items.length+"개 프로젝트 이 브라우저에 저장 · 다른 기기에서는 접근 불가 · 영구 백업은 ZIP 권장";
+}
+async function quickSaveProject(){
+  const name=$("project-name").value.trim();
+  if(!validLocalProjectName(name))return notify("프로젝트 이름을 입력하세요.");
+  $("quick-save").disabled=true;
+  try{
+    const blob=await makeFullProjectZip();
+    await putLocalProject(name,blob);
+    await refreshLocalProjectChoices(name);
+    notify("프로젝트 '"+name+"' 브라우저에 저장 완료 · ZIP 백업도 권장합니다.");
+  }catch(error){$("quick-save-status").textContent="저장 실패: "+error.message;notify(error.message);}
+  finally{$("quick-save").disabled=false;$("save-status").textContent="브라우저에서 로컬 처리";}
+}
+async function quickLoadProject(){
+  const name=$("quick-project-select").value;
+  if(!name)return notify("저장 목록에서 프로젝트를 선택하세요.");
+  if(approvedMaster)return notify("MASTER LOCK을 먼저 해제한 후 다른 프로젝트를 불러오세요.");
+  if(!window.confirm("현재 프로젝트를 교체하고 '"+name+"' 저장본을 열까요? 저장되지 않은 변경사항은 사라집니다."))return;
+  try{
+    const zip=await loadLocalProject(name);
+    await importProjectArchive(zip);
+    await refreshLocalProjectChoices(name);
+  }catch(error){$("quick-save-status").textContent="불러오기 실패: "+error.message;notify(error.message);}
+}
+async function quickDeleteProject(){
+  const name=$("quick-project-select").value;
+  if(!name)return notify("삭제할 저장본을 선택하세요.");
+  if(!window.confirm("이 브라우저에 저장된 '"+name+"' 프로젝트를 삭제하시겠습니까?"))return;
+  try{await deleteLocalProject(name);await refreshLocalProjectChoices();notify("브라우저 저장본 삭제 완료");}
+  catch(error){$("quick-save-status").textContent="삭제 실패: "+error.message;}
+}
+
 function checkedArchiveEntry(zip, name, limit, required) {
   const entry = zip.file(name);
   if (!entry) {
@@ -2969,6 +3011,10 @@ spatialBridge=initSpatialReview({
   })
 });
 $("export-glb").addEventListener("click", exportGLB);
+$("quick-save").addEventListener("click",quickSaveProject);
+$("quick-reload").addEventListener("click",()=>refreshLocalProjectChoices().catch(e=>notify(e.message)));
+$("quick-load").addEventListener("click",quickLoadProject);
+$("quick-delete").addEventListener("click",quickDeleteProject);
 $("export-project").addEventListener("click", exportProjectArchive);
 $("import-project").addEventListener("change", e => {
   importProjectArchive(e.target.files[0]);
@@ -3074,6 +3120,7 @@ function animate() {
 buildSite("plaza");
 setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 });
 updateGround();
+refreshLocalProjectChoices().catch(error=>{$("quick-save-status").textContent="브라우저 저장 기능 사용 불가: "+error.message;});
 syncLock();
 gizmoRequested=false;transform.detach();
 snapSetting();
