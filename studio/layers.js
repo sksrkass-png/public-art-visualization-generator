@@ -36,7 +36,12 @@ export function validateLayerState(value) {
 export function importLayerState(value) {
   return validateLayerState(value) ? structuredClone(value) : defaultLayerState();
 }
+// Avoid repeated recursive traversal on every side-panel refresh, drag and lock.
+const siteMeshCache=new WeakMap();
+export function invalidateSiteMeshIndex(root){siteMeshCache.delete(root);}
 export function enumerateSiteMeshes(root) {
+  const cached=siteMeshCache.get(root);
+  if(cached)return cached;
   const entries = [];
   const visit = (parent, prefix) => {
     parent.children.forEach((child, index) => {
@@ -48,6 +53,7 @@ export function enumerateSiteMeshes(root) {
     });
   };
   visit(root, "");
+  siteMeshCache.set(root,entries);
   return entries;
 }
 export function isExtraLight(root) {
