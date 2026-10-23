@@ -38,6 +38,7 @@ import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, imp
   enumerateSiteMeshes, invalidateSiteMeshIndex, applyLayerVisibility, normalizeSiteAnnotations, canEditObject,
   layerForObject } from "./layers.js";
 import {createSiteViewportController,normalizeSiteViewSettings} from "./site-viewport.js";
+import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js";
 
 const $ = id => document.getElementById(id);
 const viewport = $("viewport");
@@ -91,6 +92,15 @@ scene.add(artRoot);
 const extrasRoot = new THREE.Group();
 extrasRoot.name = "Editable placement assets";
 scene.add(extrasRoot);
+// Viewport-only yellow selection box. No source mesh/material edits.
+const selectionBounds=new THREE.Box3();
+const selectionOutline=new THREE.Box3Helper(selectionBounds,0xffd51f);
+selectionOutline.name="Editor Selection Outline — excluded from output";
+selectionOutline.material.depthTest=false;
+selectionOutline.material.toneMapped=false;
+selectionOutline.renderOrder=995;
+selectionOutline.visible=false;
+scene.add(selectionOutline);
 const sunGuide = new THREE.Mesh(
   new THREE.SphereGeometry(.7, 22, 16),
   new THREE.MeshBasicMaterial({ color: 0xffcb73, opacity: .28, transparent: true, depthWrite: false })
@@ -607,6 +617,7 @@ function refreshLayers({redrawSite = false} = {}) {
   refreshPrecisionUI();
   if(!selectedCanEdit()) transform.detach();
   else if(gizmoRequested && !transform.dragging && transform.object!==selectedRoot) transform.attach(selectedRoot);
+  refreshSelectionOutline();
   controls.forEach(input=>{input.disabled=!selectedCanEdit();});
   $("delete-selected").disabled=!selectedCanEdit() || selectedRoot===artRoot;
   $("ground-selected").disabled=!selectedCanEdit();
@@ -882,22 +893,23 @@ function sceneFrame(mode){
     allRadius=both.radius;
   }
   const radius=localContextRadius(artSphere.radius,allRadius,mode);
-  const distance=fitDistance(Math.max(.3,radius),camera.fov,camera.aspect,1.32);
   const delta=camera.position.clone().sub(orbit.target);
   if(delta.lengthSq()<.0001)delta.set(1,.45,1);
   delta.normalize();
-  const allowed=Math.min(780,Math.max(2,distance));
+  const settings=cameraFocusSettings({radius:Math.max(.3,radius),fov:camera.fov,
+    aspect:camera.aspect,padding:1.32});
+  const allowed=settings.distance;
+  orbit.maxDistance=settings.maxDistance;
   camera.position.copy(center).addScaledVector(delta,allowed);
   orbit.target.copy(center);
-  camera.near=Math.max(.01,allowed/30000);
-  camera.far=Math.max(3000,allowed*4);
+  camera.near=settings.near;
+  camera.far=settings.far;
   camera.updateProjectionMatrix();
   orbit.update();
-  const clipped=distance>780;
   $("visual-frame-status").textContent=
     {sculpture:"작품 중심",nearby:"작품 + 근거리 환경",site:"전체 현장"}[mode]+
-    " · 카메라 거리 "+allowed.toFixed(1)+"m"+(clipped?" · 큰 현장: 카메라 이동 상한 780m 적용":"");
-  if(clipped)notify("현장 전체가 너무 넓어 확대 범위를 제한했습니다. 필요한 설치 구역 위주로 확인하세요.");
+    " · 카메라 거리 "+allowed.toFixed(1)+"m"+
+    (settings.limited?" · 초대형 OBJ 프레이밍 안전 상한 적용":"");
 }
 function checkVisualQuality(){
   const size=targetSize(viewport.clientWidth,viewport.clientHeight,
@@ -1635,6 +1647,42 @@ function updateLight() {
     $(id + "-value").textContent = $(id).value + (id.startsWith("sun-") && id !== "sun-strength" ? "°" : "");
   });
 }
+function fitCameraToBounds(bounds,label,{preserveDirection=true}={}){
+  if(bounds.isEmpty())return false;
+  const sphere=bounds.getBoundingSphere(new THREE.Sphere());
+  if(!Number.isFinite(sphere.radius)||sphere.radius<=0)return false;
+  const config=cameraFocusSettings({
+    radius:Math.max(.15,sphere.radius),fov:camera.fov,
+    aspect:viewport.clientWidth/Math.max(1,viewport.clientHeight),padding:1.35
+  });
+  const direction=preserveDirection?
+    camera.position.clone().sub(orbit.target):new THREE.Vector3(1,.6,1);
+  if(direction.lengthSq()<.000001)direction.set(1,.6,1);
+  direction.normalize();
+  orbit.maxDistance=config.maxDistance;
+  orbit.minDistance=Math.max(.01,Math.min(.25,config.distance/150));
+  camera.near=config.near;
+  camera.far=config.far;
+  camera.position.copy(sphere.center).addScaledVector(direction,config.distance);
+  orbit.target.copy(sphere.center);
+  camera.updateProjectionMatrix();
+  orbit.update();
+  $("camera-focus-status").textContent=label+" · 카메라 거리 "+
+    config.distance.toFixed(1)+"m · 원본 모델 크기·좌표 변경 없음"+
+    (config.limited?" · 매우 큰 모델이므로 표시 한계 확인":"");
+  return true;
+}
+function focusImportedSite(){
+  const box=new THREE.Box3().setFromObject(siteRoot);
+  if(box.isEmpty())return notify("현장 모델이 없습니다. 현장 3D 파일을 먼저 불러오세요.");
+  fitCameraToBounds(box,"현장 전체 맞춤");
+}
+function focusCurrentSelection(){
+  const root=gizmoRequested?selectedRoot:artRoot;
+  const box=new THREE.Box3().setFromObject(root);
+  if(box.isEmpty())return notify("선택할 모델이 없습니다.");
+  fitCameraToBounds(box,gizmoRequested?"선택 객체 맞춤":"작품 맞춤");
+}
 function artworkTarget() {
   const box = new THREE.Box3().setFromObject(artRoot);
   if (box.isEmpty()) return new THREE.Vector3(0, 1.5, 0);
@@ -1658,6 +1706,8 @@ function changeView(name) {
   camera.position.set(center.x + o[0], center.y + o[1], center.z + o[2]);
   orbit.target.copy(center);
   orbit.update();
+  if(size.length()>160 && name==="main")
+    fitCameraToBounds(new THREE.Box3().setFromObject(artRoot),"대형 작품 자동 맞춤");
   document.querySelectorAll("[data-view]").forEach(b => b.classList.toggle("active", b.dataset.view === name));
 }
 function fitCamera() { changeView("main"); }
@@ -1685,7 +1735,7 @@ function updateExtrasStatus() {
       button.addEventListener("click", () => {
         // Resolve by ID at click time: undo/ZIP restore may rebuild mesh roots.
         const latest = extrasRoot.children.find(object => object.userData.extraId === root.userData.extraId);
-        if (latest) selectRoot(latest);
+        if (latest) selectRoot(latest,true);
       });
       list.append(button);
     }
@@ -1700,12 +1750,33 @@ function updateExtrasStatus() {
   refreshPrecisionUI();
 }
 let gizmoRequested=false;
+function refreshSelectionOutline(){
+  const visible=gizmoRequested&&selectedRoot?.parent&&selectedRoot.visible &&
+    (selectedRoot===artRoot?layerState.groups.artwork.visible:
+       !selectedRoot.userData.layerHidden);
+  if(visible){
+    selectedRoot.updateMatrixWorld(true);
+    selectionBounds.setFromObject(selectedRoot);
+  }
+  selectionOutline.visible=!!visible&&!selectionBounds.isEmpty();
+  viewport.dataset.selectionActive=selectionOutline.visible?"yes":"no";
+}
+function clearCanvasSelection(){
+  gizmoRequested=false;
+  transform.detach();
+  selectedRoot=artRoot;
+  selectionOutline.visible=false;
+  viewport.dataset.selectionActive="no";
+  updateInspector(true);
+  updateExtrasStatus();
+}
 function selectRoot(object, showGizmo=false) {
   updateMultiArtStatus();
   selectedRoot = object || artRoot;
   gizmoRequested=!!showGizmo;
   if (gizmoRequested && selectedCanEdit())transform.attach(selectedRoot);
   else transform.detach();
+  refreshSelectionOutline();
   updateInspector(true);
   updateExtrasStatus();
   refreshLayers();
@@ -1845,7 +1916,7 @@ function pickPlacement(event) {
 }
 function handleSelection(event) {
   if(spatialBridge?.handleCanvasClick(event,mouseMoved))return;
-  if (mouseMoved || approvedMaster || transform.dragging || event.button !== 0) return;
+  if (mouseMoved || transform.dragging || event.button !== 0) return;
   if (placementMode) {
     const hit = pickPlacement(event);
     if (!hit) { notify("해당 지점에서 위쪽 표면을 찾을 수 없습니다. 현장 메시와 각도를 확인하세요."); return; }
@@ -1882,7 +1953,7 @@ function handleSelection(event) {
     const root=obj.parent===extrasRoot ? obj : artRoot;
     return canEditObject(root,artRoot,layerState,false);
   });
-  if (!first) return;
+  if (!first) { clearCanvasSelection(); return; }
   let candidate = first.object;
   while (candidate.parent && candidate.parent !== extrasRoot && candidate.parent !== artRoot) candidate = candidate.parent;
   if (candidate.parent === extrasRoot) selectRoot(candidate,true);
@@ -1919,6 +1990,7 @@ function setTransformFromField(el) {
   commit(before);
   updateInspector();
   if(selectedRoot===artRoot)updateLight();
+  refreshSelectionOutline();
 }
 const SITE_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl", "ply", "dae", "3ds", "zip"]);
 const ARTWORK_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "stl"]);
@@ -2017,6 +2089,10 @@ async function importModel(file, isSite) {
       }
       showSiteGeometryStats(inspectSiteGeometry(siteRoot));
       updateSitePreflight();
+      const siteSphere=new THREE.Box3().setFromObject(siteRoot).getBoundingSphere(new THREE.Sphere());
+      const toArt=siteSphere.center.distanceTo(artworkTarget());
+      if(shouldAutoFocusImportedSite(siteSphere.radius,toArt))
+        fitCameraToBounds(new THREE.Box3().setFromObject(siteRoot),"대형 현장 자동 맞춤");
       notify("현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
     } else {
       // Imported geometry retains original dimensions; never fit to stale 3m field.
@@ -2501,7 +2577,7 @@ async function exportMasterPack() {
   const originalVisual=currentVisualSettings();
   const states={
     grid:grid.visible,gizmo:transform.getHelper().visible,
-    sun:sunGuide.visible,
+    sun:sunGuide.visible,selectionOutline:selectionOutline.visible,
     highlight:siteHighlight?.visible
   };
   const editorIcons=[];
@@ -2566,6 +2642,7 @@ async function exportMasterPack() {
     grid.visible=false;
     transform.getHelper().visible=false;
     sunGuide.visible=false;
+    selectionOutline.visible=false;
     if(siteHighlight)siteHighlight.visible=false;
     for(const [node] of editorIcons)node.visible=false;
     for(let index=0;index<views.length;index++){
@@ -2609,6 +2686,7 @@ async function exportMasterPack() {
     grid.visible=states.grid;
     transform.getHelper().visible=states.gizmo;
     sunGuide.visible=states.sun;
+    selectionOutline.visible=states.selectionOutline;
     if(siteHighlight)siteHighlight.visible=states.highlight;
     for(const [node,wasVisible] of editorIcons)node.visible=wasVisible;
   }
@@ -2672,6 +2750,7 @@ function exportImage() {
   const originalHelper=transform.getHelper().visible;
   const originalSun=sunGuide.visible;
   const originalHighlight=siteHighlight?.visible;
+  const originalSelection=selectionOutline.visible;
   try {
     const size=targetSize(w,h,$("render-aspect").value,
       Number($("render-resolution").value),renderer.capabilities.maxTextureSize);
@@ -2684,6 +2763,7 @@ function exportImage() {
     sunGuide.visible=false;
     if(siteHighlight)siteHighlight.visible=false;
     setEditorGizmosVisible(extrasRoot,false);
+    selectionOutline.visible=false;
     renderer.render(scene,camera);
     const png=renderer.domElement.toDataURL("image/png");
     if(!png.startsWith("data:image/png;base64,"))throw Error("PNG 데이터를 만들지 못했습니다.");
@@ -2701,6 +2781,7 @@ function exportImage() {
     transform.getHelper().visible=originalHelper;
     sunGuide.visible=originalSun;
     if(siteHighlight)siteHighlight.visible=originalHighlight;
+    selectionOutline.visible=originalSelection;
     setEditorGizmosVisible(extrasRoot,true);
     camera.aspect=originalAspect;
     camera.updateProjectionMatrix();
@@ -2975,6 +3056,8 @@ $("redo").addEventListener("click", redo);
     updateLight();
   }));
 document.querySelectorAll("[data-view]").forEach(el => el.addEventListener("click", () => changeView(el.dataset.view)));
+$("focus-selected-quick").addEventListener("click",focusCurrentSelection);
+$("focus-site-quick").addEventListener("click",focusImportedSite);
 $("focus").addEventListener("click", fitCamera);
 $("project-quick-save").addEventListener("click",()=>$("export-project").click());
 $("shot-export").addEventListener("click", exportImage);
@@ -3096,6 +3179,7 @@ transform.addEventListener("mouseUp", () => {
   lastDrag = null;
   updateInspector();
   if(selectedRoot===artRoot)updateLight();
+  refreshSelectionOutline();
 });
 transform.addEventListener("objectChange", () => {
   // Keep size proportional by default, including direct gizmo manipulation.
@@ -3120,6 +3204,7 @@ transform.addEventListener("objectChange", () => {
   sun.position.add(artDelta);
   sun.target.position.copy(artRoot.position);
   sun.target.updateMatrixWorld();
+  refreshSelectionOutline();
 });
 renderer.domElement.addEventListener("pointerdown", () => { mouseMoved = false; });
 renderer.domElement.addEventListener("pointermove", e => { if (e.buttons) mouseMoved = true; });
@@ -3127,6 +3212,11 @@ renderer.domElement.addEventListener("pointerup", handleSelection);
 window.addEventListener("keydown", e => {
   if (e.target instanceof HTMLElement && e.target.closest("input,textarea,select,[contenteditable]")) return;
   if (e.key === "Escape" && spatialBridge?.cancel()) { e.preventDefault(); return; }
+  if (e.key === "Escape" && gizmoRequested) {clearCanvasSelection();e.preventDefault();return;}
+  if (e.key.toLowerCase()==="f"&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    if(e.shiftKey)focusImportedSite();else focusCurrentSelection();
+    e.preventDefault();return;
+  }
   if (e.key === "Escape" && placementMode) {
     placementMode = null; $("placement-hint").hidden = true; return;
   }
