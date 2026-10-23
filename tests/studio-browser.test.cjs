@@ -26,7 +26,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     }));
   });
   try {
-    await page.goto("http://127.0.0.1:8787/studio/", { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto("http://127.0.0.1:8787/studio/?panels=open", { waitUntil: "domcontentloaded", timeout: 60000 });
     try{
       await page.locator("#viewport canvas").waitFor({ timeout: 12000 });
     }catch(err){
@@ -1349,7 +1349,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     // v2.1: use an independent fresh scene so prior MASTER/asset regression tests stay intact.
     const precisionPage=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
     precisionPage.on("pageerror",err=>errors.push(err.stack||err.message));
-    await precisionPage.goto("http://127.0.0.1:8787/studio/",{waitUntil:"domcontentloaded",timeout:60000});
+    await precisionPage.goto("http://127.0.0.1:8787/studio/?panels=open",{waitUntil:"domcontentloaded",timeout:60000});
     await precisionPage.locator("#art-current-wdh").waitFor({timeout:30000});
     await precisionPage.waitForFunction(()=>document.querySelector("#art-current-wdh")?.textContent.includes("현재 W"));
     await precisionPage.locator("#dimension-mode").selectOption("uniform-height");
@@ -1413,7 +1413,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     const zipFile=await (await zipDL).path();
     const restorePage=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
     restorePage.on("pageerror",err=>errors.push(err.stack||err.message));
-    await restorePage.goto("http://127.0.0.1:8787/studio/",{waitUntil:"domcontentloaded",timeout:60000});
+    await restorePage.goto("http://127.0.0.1:8787/studio/?panels=open",{waitUntil:"domcontentloaded",timeout:60000});
     await restorePage.locator("#viewport canvas").waitFor({timeout:20000});
     await restorePage.locator("#import-project").setInputFiles(zipFile);
     await restorePage.waitForFunction(()=>document.querySelector("#master-lock")?.textContent.includes("MASTER LOCK 승인됨"),null,{timeout:45000});
@@ -1430,7 +1430,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     // v2.2: ensure view-only construction never leaks into official PNGs or project model.
     const sitePage=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
     sitePage.on("pageerror",e=>errors.push(e.stack||e.message));
-    await sitePage.goto("http://127.0.0.1:8787/studio/",{waitUntil:"domcontentloaded",timeout:60000});
+    await sitePage.goto("http://127.0.0.1:8787/studio/?panels=open",{waitUntil:"domcontentloaded",timeout:60000});
     await sitePage.locator("#viewport canvas").waitFor({timeout:30000});
     await sitePage.waitForFunction(()=>document.querySelector("#site-mesh-count")?.textContent!=="0개");
     const siteInitial=await sitePage.locator("#site-mesh-count").textContent();
