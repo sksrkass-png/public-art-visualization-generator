@@ -1416,7 +1416,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await restorePage.goto("http://127.0.0.1:8787/studio/",{waitUntil:"domcontentloaded",timeout:60000});
     await restorePage.locator("#viewport canvas").waitFor({timeout:20000});
     await restorePage.locator("#import-project").setInputFiles(zipFile);
-    await restorePage.waitForFunction(()=>document.querySelector("#master-summary")?.textContent.includes("MASTER"),null,{timeout:45000});
+    await restorePage.waitForFunction(()=>document.querySelector("#master-lock")?.textContent.includes("MASTER LOCK 승인됨"),null,{timeout:45000});
     const restoreDL=restorePage.waitForEvent("download",{timeout:20000});
     await restorePage.locator("#export-json").click();
     const restored=JSON.parse(fs.readFileSync(await (await restoreDL).path(),"utf8"));
