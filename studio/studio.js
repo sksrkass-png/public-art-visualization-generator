@@ -2575,7 +2575,7 @@ async function exportMasterPack() {
   const originalVisual=currentVisualSettings();
   const states={
     grid:grid.visible,gizmo:transform.getHelper().visible,
-    sun:sunGuide.visible,
+    sun:sunGuide.visible,selectionOutline:selectionOutline.visible,
     highlight:siteHighlight?.visible
   };
   const editorIcons=[];
@@ -2640,6 +2640,7 @@ async function exportMasterPack() {
     grid.visible=false;
     transform.getHelper().visible=false;
     sunGuide.visible=false;
+    selectionOutline.visible=false;
     if(siteHighlight)siteHighlight.visible=false;
     for(const [node] of editorIcons)node.visible=false;
     for(let index=0;index<views.length;index++){
@@ -2683,6 +2684,7 @@ async function exportMasterPack() {
     grid.visible=states.grid;
     transform.getHelper().visible=states.gizmo;
     sunGuide.visible=states.sun;
+    selectionOutline.visible=states.selectionOutline;
     if(siteHighlight)siteHighlight.visible=states.highlight;
     for(const [node,wasVisible] of editorIcons)node.visible=wasVisible;
   }
@@ -2746,6 +2748,7 @@ function exportImage() {
   const originalHelper=transform.getHelper().visible;
   const originalSun=sunGuide.visible;
   const originalHighlight=siteHighlight?.visible;
+  const originalSelection=selectionOutline.visible;
   try {
     const size=targetSize(w,h,$("render-aspect").value,
       Number($("render-resolution").value),renderer.capabilities.maxTextureSize);
@@ -2758,6 +2761,7 @@ function exportImage() {
     sunGuide.visible=false;
     if(siteHighlight)siteHighlight.visible=false;
     setEditorGizmosVisible(extrasRoot,false);
+    selectionOutline.visible=false;
     renderer.render(scene,camera);
     const png=renderer.domElement.toDataURL("image/png");
     if(!png.startsWith("data:image/png;base64,"))throw Error("PNG 데이터를 만들지 못했습니다.");
@@ -2775,6 +2779,7 @@ function exportImage() {
     transform.getHelper().visible=originalHelper;
     sunGuide.visible=originalSun;
     if(siteHighlight)siteHighlight.visible=originalHighlight;
+    selectionOutline.visible=originalSelection;
     setEditorGizmosVisible(extrasRoot,true);
     camera.aspect=originalAspect;
     camera.updateProjectionMatrix();
