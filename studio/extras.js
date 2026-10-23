@@ -5,7 +5,7 @@ import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 // Procedural planting is intentionally schematic rather than a claim of true
 // botanical/photogrammetry accuracy. All extras are independent editables.
 export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "tree-autumn",
-  "person-standing", "park-bench", "round-planter", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
+  "person-standing", "person-man", "person-woman", "shrub-flower", "park-bench", "round-planter", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
 
 function mesh(geometry, color, roughness = .85, metalness = 0) {
   const o = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, roughness, metalness }));
@@ -90,6 +90,23 @@ function shrub(root) {
   });
   detailFoliage(root,centers,20,23);
 }
+function flowerShrub(root){
+  shrub(root);
+  for(let i=0;i<13;i++){
+    const t=i*2.39996,rad=.35+(i%4)*.12;
+    const bloom=mesh(new THREE.SphereGeometry(.075+(i%3)*.012,10,8),
+      [0xe6b6c9,0xf4d4dc,0xe8cc94,0xe3a3b8][i%4]);
+    bloom.position.set(Math.cos(t)*rad,.9+(i%5)*.065,Math.sin(t)*rad);
+    root.add(bloom);
+  }
+}
+function personScaled(root,height,color){
+  standingPerson(root);
+  root.scale.setScalar(height/1.73);
+  for(const child of root.children)
+    if(child.isMesh && child.material.color.getHex()===0x44576a)
+      child.material.color.setHex(color);
+}
 function autumnTree(root){
   treeRound(root);
   let i=0;
@@ -139,10 +156,21 @@ function roundPlanter(root){
   foliage.scale.set(1,.7,1);foliage.position.y=1.02;root.add(foliage);
 }
 export const PLINTH_MATERIALS=Object.freeze({
-  concrete:{color:0xb1b4b3,roughness:.9,metalness:0},
+  concrete:{color:0xeeeeeb,roughness:.78,metalness:0},
+  black:{color:0x1f2227,roughness:.45,metalness:.12},
   stone:{color:0x999991,roughness:.7,metalness:0},
   metal:{color:0x8c9499,roughness:.3,metalness:.85}
 });
+export function applyPlinthShape(root,shape){
+  if(root?.userData?.extraKind!=="plinth"||!["box","round"].includes(shape))
+    throw Error("유효하지 않은 좌대 형태입니다.");
+  const old=root.children.find(child=>child.isMesh);
+  if(!old)return;
+  old.geometry.dispose();
+  old.geometry=shape==="round"
+    ?new THREE.CylinderGeometry(.5,.5,1,48):new THREE.BoxGeometry(1,1,1);
+  root.userData.plinthShape=shape;
+}
 export function applyPlinthFinish(root,finish) {
   if(root?.userData?.extraKind!=="plinth"||!Object.hasOwn(PLINTH_MATERIALS,finish))
     throw Error("유효한 기단 마감이 아닙니다.");
@@ -186,12 +214,15 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   root.userData.appearanceVersion=appearanceVersion;
   if(kind==="custom-glb")root.userData.assetId=assetId;
   root.name=({ "tree-round":"활엽수", "tree-cone":"침엽수", "shrub":"덤불",
-    "tree-autumn":"가을 활엽수", "person-standing":"보행자", "park-bench":"공원 벤치",
+    "tree-autumn":"가을 활엽수", "person-standing":"보행자","person-man":"남성 175cm","person-woman":"여성 160cm","shrub-flower":"꽃 덤불", "park-bench":"공원 벤치",
     "round-planter":"화분", "custom-glb":"사용자 GLB", "artwork-copy":"작품 복제",
     "point-light":"포인트 조명","spot-light":"스폿 조명","plinth":"기단" })[kind]+" #"+id;
   if(kind==="tree-round")(appearanceVersion === 1 ? legacyTreeRound : treeRound)(root);
   else if(kind==="tree-cone")(appearanceVersion === 1 ? legacyTreeCone : treeCone)(root);
   else if(kind==="shrub")(appearanceVersion === 1 ? legacyShrub : shrub)(root);
+  else if(kind==="shrub-flower")flowerShrub(root);
+  else if(kind==="person-man")personScaled(root,1.75,0x394956);
+  else if(kind==="person-woman")personScaled(root,1.6,0xb4847c);
   else if(kind==="tree-autumn")autumnTree(root);
   else if(kind==="person-standing")standingPerson(root);
   else if(kind==="park-bench")parkBench(root);
@@ -202,6 +233,7 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
     shape.position.y=.5;
     shape.name="Plinth solid (dimensions via root scale)";
     root.add(shape);
+    root.userData.plinthShape="box";
     applyPlinthFinish(root,"concrete");
   }
   else if(kind==="artwork-copy"){
@@ -237,7 +269,7 @@ export function serializeExtras(container) {
       hidden:root.userData.layerHidden === true,
       selectionLocked:root.userData.layerLocked === true,
       ...(root.userData.groupId?{groupId:root.userData.groupId}:{}),
-      ...(root.userData.extraKind==="plinth"?{finish:root.userData.plinthFinish||"concrete",followArtwork:root.userData.followArtwork===true}:{}),
+      ...(root.userData.extraKind==="plinth"?{finish:root.userData.plinthFinish||"concrete",shape:root.userData.plinthShape||"box",followArtwork:root.userData.followArtwork===true}:{}),
       transform:{
         p:root.position.toArray(),
         r:root.rotation.toArray().slice(0,3),
@@ -254,6 +286,7 @@ export function validateExtras(extras) {
     if(!x||!EXTRA_TYPES.includes(x.kind)||!Number.isInteger(x.id)||x.id<1||ids.has(x.id))return false;
     if(x.appearanceVersion !== undefined && ![1,2].includes(x.appearanceVersion))return false;
     if(x.kind==="custom-glb" && !/^lib[1-9]\d{0,4}$/.test(x.assetId||""))return false;
+    if(x.kind==="plinth" && x.shape!==undefined && !["box","round"].includes(x.shape))return false;
     if(x.kind==="plinth" && x.finish!==undefined && !Object.hasOwn(PLINTH_MATERIALS,x.finish))return false;
     if(x.followArtwork!==undefined && (x.kind!=="plinth" || typeof x.followArtwork!=="boolean"))return false;
     if(x.hidden !== undefined && typeof x.hidden !== "boolean")return false;
@@ -282,6 +315,7 @@ export function restoreExtras(container,entries,library=null,artRoot=null) {
     root.rotation.set(...x.transform.r);
     root.scale.fromArray(x.transform.s);
     if(x.kind==="plinth"){
+      applyPlinthShape(root,x.shape||"box");
       applyPlinthFinish(root,x.finish||"concrete");
       root.userData.followArtwork=x.followArtwork===true;
     }
