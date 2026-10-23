@@ -264,6 +264,7 @@ export function validateExtras(extras) {
     if(!t||!["p","r","s"].every(k=>Array.isArray(t[k])&&t[k].length===3&&
       t[k].every(v=>typeof v==="number"&&Number.isFinite(v)&&Math.abs(v)<100000)))return false;
     if(t.s.some(v=>v<=0.00001||v>1000))return false;
+    if(x.kind==="plinth" && t.s.some(v=>v<.05||v>30))return false;
     if(x.power!==undefined&&(!Number.isFinite(x.power)||x.power<0||x.power>100))return false;
     if(x.color!==undefined&&!/^#[\da-f]{6}$/i.test(x.color))return false;
   }
