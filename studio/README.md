@@ -1,6 +1,14 @@
-# AXOO Public Art 3D Studio — v1.6
+# AXOO Public Art 3D Studio — v1.7
 
 Static browser-based public-art modeling editor. v1.5 review exchange is local and file-based; it is not real-time cloud collaboration.
+
+## v1.7 — Spatial Review Pins / 3D location-based review
+
+- **Create a site-specific review pin:** Approve the current MASTER VIEW. Under **SPATIAL REVIEW**, enter the reviewer and detailed note, choose **3D 위치 클릭해 검토 핀 추가**, then click a visible artwork, site mesh or separate context object. Pins are placed at the actual WebGL ray-intersection world coordinate (viewer metres). Sample projects may use the visible schematic floor; imported real sites use their imported 3D geometry and never invent a clickable ground beyond it. Dragging only rotates/pans; Esc cancels pin placement.
+- **Visual review markers:** Numbered badges float on top of the interactive viewport and track the camera as it orbits. They live in a separate HTML overlay, **not the Three.js scene graph**. They are not included in PNG/GLB renders, MASTER 8-view batch captures, source geometry or source materials. Click a marker or its right-hand list row to select the issue and inspect the note plus stored XYZ coordinates.
+- **Status and versions:** Mark issues **미처리 / 처리 완료 / 다시 검토** under the current approved MASTER. Every pin is linked to the original approved revision, timestamp and canonical v1.5 SHA-256 MASTER fingerprint. Pins from a previous revision disappear from the current overlay automatically upon unlocking or approving the next revision, while the prior records remain in the project metadata. Maximum 80 pins per project. These notes are separate from mesh editing, and do not alter MASTER LOCK.
+- **Storage and sharing:** Pins are saved under the optional `spatialReview` property of the v1.0 project config and thus included in both **whole-project ZIP** (with original source files and integrity manifest) and settings-only JSON. The separate **검토 핀 JSON 보고서** exports a human-readable history without source geometry. Files from v1.6 and older remain compatible; loading unrelated art or restoring a new project replaces any previous annotation state. Source data is processed only in the browser.
+- **Not engineering or identity attestation:** The pin position is a scene/world coordinate, not a surveyed geodetic GPS coordinate or BIM element ID. Clicking the 3D image does not certify a site measurement, structural safety, accessibility, artist permission or an authenticated reviewer. If an underlying 3D source changes, a different MASTER revision needs its own review pins.
 
 ## v1.6 — MASTER Revision Diff / track actual recorded design changes
 
