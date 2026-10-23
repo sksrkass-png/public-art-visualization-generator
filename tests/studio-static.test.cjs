@@ -286,5 +286,17 @@ for(const kind of ["shrub-flower","person-man","person-woman","applyPlinthShape"
 assert.match(html,/fold.className="inspector-fold"/, "inspector sections should be folded after page load");
 assert.match(css,/\.inspector-fold/, "accordion styling must exist");
 assert.match(css,/\.measurement-overlay/, "ruler guide should have an overlay");
+// v2.2.1 selection and very large OBJ camera integration.
+for(const id of ["focus-selected-quick","focus-site-quick","camera-focus-status"])
+  assert.ok(unique.has(id),"v2.2.1 missing focus UI: "+id);
+for(const text of ["clearCanvasSelection()","refreshSelectionOutline()",
+  "selectionOutline.visible=false","cameraFocusSettings","shouldAutoFocusImportedSite",
+  "focusImportedSite","focusCurrentSelection"])
+  assert.ok(js.includes(text),"v2.2.1 missing browser behavior: "+text);
+const focusMath=fs.readFileSync(path.join(base,"studio/camera-focus.js"),"utf8");
+assert.match(focusMath,/MAX_FOCUS_DISTANCE=500000/);
+assert.match(js,/if \(!first\) \{ clearCanvasSelection\(\); return; \}/);
+assert.match(js,/selectionOutline.visible=states.selectionOutline/);
+assert.match(js,/selectionOutline.visible=originalSelection/);
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");
