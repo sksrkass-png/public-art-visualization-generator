@@ -7,13 +7,16 @@ import {cameraFocusSettings} from "./camera-focus.js";
 // v2.5: stage different visual options in a separate THREE.Scene. The user
 // scene's object identities, original geometry, materials and MASTER are untouched.
 export function createVisualOptionStage({
-  option,artRoot,siteRoot,floor,sceneEnvironment,library,originalArtMaterials,
+  option,artRoot,siteRoot,floor,sceneEnvironment,neutralEnvironment,hdrEnvironment,library,originalArtMaterials,
   sourceLightPreset="clear",sourceArtFile="",sourceSiteFile=""
 }){
   if(option.sourceArt!==sourceArtFile||option.sourceSite!==sourceSiteFile)
     throw Error("저장 당시 작품·현장 원본과 다릅니다. 같은 원본 파일로 복원하세요.");
   const staged=new THREE.Scene();
-  staged.environment=sceneEnvironment;
+  staged.environment=option.render?.environmentMode==="hdr"&&hdrEnvironment?hdrEnvironment:
+    (neutralEnvironment||sceneEnvironment);
+  staged.environmentIntensity=(option.render?.envIntensity??1)*
+    (option.render?.environmentMode==="bright"?1.35:option.render?.environmentMode==="overcast"?.65:1);
   const sky={cool:0xdce0e2,warm:0xe7e0d4,white:0xf4f4f2};
   const kind=option.render?.visual?.sky||"cool";
   staged.background=new THREE.Color(option.lightPreset==="night"?0x171f33:(sky[kind]||sky.cool));
@@ -50,8 +53,8 @@ export function createVisualOptionStage({
     option.lightPreset==="golden"?0xffc489:0xfff7e6,
     option.lighting["sun-strength"]??2.4);
   sun.castShadow=!!option.shadows;
-  sun.shadow.mapSize.set(option.render?.visual?.shadowProfile==="high"?4096:2048,
-    option.render?.visual?.shadowProfile==="high"?4096:2048);
+  // Compare mode caps temporary shadow maps to protect limited WebGL devices.
+  sun.shadow.mapSize.set(2048,2048);
   const center=new THREE.Box3().setFromObject(artCopy).getCenter(new THREE.Vector3());
   const diameter=new THREE.Box3().setFromObject(artCopy).getSize(new THREE.Vector3()).length();
   const reach=Math.min(110,Math.max(8,diameter*2.1+7));
