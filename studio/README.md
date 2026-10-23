@@ -1,6 +1,14 @@
-# AXOO Public Art 3D Studio — v1.5
+# AXOO Public Art 3D Studio — v1.6
 
 Static browser-based public-art modeling editor. v1.5 review exchange is local and file-based; it is not real-time cloud collaboration.
+
+## v1.6 — MASTER Revision Diff / track actual recorded design changes
+
+- **Compare two approved MASTER snapshots:** The right sidebar now includes **REVISION DIFF**. Select an earlier and later approved revision; the read-only panel contrasts recorded installation position (viewer meters), rotation (degrees), X/Y/Z scale, artwork render materials, source filenames, plan alignment, lighting, camera, additional placed art/context objects, custom GLB manifests and layer annotations.
+- **Impact categories:** Critical artwork/site/source changes are differentiated from context/placement changes and presentation/render settings. View exactly what was recorded as different; tiny floating-point noise is suppressed. No model manipulation, rollback, unauthorized restyling or automatic adjustment is performed.
+- **Export review report:** A one-click `axoo-master-revision-diff-v1` JSON contains revision pair, timestamp, changes, groups/counts, and SHA-256 fingerprints of both saved approved metadata snapshots. Because it uses the same canonical approved-snapshot fingerprint as the v1.5 team-review module, it can accompany the full project ZIP and human review JSON as a change log.
+- **Boundaries:** This is a *saved metadata comparison*, **not a vertex-level comparison of model geometry**. Filename equality does not prove model-file checksum equality. Hidden native site or sculpture geometry, true measured site scale, materials embedded in GLB, structural safety, authorship and planning approvals must still be checked by the operator. Original source files never leave the browser.
+- **Compatibility:** Existing v1.5 team-review and project ZIP/JSON persistence remain unchanged; older projects containing only one MASTER show a non-destructive hint until a second approved revision exists. Current editing/MASTER lock behavior and 8-view exports are preserved.
 
 ## v1.5 — Team Review / MASTER version tracking
 
