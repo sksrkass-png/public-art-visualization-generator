@@ -47,3 +47,4 @@ jobs:
           node tests/studio-revision-diff.test.cjs
           node tests/studio-spatial-review.test.cjs
           node tests/studio-modeling-quality.test.cjs
+          node tests/studio-dimensioning.test.cjs
