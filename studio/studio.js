@@ -2683,6 +2683,113 @@ async function createContactSheet(images) {
   }
   return canvas.toDataURL("image/png").split(",")[1];
 }
+async function createVisualOptionsSheet(images){
+  const width=520,height=293,pad=16,top=62,foot=46;
+  const canvas=document.createElement("canvas");
+  canvas.width=(width+pad)*images.length+pad;canvas.height=top+height+foot+pad;
+  const ctx=canvas.getContext("2d");
+  if(!ctx)throw Error("시안 비교 시트를 만들 수 없습니다.");
+  ctx.fillStyle="#161a1e";ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#fff";ctx.font="bold 25px Arial";
+  ctx.fillText("AXOO / VISUAL OPTIONS",pad,38);
+  for(let i=0;i<images.length;i++){
+    const [slot,url]=images[i],img=new Image();
+    img.src=url;await img.decode();
+    const x=pad+(width+pad)*i;
+    ctx.drawImage(img,x,top,width,height);
+    ctx.fillStyle="#fafafa";ctx.font="bold 18px Arial";
+    ctx.fillText(slot+" / ARTWORK VISUAL",x,top+height+31);
+  }
+  return canvas.toDataURL("image/png").split(",")[1];
+}
+async function exportVisualOptions(){
+  const slots=VISUAL_SLOTS.filter(slot=>visualVariants[slot]);
+  if(!slots.length)return notify("먼저 A/B/C 중 하나 이상을 저장하세요.");
+  for(const slot of slots){
+    const option=visualVariants[slot];
+    if(!visualVariantSourceMatches(option))
+      return notify(slot+"안의 저장된 원본 작품·현장·참조 에셋이 현재와 다릅니다. ZIP으로 복원하세요.");
+    if(option.render.environmentMode==="hdr" &&
+        option.render.environmentFile!==hdrSourceFile?.name)
+      return notify(slot+"안 저장 당시 HDRI 파일이 없습니다. 원본 HDRI를 다시 불러오세요.");
+  }
+  const before=captureSceneIntegrity({artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState});
+  const restorePreview=siteViewport.suspend();
+  const original={
+    width:Math.max(1,viewport.clientWidth),height:Math.max(1,viewport.clientHeight),
+    pixelRatio:renderer.getPixelRatio(),toneMapping:renderer.toneMapping,
+    exposure:renderer.toneMappingExposure,shadow:renderer.shadowMap.enabled
+  };
+  const size=targetSize(original.width,original.height,"landscape16x9",
+    Number($("visual-options-resolution").value),renderer.capabilities.maxTextureSize,9000000);
+  let status="시안 렌더 준비 중…";
+  $("visual-options-export-status").textContent=status;
+  $("visual-options-export").disabled=true;
+  const images=[],zip=new JSZip();
+  let failure=null;
+  try{
+    renderer.setPixelRatio(1);
+    renderer.setSize(size.width,size.height,false);
+    for(const slot of slots){
+      const option=visualVariants[slot];
+      const stage=createVisualOptionStage({
+        option,artRoot,siteRoot,floor,sceneEnvironment:scene.environment,
+        library:assetLibrary,originalArtMaterials,
+        sourceArtFile:artFileName,sourceSiteFile:siteFileName
+      });
+      try{
+        renderer.shadowMap.enabled=option.shadows;
+        renderer.toneMapping=option.render.visual?.toneCurve==="neutral"?
+          THREE.NeutralToneMapping:THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure=option.lighting.exposure??1;
+        stage.camera.aspect=size.width/size.height;
+        stage.camera.updateProjectionMatrix();
+        renderer.render(stage.scene,stage.camera);
+        const png=renderer.domElement.toDataURL("image/png");
+        if(!png.startsWith("data:image/png;base64,"))throw Error(slot+"안 PNG 렌더링 오류");
+        zip.file(slot+"-visual.png",png.split(",")[1],{base64:true});
+        images.push([slot,png]);
+      }finally{stage.release();}
+    }
+  }catch(error){failure=error;console.error(error);}
+  finally{
+    renderer.shadowMap.enabled=original.shadow;
+    renderer.toneMapping=original.toneMapping;
+    renderer.toneMappingExposure=original.exposure;
+    renderer.setPixelRatio(original.pixelRatio);
+    renderer.setSize(original.width,original.height,false);
+    restorePreview();
+    $("visual-options-export").disabled=false;
+  }
+  if(failure){
+    $("visual-options-export-status").textContent="시안 출력 실패 · "+failure.message;
+    return notify("모델링 시안 비교 이미지 생성 실패: "+failure.message);
+  }
+  const after=captureSceneIntegrity({artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState});
+  if(before!==after){
+    $("visual-options-export-status").textContent="시안 모델이 변경된 것으로 감지돼 다운로드 차단";
+    return notify("검증 오류: 장면 보존 조건을 충족하지 못했습니다.");
+  }
+  try{
+    const review=checkVisualReadiness();
+    const manifest=visualPackageManifest({
+      project:$("project-name").value,slots,width:size.width,height:size.height,
+      warnings:review.warnings
+    });
+    zip.file("00-visual-comparison.png",await createVisualOptionsSheet(images),{base64:true});
+    zip.file("visual-metadata.json",JSON.stringify(manifest,null,2));
+    const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:4}});
+    download(safeFileName()+"-A_B_C-visuals.zip",blob);
+    $("visual-options-export-status").textContent=
+      slots.join(" / ")+"안 시안 이미지 "+slots.length+"장 + 비교 시트 · "+
+      size.width+" × "+size.height+"px · 원본 작품·현장 변화 없음"+
+      (review.warnings.length?" · 사전 검토 경고 "+review.warnings.length+"건":"");
+    notify("A/B/C 시안 이미지·비교 시트 ZIP 출력 완료 · 편집 상태 보존");
+  }catch(error){
+    $("visual-options-export-status").textContent="시안 ZIP 생성 실패 · "+error.message;
+    notify("시안 이미지 ZIP 저장 실패: "+error.message);
+  }finally{refreshVisualSlots();}
+}
 async function exportMasterPack() {
   if(!masterBatchReady())return notify("먼저 MASTER VIEW를 승인해 주세요.");
   const master=masterSnapshots[masterSnapshots.length-1];
