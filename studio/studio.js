@@ -30,7 +30,7 @@ import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precis
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
 import { decodeSiteBundle, inspectImportedSite, validSiteAlignment } from "./site-import.js";
-import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish } from "./extras.js";
+import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape } from "./extras.js";
 import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
   validPlacementReference,validatePlinthDimensions} from "./dimensioning.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
@@ -1191,6 +1191,7 @@ function refreshPlinthControls(){
     if(document.activeElement!==$("plinth-depth"))$("plinth-depth").value=selected.scale.z.toFixed(3);
     if(document.activeElement!==$("plinth-height"))$("plinth-height").value=selected.scale.y.toFixed(3);
     if(document.activeElement!==$("plinth-finish"))$("plinth-finish").value=selected.userData.plinthFinish||"concrete";
+    $("plinth-shape").value=selected.userData.plinthShape||"box";
   }
 }
 function plinthInputs(){
@@ -1224,6 +1225,7 @@ function createPlinth(){
     const root=makeExtra("plinth",nextExtraId++,2);
     root.scale.set(w,h,d);
     root.position.set(center.x,bounds.min.y,center.z);
+    applyPlinthShape(root,$("plinth-shape").value);
     applyPlinthFinish(root,finish);
     root.userData.followArtwork=true;
     extrasRoot.add(root);
@@ -1243,6 +1245,7 @@ function updateSelectedPlinth(){
     const {w,d,h,finish}=plinthInputs();
     const before=editSnapshot();
     selectedRoot.scale.set(w,h,d);
+    applyPlinthShape(selectedRoot,$("plinth-shape").value);
     applyPlinthFinish(selectedRoot,finish);
     commit(before);updateInspector(true);
     $("plinth-status").textContent="선택 기단의 W/D/H와 마감 수정 완료 · 작품은 움직이지 않았습니다.";
@@ -1486,7 +1489,7 @@ function syncLock() {
   controls.forEach(el => el.disabled = approvedMaster);
   ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale",
     "dimension-width","dimension-depth","dimension-height","dimension-mode","dimension-distortion","dimension-apply",
-    "plinth-width","plinth-depth","plinth-height","plinth-finish","plinth-create","plinth-update","plinth-align",
+    "plinth-width","plinth-depth","plinth-height","plinth-finish","plinth-shape","plinth-create","plinth-update","plinth-align",
     "anchor-mode","anchor-x","anchor-y","anchor-z","anchor-pick","anchor-apply"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   $("master-lock").classList.toggle("locked", approvedMaster);
