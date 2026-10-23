@@ -1,6 +1,15 @@
-# AXOO Public Art 3D Studio — v1.7
+# AXOO Public Art 3D Studio — v2.0
 
 Static browser-based public-art modeling editor. v1.5 review exchange is local and file-based; it is not real-time cloud collaboration.
+
+## v2.0 — Modeling scene quality: camera, sunlight, material presentation, PNG output
+
+**Scope change:** v1.8–v2.0 development prioritizes producing faithful public-art 3D scene compositions and architectural-visualization renders. No new PDF, proposal, administrative report or approval-document functionality was developed for this milestone.
+
+- **v1.8 / Compose:** One-click **작품 중심 / 작품 + 주변 / 전체 현장** camera framing while retaining current camera view direction, plus 24 / 35 / 50 / 70 mm lens shortcuts. The sculpture+context framing bounds the surrounding radius for imported city-scale sites so the actual sculpture remains legible. Three viewport-only composition guides (thirds, centre, safe frame) are HTML overlays; they never appear in PNGs, 8-view renders, approved MASTER state or GLB geometry.
+- **v1.9 / Light & look:** Add on-device ACES/Neutral filmic tone mapping, three neutral/bright studio-style background colour choices and balanced/high shadow map resolution. Sun position is now **relative to the actual artwork world position**, preserving direction for geolocated/distant-origin source CAD models. Artwork-centered shadow camera coverage replaces the former overly wide fixed ±70 m frustum, improving local shadow precision without creating any contact-shadow geometry or altering original GLB source materials. High shadow mode is limited by actual GPU max texture size.
+- **v2.0 / Output safety:** In-editor output quality check reports output image pixel dimensions, actual viewer artwork W×D×H, max GPU texture and actionable context cautions. 16:9 render mode, exported real PNG, project ZIP round trip, render settings and MASTER compatibility are covered by regression tests. Legacy v1.7 render configurations without the new optional `visual` object load with safe defaults; both HDRI and original artwork PBR textures remain intact.
+- **Operational limits:** Still a browser-based WebGL 3D renderer, not Blender Cycles, ray-traced photorealistic ground truth, AI image synthesis or architectural survey verification. Exact measured placement/source geometry must be visually and technically verified before submissions; zoom framing alone never proves real-world installation geometry. Scenes and artwork dimensions are not edited by any composition control. Lighting/background adjustments affect presentation only.
 
 ## v1.7 — Spatial Review Pins / 3D location-based review
 
