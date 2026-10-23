@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.1</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.2</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -177,6 +177,45 @@
           <summary>추가 식재·조명 개별 관리 <span id="extra-layer-count">0개</span></summary>
           <div id="layer-extra-list" class="layer-extra-list"></div>
         </details>
+      </section>
+      <section class="section" id="site-visibility-studio">
+        <div class="section-title"><h2>SITE VIEW / 현장 집중 뷰</h2><span class="tag">v2.2</span></div>
+        <p class="hint">대형 현장에서도 설치 작품을 잘 볼 수 있도록 현장만 잠시 반투명·단면 표시합니다. 편집된 3D 형태나 승인 MASTER는 바뀌지 않습니다.</p>
+        <label for="site-view-mode">현장 미리보기</label>
+        <select id="site-view-mode">
+          <option value="solid">일반 현장 · 원본 유지</option>
+          <option value="ghost">건물·조경 반투명 보기</option>
+          <option value="section">현장 단면 · 한쪽 면 잘라 보기</option>
+        </select>
+        <label for="site-focus-radius">작품 주위 집중 범위</label>
+        <select id="site-focus-radius">
+          <option value="0">전체 현장</option>
+          <option value="15">작품 중심 15m</option>
+          <option value="30">작품 중심 30m</option>
+          <option value="60">작품 중심 60m</option>
+          <option value="120">작품 중심 120m</option>
+        </select>
+        <label for="site-section-side">현장 단면 방향</label>
+        <select id="site-section-side">
+          <option value="x-left">X 왼쪽 영역 남기기</option>
+          <option value="x-right">X 오른쪽 영역 남기기</option>
+          <option value="z-front">Z 앞 영역 남기기</option>
+          <option value="z-rear">Z 뒤 영역 남기기</option>
+          <option value="y-above">Y 윗부분 남기기</option>
+        </select>
+        <label for="site-section-offset">작품 중심 대비 단면 이동 (m)</label>
+        <input id="site-section-offset" type="number" min="-100" max="100" step=".5" value="0">
+        <div class="inline">
+          <button id="site-view-apply" class="outline full" type="button">현장 미리보기 적용</button>
+          <button id="site-view-reset" class="outline full" type="button">원본 화면 복원</button>
+        </div>
+        <label for="site-navigation-performance">마우스 이동 중 화면 부하</label>
+        <select id="site-navigation-performance">
+          <option value="quality">항상 고품질</option>
+          <option value="adaptive">이동 중 픽셀 밀도 자동 낮춤</option>
+        </select>
+        <p id="site-view-stat" class="hint" aria-live="polite">대형 모델 탐색을 위한 화면 표시 전용 설정입니다.</p>
+        <p class="hint">원본 건축·조경 메시와 재질을 보존합니다. 이 가림 효과는 PNG·MASTER 8컷·GLB 출력에 포함되지 않습니다. 단면은 건물 메시의 수학적 잘림 표시일 뿐 실제 단면 내부를 새로 모델링하지 않습니다.</p>
       </section>
       <section class="section">
         <div class="section-title"><h2>선택 객체 Transform</h2><span id="object-state" class="tag">편집 가능</span></div>
