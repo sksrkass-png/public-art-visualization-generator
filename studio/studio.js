@@ -488,6 +488,37 @@ function showPairMeasurement(){
       (m.boxOverlap?" · 박스 겹침 (예비 간섭)":"");
   }catch(error){$("measure-objects-status").textContent="객체 측정 불가: "+error.message;}
 }
+// SVG-only dimension guide: not part of the 3D scene or exported models.
+const measurementSvg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+measurementSvg.classList.add("measurement-svg");
+measurementSvg.setAttribute("aria-hidden","true");
+$("measurement-overlay").append(measurementSvg);
+function drawMeasurementOverlay(){
+  measurementSvg.replaceChildren();
+  if(!measuredPoints.length)return;
+  const w=viewport.clientWidth,h=viewport.clientHeight;
+  measurementSvg.setAttribute("viewBox","0 0 "+w+" "+h);
+  const pts=measuredPoints.map(pos=>{
+    const v=new THREE.Vector3(...pos).project(camera);
+    return {x:(v.x+1)*w/2,y:(1-v.y)*h/2,z:v.z};
+  });
+  if(pts.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)||p.z<-1||p.z>1))return;
+  const ns="http://www.w3.org/2000/svg";
+  const add=(type,attrs)=>{const el=document.createElementNS(ns,type);
+    for(const [key,val] of Object.entries(attrs))el.setAttribute(key,String(val));
+    measurementSvg.append(el);return el;};
+  if(pts.length===2){
+    const [p,q]=pts;
+    add("line",{x1:p.x,y1:p.y,x2:q.x,y2:q.y,stroke:"#fff","stroke-width":5});
+    add("line",{x1:p.x,y1:p.y,x2:q.x,y2:q.y,stroke:"#e34230","stroke-width":2});
+    const d=new THREE.Vector3(...measuredPoints[0]).distanceTo(new THREE.Vector3(...measuredPoints[1]));
+    const label=add("text",{x:(p.x+q.x)/2,y:(p.y+q.y)/2-12,"text-anchor":"middle",
+      fill:"#fff","font-size":14,"font-weight":800,stroke:"#20252a",
+      "stroke-width":4,"paint-order":"stroke"});
+    label.textContent=d.toFixed(3)+" m";
+  }
+  for(const p of pts)add("circle",{cx:p.x,cy:p.y,r:6,fill:"#e34230",stroke:"#fff","stroke-width":2});
+}
 function addMeasuredPoint(point){
   if(measuredPoints.length>=2)measuredPoints=[];
   measuredPoints.push(point.toArray());
@@ -3107,6 +3138,7 @@ function animate() {
   requestAnimationFrame(animate);
   orbit.update();
   renderer.render(scene, camera);
+  drawMeasurementOverlay();
   spatialBridge?.drawOverlay();
 }
 buildSite("plaza");
