@@ -1335,9 +1335,9 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.deepEqual(afterFrame.render.visual,
       {toneCurve:"neutral",sky:"warm",shadowProfile:"high",guide:"thirds"});
     // Verify the 16:9 PNG output excludes DOM-only composition lines.
-    const pngEvent=page.waitForEvent("download",{timeout:60000});
+    const visualPngEvent=page.waitForEvent("download",{timeout:60000});
     await page.locator("#shot-export").click();
-    const pngBuffer=fs.readFileSync(await (await pngEvent).path());
+    const pngBuffer=fs.readFileSync(await (await visualPngEvent).path());
     assert.equal(pngBuffer.subarray(1,4).toString("ascii"),"PNG");
     const pngWidth=pngBuffer.readUInt32BE(16),pngHeight=pngBuffer.readUInt32BE(20);
     assert.ok(Math.abs(pngWidth/pngHeight-16/9)<.005,
