@@ -1244,6 +1244,64 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     delete beforeDiffData.createdAt;delete afterDiffData.createdAt;
     assert.deepEqual(beforeDiffData,afterDiffData,
       "comparison and JSON export cannot modify geometry, lighting, camera or approvals");
+    // v1.7: reviewed 3D surface points are HTML pins, NOT geometry changes.
+    assert.equal(await page.locator("#spatial-place").isEnabled(),true,
+      "only a currently approved MASTER enables spatial annotation");
+    await page.locator("#spatial-author").fill("AXOO Curator");
+    await page.locator("#spatial-comment").fill("Confirm plinth clearance against visitor circulation.");
+    await page.locator("#select-artwork").click();
+    await page.locator("#focus").click();
+    const pinBeforeEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const pinBefore=JSON.parse(fs.readFileSync(await (await pinBeforeEvent).path(),"utf8"));
+    await page.locator("#spatial-place").click();
+    assert.match(await page.locator("#spatial-status").textContent(),/한 번 클릭/);
+    const pointRect=await page.locator("#viewport canvas").boundingBox();
+    await page.mouse.click(pointRect.x+pointRect.width*.5,pointRect.y+pointRect.height*.5);
+    await page.waitForFunction(()=>document.querySelector("#spatial-status")?.textContent.includes("기록 완료"),
+      null,{timeout:15000});
+    assert.equal(await page.locator(".spatial-list-row").count(),1);
+    assert.equal(await page.locator(".spatial-screen-pin").count(),1);
+    await page.locator("#spatial-resolve").click();
+    assert.match(await page.locator("#spatial-summary").textContent(),/미처리 0개/);
+    await page.locator("#spatial-reopen").click();
+    assert.match(await page.locator("#spatial-summary").textContent(),/미처리 1개/);
+    const pinSaveEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const pinAfter=JSON.parse(fs.readFileSync(await (await pinSaveEvent).path(),"utf8"));
+    assert.equal(pinAfter.spatialReview.schema,"axoo-spatial-review-v1");
+    assert.equal(pinAfter.spatialReview.pins.length,1);
+    assert.equal(pinAfter.spatialReview.pins[0].status,"open");
+    assert.match(pinAfter.spatialReview.pins[0].masterSHA256,/^[a-f0-9]{64}$/);
+    assert.equal(pinAfter.spatialReview.pins[0].revision,pinAfter.masterSnapshots.at(-1).revision);
+    delete pinBefore.createdAt;delete pinAfter.createdAt;delete pinAfter.spatialReview;
+    delete pinBefore.spatialReview;
+    assert.deepEqual(pinAfter,pinBefore,"pin notes must not mutate scene, MASTER, or camera");
+    const reviewArchiveEvent=page.waitForEvent("download",{timeout:90000});
+    await page.locator("#export-project").click();
+    const reviewArchivePath=await (await reviewArchiveEvent).path();
+    const savedReview=JSON.parse(execFileSync("python3",["-c",[
+      "import json,sys,zipfile",
+      "with zipfile.ZipFile(sys.argv[1]) as archive:",
+      "  config=json.loads(archive.read('project.json'))",
+      "  assert config['spatialReview']['schema']=='axoo-spatial-review-v1'",
+      "  print(json.dumps(config['spatialReview']))"
+    ].join("\n"),reviewArchivePath],{encoding:"utf8",timeout:25000}).trim());
+    assert.equal(savedReview.pins.length,1,"whole-project ZIP must retain spatial notes");
+    page.once("dialog",dialog=>dialog.accept());
+    await page.locator("#master-lock").click();
+    assert.equal(await page.locator("#spatial-place").isDisabled(),true,
+      "edit mode must not accept review points for an unapproved revision");
+    assert.equal(await page.locator(".spatial-screen-pin").count(),0,
+      "a previous revision pin must not overlay a live editable model");
+    await page.locator("#master-lock").click();
+    await page.waitForFunction(()=>document.querySelector("#spatial-summary")?.textContent.includes("검토 핀 0개"));
+    assert.equal(await page.locator(".spatial-screen-pin").count(),0,
+      "newly approved revision must not inherit world-coordinate pins from old MASTER");
+    const historicalReviewEvent=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const historic=JSON.parse(fs.readFileSync(await (await historicalReviewEvent).path(),"utf8"));
+    assert.equal(historic.spatialReview.pins.length,1,"earlier revision notes remain archived");
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
