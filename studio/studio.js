@@ -305,6 +305,39 @@ function refreshAssetLibraryUI(){
   $("library-asset-file").disabled=approvedMaster || assetLibrary.size>=MAX_LIBRARY_ASSETS;
   $("library-asset-category").disabled=approvedMaster;
 }
+function additionalArtworks(){
+  return extrasRoot.children.filter(o=>o.userData.extraKind==="custom-glb"&&o.userData.assetCategory==="artwork");
+}
+function updateMultiArtStatus(){
+  const count=additionalArtworks().length;
+  $("multi-art-file").disabled=approvedMaster||count>=4;
+  $("multi-art-status").textContent="작품 "+(count+1)+"/5개 · 추가 슬롯 "+(4-count)+
+    "개 · 개별 선택/삭제 가능 · 전체 프로젝트 ZIP에 원본 GLB 보존";
+}
+async function addArtworkGLB(file){
+  if(!file||approvedMaster)return;
+  if(additionalArtworks().length>=4)
+    return notify("기본 작품 포함 최대 5개입니다. 추가 작품 하나를 삭제하면 슬롯이 열립니다.");
+  const existingBytes=[...assetLibrary.values()].reduce((sum,a)=>sum+a.file.size,0);
+  if(assetLibrary.size>=MAX_LIBRARY_ASSETS||existingBytes+file.size>MAX_LIBRARY_BYTES)
+    return notify("프로젝트 GLB 파일 한도를 확인하세요 (전체 최대 60MB).");
+  const op=++activeLibraryOperation,id="lib"+nextLibraryId++;
+  try{
+    const asset=await parseLibraryGLB(file,id,"artwork");
+    if(op!==activeLibraryOperation||approvedMaster)return;
+    const before=editSnapshot();
+    assetLibrary.set(id,asset);
+    const root=makeExtra("custom-glb",nextExtraId++,2,id,assetLibrary,artRoot);
+    root.position.copy(artRoot.position);
+    root.position.x+=1.6*(additionalArtworks().length+1);
+    extrasRoot.add(root);
+    refreshLayers({redrawSite:false});
+    selectRoot(root,true);
+    commit(before);
+    updateMultiArtStatus();
+    notify("독립 작품 추가 "+(additionalArtworks().length+1)+"/5 · "+file.name);
+  }catch(e){notify("추가 작품 가져오기 실패: "+e.message);}
+}
 async function importLibraryGLB(file){
   if(!file || approvedMaster)return;
   if(assetLibrary.size>=MAX_LIBRARY_ASSETS)return notify("에셋은 최대 6개까지 등록할 수 있습니다.");
@@ -340,7 +373,7 @@ function renderExtraLayerRows() {
     label.type="button";label.textContent=root.name;label.title="선택 후 이동·회전·크기 변경";
     const editable=canEditObject(root,artRoot,layerState,approvedMaster);
     label.disabled=!editable;
-    label.addEventListener("click",()=>selectRoot(root));
+    label.addEventListener("click",()=>selectRoot(root,true));
     const eye=document.createElement("input");
     eye.type="checkbox";eye.checked=root.userData.layerHidden!==true;
     eye.disabled=approvedMaster;
@@ -1491,7 +1524,7 @@ function syncLock() {
   ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale",
     "dimension-width","dimension-depth","dimension-height","dimension-mode","dimension-distortion","dimension-apply",
     "plinth-width","plinth-depth","plinth-height","plinth-finish","plinth-shape","plinth-create","plinth-update","plinth-align",
-    "anchor-mode","anchor-x","anchor-y","anchor-z","anchor-pick","anchor-apply"]
+    "anchor-mode","anchor-x","anchor-y","anchor-z","anchor-pick","anchor-apply","multi-art-file"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   $("master-lock").classList.toggle("locked", approvedMaster);
   $("master-lock").textContent = approvedMaster ? "🔒 MASTER LOCK 승인됨 · 수정하려면 잠금 해제" : "MASTER VIEW 승인 · 작품 잠금";
@@ -1503,6 +1536,7 @@ function syncLock() {
   syncBatchAvailability();
   refreshLayers({redrawSite:true});
   updateUndoButtons();
+  updateMultiArtStatus();
   if(proposalBridge)proposalBridge.refresh();
   if(collaborationBridge)collaborationBridge.refresh();
   if(revisionBridge)revisionBridge.refresh();
@@ -1636,6 +1670,7 @@ function updateExtrasStatus() {
 }
 let gizmoRequested=false;
 function selectRoot(object, showGizmo=false) {
+  updateMultiArtStatus();
   selectedRoot = object || artRoot;
   gizmoRequested=!!showGizmo;
   if (gizmoRequested && selectedCanEdit())transform.attach(selectedRoot);
@@ -1809,8 +1844,8 @@ function handleSelection(event) {
   if (!first) return;
   let candidate = first.object;
   while (candidate.parent && candidate.parent !== extrasRoot && candidate.parent !== artRoot) candidate = candidate.parent;
-  if (candidate.parent === extrasRoot) selectRoot(candidate);
-  else selectRoot(artRoot);
+  if (candidate.parent === extrasRoot) selectRoot(candidate,true);
+  else selectRoot(artRoot,true);
 }
 function setTransformFromField(el) {
   if (!selectedCanEdit()) return;
@@ -2701,6 +2736,9 @@ $("site-view-reset").addEventListener("click",resetSitePreviewUI);
 $("site-navigation-performance").addEventListener("change",setupNavigationPerformance);
 $("site-file").addEventListener("change", e => importModel(e.target.files[0], true));
 $("art-file").addEventListener("change", e => importModel(e.target.files[0], false));
+$("multi-art-file").addEventListener("change",e=>{
+  addArtworkGLB(e.target.files[0]);e.target.value="";
+});
 $("map-file").addEventListener("change", e => loadPlan(e.target.files[0]));
 $("map-width").addEventListener("change", () => { if (!approvedMaster) syncPlanWidth(); });
 ["plan-x","plan-z","plan-rotation","plan-elevation","plan-opacity","plan-visible"].forEach(id=>{
