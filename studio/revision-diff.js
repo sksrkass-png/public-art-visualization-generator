@@ -91,7 +91,7 @@ export function compareMasterRevisions(before,after) {
   if(before.placementReference&&after.placementReference)
     fields("artwork","critical","설치 기준점",before.placementReference,after.placementReference);
   function classifyExtra(item){
-    if(item?.kind==="artwork-copy")return "critical";
+    if(item?.kind==="artwork-copy"||item?.kind==="plinth")return "critical";
     if(item?.kind==="custom-glb"){
       const lib=[...(before.library||[]),...(after.library||[])].find(v=>v.id===item.assetId);
       if(lib?.category==="artwork")return "critical";
@@ -116,7 +116,7 @@ export function compareMasterRevisions(before,after) {
           radians?"°":key==="p"?"m":"");
       }
     }
-    for(const key of ["hidden","selectionLocked","groupId","appearanceVersion","power","color"])
+    for(const key of ["hidden","selectionLocked","groupId","appearanceVersion","power","color","finish","followArtwork"])
       add("objects",sev,name+" "+key,a[key],b[key]);
   }
   const leftLibrary=new Map((before.library||[]).map(x=>[x.id,x]));
