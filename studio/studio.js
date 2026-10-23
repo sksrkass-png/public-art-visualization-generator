@@ -39,6 +39,9 @@ import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, imp
   layerForObject } from "./layers.js";
 import {createSiteViewportController,normalizeSiteViewSettings} from "./site-viewport.js";
 import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js";
+import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
+  visualReadiness,visualPackageManifest} from "./visual-workflow.js";
+import {createVisualOptionStage} from "./visual-option-render.js";
 
 const $ = id => document.getElementById(id);
 const viewport = $("viewport");
@@ -158,6 +161,8 @@ let selectedMode = "translate";
 let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
 const groupChecked=new Set();
 let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=null;
+const visualVariants={};
+let lastInstallationCheck=null;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
 let proposalBridge = null, collaborationBridge = null, revisionBridge = null, spatialBridge = null;
 const assetLibrary=new Map();
@@ -566,6 +571,142 @@ function checkInterferences(){
        (output.pairs.length>4?" 외 "+(output.pairs.length-4)+"건":"")
     :"검사 범위에서 외접 박스 중첩 없음 · 건물 메시 "+output.checkedBuildings+"개 분류됨";
   if(output.truncated)$("precision-collision-status").textContent+=" · 전체 메시를 검사하지 못했습니다.";
+}
+// v2.3–v2.5: spatial preliminary checks and independent A/B/C scene snapshots.
+function stageObjectBounds(root){
+  const box=new THREE.Box3().setFromObject(root);
+  return box.isEmpty()?null:{min:box.min.toArray(),max:box.max.toArray()};
+}
+function installationObjects(){
+  return [artRoot,...extrasRoot.children.filter(x=>["artwork-copy","custom-glb","plinth"].includes(x.userData.extraKind))]
+    .filter(x=>x.visible&&!x.userData.layerHidden)
+    .map(x=>({name:x.name,bounds:stageObjectBounds(x)})).filter(x=>x.bounds);
+}
+function installationBuildings(){
+  if(!siteSourceFile)return [];
+  return enumerateSiteMeshes(siteRoot).filter(entry=>
+    layerState.siteNodes[entry.path]?.category==="buildings"&&entry.object.visible)
+    .map(entry=>({name:entry.object.name||entry.path,bounds:stageObjectBounds(entry.object)}))
+    .filter(x=>x.bounds);
+}
+function assessInstallation(){
+  const threshold=Number($("installation-clearance").value);
+  const data=preliminaryClearances(installationObjects(),installationBuildings(),threshold);
+  lastInstallationCheck=data;
+  const hits=data.warnings.slice(0,4)
+    .map(x=>x.actor+" ↔ "+x.site+" "+x.gapM.toFixed(2)+"m").join(" / ");
+  $("installation-check-status").textContent=
+    "현장 건물 "+data.checkedBuildings+"개 / 설치물 "+data.checkedActors+"개 예비 검사 · "+
+    (data.warnings.length?data.warnings.length+"개 이격/겹침 후보: "+hits+
+      (data.warnings.length>4?" 외 "+(data.warnings.length-4)+"개":""):
+      "검사 대상에서 경고 없음")+
+    (data.checkedBuildings===0?" · 건물 메시가 분류되지 않아 설치 안전을 판단할 수 없습니다.":"")+
+    (data.truncated?" · 일부 객체 미검사":"")+
+    " · 외접박스 예비 검토이며 실제 충돌 판정은 아닙니다.";
+  return data;
+}
+function pedestrianCamera(type){
+  const box=new THREE.Box3().setFromObject(artRoot);
+  if(box.isEmpty())return notify("작품을 먼저 불러오세요.");
+  const center=box.getCenter(new THREE.Vector3()),height=box.max.y-box.min.y;
+  const out=camera.position.clone().sub(orbit.target);
+  out.y=0;
+  if(out.lengthSq()<.000001)out.set(0,0,1);
+  out.normalize();
+  const d=type==="approach"?Math.max(25,height*8):Math.max(6,height*2.7);
+  const eye=new THREE.Vector3(center.x,box.min.y+WALKING_EYE_HEIGHT,center.z);
+  camera.position.copy(eye).addScaledVector(out,d);
+  orbit.target.set(center.x,box.min.y+Math.max(1.2,Math.min(height*.58,3)),center.z);
+  orbit.maxDistance=Math.max(800,d*3);
+  camera.near=.02;camera.far=Math.max(3000,d*10);
+  camera.updateProjectionMatrix();orbit.update();
+  $("installation-check-status").textContent=
+    (type==="approach"?"보행자 진입 원거리":"보행자 아이레벨 근거리")+
+    " · 카메라 높이 작품 하단 기준 "+WALKING_EYE_HEIGHT.toFixed(2)+
+    "m · 모델 형상/위치 변경 없음 (실제 지면 고도 별도 확인)";
+}
+function snapshotVisualVariant(slot){
+  return {
+    slot,name:slot+"안",sourceArt:artFileName,sourceSite:siteFileName,
+    sourcePreset:$("site-preset").value,sourceLibrary:libraryManifest(assetLibrary),
+    scene:structuredClone(editSnapshot()),
+    camera:{position:camera.position.toArray(),target:orbit.target.toArray(),fov:camera.fov},
+    lighting:Object.fromEntries(["sun-azimuth","sun-elevation","sun-strength","ambient","exposure"].map(id=>[id,Number($(id).value)])),
+    lightPreset:$("light-preset").value,shadows:$("shadows").checked,
+    render:currentRenderConfig(),placementReference:currentPlacementReference()
+  };
+}
+function validStoredVisualVariants(value){
+  return validVariants(value) && Object.values(value).every(v=>
+    validTransform(v.scene.artwork) && validateExtras(v.scene.extras) &&
+    validateLayerState(v.scene.layers) && validMaterialConfig(v.scene.material) &&
+    validRenderConfig(v.render) && validPlacementReference(v.placementReference) &&
+    (v.sourcePreset===undefined||["empty","plaza","courtyard","promenade"].includes(v.sourcePreset)) &&
+    (v.sourceLibrary===undefined||validLibraryManifest(v.sourceLibrary)) &&
+    typeof v.shadows==="boolean");
+}
+function visualVariantSourceMatches(v){
+  return v.sourceArt===artFileName&&v.sourceSite===siteFileName &&
+    v.sourcePreset===$("site-preset").value &&
+    JSON.stringify(v.sourceLibrary||[])===JSON.stringify(libraryManifest(assetLibrary));
+}
+function refreshVisualSlots(){
+  const saved=VISUAL_SLOTS.filter(slot=>visualVariants[slot]);
+  $("visual-option-status").textContent="저장 슬롯 "+saved.length+"/3 · "+
+    VISUAL_SLOTS.map(slot=>slot+"안 "+(visualVariants[slot]?"저장됨":"비어 있음")).join(" / ")+
+    (approvedMaster?" · MASTER 승인 중: 시안 수정 불가":"");
+  document.querySelectorAll("[data-option-save]").forEach(btn=>btn.disabled=approvedMaster);
+  document.querySelectorAll("[data-option-load]").forEach(btn=>{
+    btn.disabled=approvedMaster||!visualVariants[btn.dataset.optionLoad];
+  });
+  $("visual-options-export").disabled=saved.length===0;
+}
+function saveVisualOption(slot){
+  if(approvedMaster)return notify("MASTER 승인 중에는 시안 변경을 저장할 수 없습니다. 새 Revision을 시작하세요.");
+  const v=snapshotVisualVariant(slot);
+  if(!validStoredVisualVariants({[slot]:v}))return notify("시안 속성 검증에 실패했습니다.");
+  visualVariants[slot]=v;
+  refreshVisualSlots();
+  notify(slot+"안 배치·카메라·조명 저장 완료 · 프로젝트 ZIP에 보존됩니다.");
+}
+function loadVisualOption(slot){
+  if(approvedMaster)return notify("MASTER LOCK 해제 후 시안을 바꾸세요.");
+  const v=visualVariants[slot];
+  if(!v)return notify(slot+"안 저장 기록이 없습니다.");
+  if(!visualVariantSourceMatches(v))return notify("해당 안의 작품·현장·참조 GLB 원본이 현재와 다릅니다.");
+  const before=editSnapshot();
+  restoreEdit(structuredClone(v.scene));
+  restorePlacementReference(v.placementReference);
+  for(const [id,value] of Object.entries(v.lighting))if($(id))$(id).value=String(value);
+  $("light-preset").value=v.lightPreset;
+  $("shadows").checked=v.shadows;
+  restoreRenderConfig(v.render);
+  camera.position.fromArray(v.camera.position);
+  orbit.target.fromArray(v.camera.target);
+  camera.fov=v.camera.fov;
+  camera.updateProjectionMatrix();orbit.update();updateLight();
+  commit(before);refreshVisualSlots();
+  notify(slot+"안 복원 · 모델과 카메라/조명 설정 적용 (Ctrl+Z 가능)");
+}
+function checkVisualReadiness(){
+  const box=new THREE.Box3().setFromObject(artRoot);
+  const size=box.isEmpty()?[]:box.getSize(new THREE.Vector3()).toArray();
+  const master=masterSnapshots[masterSnapshots.length-1];
+  const clearance=assessInstallation();
+  const evaluation=visualReadiness({
+    realSite:!!siteSourceFile,realArtwork:!!artSourceFile,
+    masterApproved:approvedMaster,
+    masterConsistent:!!master&&masterConsistency(master,baselineForMaster()).ok,
+    dimensionsM:size,clearance,hasLighting:$("shadows").checked
+  });
+  const problems=[...evaluation.warnings];
+  if(!clearance.checkedBuildings)
+    problems.push("현장 건축 메시 분류가 없어 벽체 이격 검토가 완료되지 않았습니다.");
+  $("visual-preflight-status").textContent=
+    (problems.length?"추가 확인 "+problems.length+"건 · ":"예비 품질 점검 통과 · ")+
+    (problems.join(" / ")||"현장·작품·배치 확인 조건 충족")+
+    " · "+evaluation.warning;
+  return {evaluation,warnings:problems};
 }
 function collectPrecisionReport(){
   checkInterferences();
