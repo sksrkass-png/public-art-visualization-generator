@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 1.4</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 1.5</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -451,6 +451,32 @@
         </div>
         <p id="proposal-status" class="hint" aria-live="polite">MASTER 8컷 ZIP을 가져오면 제안서 패키지를 제작할 수 있습니다.</p>
         <p class="hint">압축 해제 후 <code>proposal-sheets.html</code>을 브라우저에서 열어 확인하고 필요 시 인쇄→PDF로 저장하세요. 원본 작품·현장 모델은 변경하지 않습니다. 자동 작성된 실측·인허가 확정 정보는 포함되지 않습니다.</p>
+      </section>
+      <section class="section" id="team-collaboration-panel">
+        <div class="section-title"><h2>TEAM REVIEW / 협업 검토</h2><span class="tag">v1.5</span></div>
+        <p class="hint">승인된 MASTER 버전별로 검토를 요청하고, 디렉터의 수정 의견 또는 수동 승인 기록을 남깁니다. 저장·교환은 로컬 JSON 및 전체 프로젝트 ZIP 방식입니다.</p>
+        <div id="collab-active" class="collab-active" aria-live="polite">검토 대상 MASTER 없음</div>
+        <label for="collab-author">검토 요청자</label>
+        <input id="collab-author" type="text" maxlength="90" autocomplete="off" placeholder="프로젝트 담당자 이름">
+        <label for="collab-reviewer">디렉터 / 검토자</label>
+        <input id="collab-reviewer" type="text" maxlength="90" autocomplete="off" placeholder="요청자와 다른 검토자 이름">
+        <label for="collab-note">검토 요청 설명 / 수정 의견</label>
+        <textarea id="collab-note" rows="3" maxlength="1800" placeholder="원본 형상·위치·크기·재료·검토 요청 및 수정 사항"></textarea>
+        <button id="collab-request" class="outline full" type="button" disabled>현재 MASTER 검토 요청 만들기</button>
+        <label class="toggle"><input id="collab-attest" type="checkbox" disabled> 원본 작품, 현장, 설치 위치·크기·재질 및 검토 의견을 직접 확인했습니다.</label>
+        <div class="collab-actions">
+          <button id="collab-changes" class="outline" type="button" disabled>수정 요청</button>
+          <button id="collab-approve" class="primary" type="button" disabled>디렉터 수동 승인</button>
+        </div>
+        <div class="inline">
+          <button id="collab-export" class="outline full" type="button" disabled>검토 JSON 저장</button>
+          <label class="file-button secondary full" for="collab-import">검토 JSON 불러오기</label>
+          <input id="collab-import" class="sr-only" type="file" accept=".json,application/json">
+        </div>
+        <p id="collab-status" class="hint" aria-live="polite">현재 승인 MASTER에서 검토 요청을 생성할 수 있습니다.</p>
+        <h3>MASTER VERSION HISTORY</h3>
+        <div id="collab-history" class="collab-history"></div>
+        <p class="hint">다른 기기와 협업하려면 검토 요청이 포함된 <b>전체 프로젝트 ZIP</b>과 검토 JSON을 전달하세요. 수정 요청 후에는 새 MASTER Revision을 만들고 재검토합니다. SHA-256은 변경 비교용 지문이며 사용자 신원·법적 승인 인증이 아닙니다. 실시간 동기화 기능은 제공하지 않습니다.</p>
       </section>
       <section class="section">
         <h2>프로젝트 저장</h2>
