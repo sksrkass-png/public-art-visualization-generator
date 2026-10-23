@@ -69,6 +69,13 @@ function revised(fn){const copy=clone(first);copy.revision=2;copy.approvedAt="20
  assert.equal(report.counts.critical,2,"site units and origin changes must be critical");
  assert.ok(report.changes.some(item=>item.label.includes("centerOrigin")));
 }
+{
+ const legacy=clone(first);delete legacy.siteSetup;
+ const next=revised(v=>{v.siteSetup.unit="mm";});
+ const audit=compareMasterRevisions(legacy,next);
+ assert.equal(audit.counts.critical,0,"unknown legacy site metadata cannot be claimed as a change");
+ assert.equal(audit.unverified.length,1,"legacy report must disclose non-comparable site fields");
+}
 assert.throws(()=>compareMasterRevisions(first,first),/서로 다르게/);
 assert.throws(()=>compareMasterRevisions(revised(()=>{}),first),/앞서야/);
 assert.match(source,/source binary checksums/,"explicit mesh-integrity limitations remain visible");
