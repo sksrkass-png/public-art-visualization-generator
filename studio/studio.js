@@ -2927,9 +2927,9 @@ $("render-aspect").addEventListener("change",updateRenderSizeLabel);
 $("render-resolution").addEventListener("change",updateRenderSizeLabel);
 $("light-preset").addEventListener("change", e => {
   const presets = {
-    clear: {az:45, el:45, sun:2, ambient:1.3, exposure:1},
-    cloudy: {az:50,el:58,sun:.65,ambient:2,exposure:1.1},
-    golden: {az:65,el:17,sun:2.25,ambient:.95,exposure:1.0},
+    clear: {az:45, el:45, sun:2.6, ambient:.8, exposure:1},
+    cloudy: {az:50,el:58,sun:.9,ambient:1.25,exposure:1.05},
+    golden: {az:65,el:17,sun:2.6,ambient:.65,exposure:1.0},
     night: {az:90,el:8,sun:0,ambient:.35,exposure:.85}
   };
   const p = presets[e.target.value];
