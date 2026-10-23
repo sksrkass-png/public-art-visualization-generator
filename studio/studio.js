@@ -21,6 +21,7 @@ import { makeIntegrityManifest, verifyIntegrityManifest } from "./integrity.js";
 import { initReadiness } from "./readiness.js";
 import { initProposalExport } from "./proposal.js";
 import { initTeamCollaboration, validateCollaborationState } from "./collaboration.js";
+import { initRevisionCompare } from "./revision-compare.js";
 import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precision.js";
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
@@ -141,7 +142,7 @@ let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
 const groupChecked=new Set();
 let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=null;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
-let proposalBridge = null, collaborationBridge = null;
+let proposalBridge = null, collaborationBridge = null, revisionBridge = null;
 const assetLibrary=new Map();
 let nextLibraryId=1,activeLibraryOperation=0;
 const neutralEnvironment=scene.environment;
@@ -1098,6 +1099,7 @@ function renderMasterHistory() {
     row.append(label, button);
     root.appendChild(row);
   });
+  if(revisionBridge)revisionBridge.refresh();
 }
 function restoreMasterCamera(index) {
   const saved = masterSnapshots[index];
@@ -1166,6 +1168,7 @@ function syncLock() {
   updateUndoButtons();
   if(proposalBridge)proposalBridge.refresh();
   if(collaborationBridge)collaborationBridge.refresh();
+  if(revisionBridge)revisionBridge.refresh();
 }
 function updateInspector(force = false) {
   const state = snapshot(selectedRoot);
@@ -2503,6 +2506,13 @@ collaborationBridge=initTeamCollaboration({getContext:()=>{
     matchesMaster:!!master && masterConsistency(master,baselineForMaster()).ok
   };
 }});
+revisionBridge=initRevisionCompare({getContext:()=>({
+  project:$("project-name").value,
+  history:masterSnapshots,
+  locked:approvedMaster,
+  matchesMaster:!!masterSnapshots.length &&
+    masterConsistency(masterSnapshots[masterSnapshots.length-1],baselineForMaster()).ok
+})});
 $("export-glb").addEventListener("click", exportGLB);
 $("export-project").addEventListener("click", exportProjectArchive);
 $("import-project").addEventListener("change", e => {
