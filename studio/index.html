@@ -673,7 +673,7 @@
     if(!heading)continue;
     const fold=document.createElement("details");
     fold.className="inspector-fold";
-    if(section.id==="site-visibility-studio"||section.classList.contains("layer-manager"))fold.open=true;
+    if(new URLSearchParams(location.search).get("panels")==="open" || section.id==="site-visibility-studio" || section.classList.contains("layer-manager"))fold.open=true;
     const label=document.createElement("summary");label.textContent=heading.textContent.trim();
     section.before(fold);fold.append(label,section);
   }
