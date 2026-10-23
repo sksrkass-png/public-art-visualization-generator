@@ -38,6 +38,7 @@ import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, imp
   enumerateSiteMeshes, invalidateSiteMeshIndex, applyLayerVisibility, normalizeSiteAnnotations, canEditObject,
   layerForObject } from "./layers.js";
 import {createSiteViewportController,normalizeSiteViewSettings} from "./site-viewport.js";
+import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js";
 
 const $ = id => document.getElementById(id);
 const viewport = $("viewport");
@@ -91,6 +92,15 @@ scene.add(artRoot);
 const extrasRoot = new THREE.Group();
 extrasRoot.name = "Editable placement assets";
 scene.add(extrasRoot);
+// Viewport-only yellow selection box. No source mesh/material edits.
+const selectionBounds=new THREE.Box3();
+const selectionOutline=new THREE.Box3Helper(selectionBounds,0xffd51f);
+selectionOutline.name="Editor Selection Outline — excluded from output";
+selectionOutline.material.depthTest=false;
+selectionOutline.material.toneMapped=false;
+selectionOutline.renderOrder=995;
+selectionOutline.visible=false;
+scene.add(selectionOutline);
 const sunGuide = new THREE.Mesh(
   new THREE.SphereGeometry(.7, 22, 16),
   new THREE.MeshBasicMaterial({ color: 0xffcb73, opacity: .28, transparent: true, depthWrite: false })
@@ -607,6 +617,7 @@ function refreshLayers({redrawSite = false} = {}) {
   refreshPrecisionUI();
   if(!selectedCanEdit()) transform.detach();
   else if(gizmoRequested && !transform.dragging && transform.object!==selectedRoot) transform.attach(selectedRoot);
+  refreshSelectionOutline();
   controls.forEach(input=>{input.disabled=!selectedCanEdit();});
   $("delete-selected").disabled=!selectedCanEdit() || selectedRoot===artRoot;
   $("ground-selected").disabled=!selectedCanEdit();
@@ -1685,7 +1696,7 @@ function updateExtrasStatus() {
       button.addEventListener("click", () => {
         // Resolve by ID at click time: undo/ZIP restore may rebuild mesh roots.
         const latest = extrasRoot.children.find(object => object.userData.extraId === root.userData.extraId);
-        if (latest) selectRoot(latest);
+        if (latest) selectRoot(latest,true);
       });
       list.append(button);
     }
@@ -1700,12 +1711,31 @@ function updateExtrasStatus() {
   refreshPrecisionUI();
 }
 let gizmoRequested=false;
+function refreshSelectionOutline(){
+  const visible=gizmoRequested&&selectedRoot?.parent&&selectedRoot.visible &&
+    (selectedRoot===artRoot?layerState.groups.artwork.visible:
+       !selectedRoot.userData.layerHidden);
+  if(visible){
+    selectedRoot.updateMatrixWorld(true);
+    selectionBounds.setFromObject(selectedRoot);
+  }
+  selectionOutline.visible=!!visible&&!selectionBounds.isEmpty();
+}
+function clearCanvasSelection(){
+  gizmoRequested=false;
+  transform.detach();
+  selectedRoot=artRoot;
+  selectionOutline.visible=false;
+  updateInspector(true);
+  updateExtrasStatus();
+}
 function selectRoot(object, showGizmo=false) {
   updateMultiArtStatus();
   selectedRoot = object || artRoot;
   gizmoRequested=!!showGizmo;
   if (gizmoRequested && selectedCanEdit())transform.attach(selectedRoot);
   else transform.detach();
+  refreshSelectionOutline();
   updateInspector(true);
   updateExtrasStatus();
   refreshLayers();
@@ -1845,7 +1875,7 @@ function pickPlacement(event) {
 }
 function handleSelection(event) {
   if(spatialBridge?.handleCanvasClick(event,mouseMoved))return;
-  if (mouseMoved || approvedMaster || transform.dragging || event.button !== 0) return;
+  if (mouseMoved || transform.dragging || event.button !== 0) return;
   if (placementMode) {
     const hit = pickPlacement(event);
     if (!hit) { notify("해당 지점에서 위쪽 표면을 찾을 수 없습니다. 현장 메시와 각도를 확인하세요."); return; }
@@ -1882,7 +1912,7 @@ function handleSelection(event) {
     const root=obj.parent===extrasRoot ? obj : artRoot;
     return canEditObject(root,artRoot,layerState,false);
   });
-  if (!first) return;
+  if (!first) { clearCanvasSelection(); return; }
   let candidate = first.object;
   while (candidate.parent && candidate.parent !== extrasRoot && candidate.parent !== artRoot) candidate = candidate.parent;
   if (candidate.parent === extrasRoot) selectRoot(candidate,true);
@@ -1919,6 +1949,7 @@ function setTransformFromField(el) {
   commit(before);
   updateInspector();
   if(selectedRoot===artRoot)updateLight();
+  refreshSelectionOutline();
 }
 const SITE_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl", "ply", "dae", "3ds", "zip"]);
 const ARTWORK_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "stl"]);
@@ -3096,6 +3127,7 @@ transform.addEventListener("mouseUp", () => {
   lastDrag = null;
   updateInspector();
   if(selectedRoot===artRoot)updateLight();
+  refreshSelectionOutline();
 });
 transform.addEventListener("objectChange", () => {
   // Keep size proportional by default, including direct gizmo manipulation.
@@ -3120,6 +3152,7 @@ transform.addEventListener("objectChange", () => {
   sun.position.add(artDelta);
   sun.target.position.copy(artRoot.position);
   sun.target.updateMatrixWorld();
+  refreshSelectionOutline();
 });
 renderer.domElement.addEventListener("pointerdown", () => { mouseMoved = false; });
 renderer.domElement.addEventListener("pointermove", e => { if (e.buttons) mouseMoved = true; });
@@ -3127,6 +3160,11 @@ renderer.domElement.addEventListener("pointerup", handleSelection);
 window.addEventListener("keydown", e => {
   if (e.target instanceof HTMLElement && e.target.closest("input,textarea,select,[contenteditable]")) return;
   if (e.key === "Escape" && spatialBridge?.cancel()) { e.preventDefault(); return; }
+  if (e.key === "Escape" && gizmoRequested) {clearCanvasSelection();e.preventDefault();return;}
+  if (e.key.toLowerCase()==="f"&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    if(e.shiftKey)focusImportedSite();else focusCurrentSelection();
+    e.preventDefault();return;
+  }
   if (e.key === "Escape" && placementMode) {
     placementMode = null; $("placement-hint").hidden = true; return;
   }
