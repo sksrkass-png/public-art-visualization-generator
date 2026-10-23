@@ -28,6 +28,14 @@
   <main class="workspace">
     <aside class="sidepanel left">
       <div class="panel-head"><span class="eyebrow">01 / SCENE SETUP</span><h1>공간과 작품</h1><p>현장을 선택하고 작품 모델을 배치하세요.</p></div>
+      <div class="project-quick-save">
+        <p class="hint">프로젝트 이름으로 모델과 배치를 묶어 관리합니다.</p>
+        <div class="inline">
+          <button id="project-quick-save" class="primary full" type="button">💾 이름으로 프로젝트 ZIP 저장</button>
+          <label class="file-button secondary" for="import-project">📂 저장한 프로젝트 불러오기</label>
+        </div>
+        <p class="hint">모델 파일까지 복원하려면 JSON이 아닌 ZIP으로 저장하세요. 저장 파일은 로컬에서 보관합니다.</p>
+      </div>
       <section class="section">
         <h2>프로젝트</h2>
         <label for="project-name">프로젝트 이름</label>
@@ -106,6 +114,7 @@
         <div class="art-multi-import">
           <label class="file-button secondary" for="multi-art-file"><span>+ 추가 작품 GLB 불러오기 · 전체 최대 5개</span><small>독립형 GLB · 20MB 이하 / 개</small></label>
           <input id="multi-art-file" class="sr-only" type="file" accept=".glb,model/gltf-binary">
+          <p class="hint">추가 작품은 독립형 GLB만 지원합니다. 원본 작품·추가 작품은 장면에서 별도로 선택할 수 있습니다.</p>
           <p id="multi-art-status" class="hint" aria-live="polite">기본 작품 1개 + 추가 작품 최대 4개. 추가 작품 선택 후 삭제하면 슬롯을 다시 사용할 수 있습니다.</p>
         </div>
         <p id="art-filename" class="asset-caption">현재: 편집 가능한 샘플 조형물</p>
