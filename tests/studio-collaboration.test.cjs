@@ -21,7 +21,7 @@ const original={revision:3,approvedAt:"2026-10-22T12:00:00.000Z",
   assert.notEqual(hash,await masterFingerprint({...original,artworkTransform:{...original.artworkTransform,p:[2,2,3]}}),
     "new installation position must invalidate review");
   const pending={revision:3,masterApprovedAt:original.approvedAt,masterDigest:hash,
-    requester:"PM",reviewer:"",note:"Please review",status:"pending",attested:false,
+    requester:"PM",reviewer:"",requestNote:"Please review",note:"",status:"pending",attested:false,
     createdAt:"2026-10-22T12:01:00Z",updatedAt:"2026-10-22T12:01:00Z"};
   const check=records=>validateCollaborationState({schema:COLLAB_SCHEMA,records});
   assert.equal(check([pending]),true);
