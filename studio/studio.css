@@ -195,3 +195,17 @@
 .collab-history-row strong{font-size:10px}.collab-history-row span{color:#666e78;font-size:10px;overflow-wrap:anywhere}
 
 .collab-feedback{white-space:pre-line;overflow-wrap:anywhere;line-height:1.6;font-size:10.5px;background:white;border:1px solid #e1e5eb;border-radius:4px;padding:9px}
+
+/* v1.6 MASTER diff · read-only approval-snapshot diagnostics */
+#revision-diff-panel{border-top:2px solid #b5a58b;background:linear-gradient(180deg,#f8f6f1,#fff)}
+#revision-diff-panel select{width:100%;min-width:0}
+#revision-diff-panel .revision-summary{font-size:11px;font-weight:720;line-height:1.65;margin:11px 0;background:#eee9dd;padding:10px;border-radius:5px;overflow-wrap:anywhere}
+.revision-changes{display:grid;gap:6px;max-height:410px;overflow:auto;padding:1px;margin:11px 0}
+.revision-diff-item{display:grid;gap:3px;border:1px solid #d9dee5;border-left:3px solid #adb5bd;background:#fff;border-radius:4px;padding:9px 10px;overflow-wrap:anywhere}
+.revision-diff-item strong{font-size:10px;line-height:1.45}
+.revision-diff-item span{font-size:10px;color:#575b60;line-height:1.5;white-space:pre-wrap}
+.revision-diff-critical{border-left-color:#ca6359}
+.revision-diff-context{border-left-color:#bca355}
+.revision-diff-visual{border-left-color:#80a2c3}
+#revision-status{font-size:10px;white-space:pre-line}
+#revision-diff-panel button:disabled{opacity:.45;cursor:not-allowed}

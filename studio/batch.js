@@ -80,6 +80,7 @@ export function masterConsistency(master, state) {
     if(JSON.stringify(a)!==JSON.stringify(b))issues.push(label+" 변경이 감지됐습니다.");
   };
   compare(master.artworkTransform,state.artworkTransform,"작품 배치");
+  if(master.siteSetup!==undefined)compare(master.siteSetup,state.siteSetup,"현장 원점·단위 설정");
   compare(master.extras??[],state.extras,"식재·조명");
   if(master.layers!==undefined)compare(master.layers,state.layers,"레이어");
   if(master.library!==undefined)compare(master.library,state.library,"참조 GLB 라이브러리");

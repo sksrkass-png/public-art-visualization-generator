@@ -197,5 +197,20 @@ for(const token of ["masterFingerprint","SHA-256","masterApprovedAt","director-a
  assert.ok(collaboration.includes(token),"v1.5 review guard missing: "+token);
 assert.doesNotMatch(collaboration,/innerHTML|\beval\(/,"reviewer-controlled HTML execution is forbidden");
 assert.match(css,/#team-collaboration-panel/,"v1.5 panel must be styled");
+// v1.6 read-only MASTER snapshot difference inspector.
+for(const id of ["revision-diff-panel","revision-base","revision-target","revision-empty",
+  "revision-summary","revision-changes","revision-export","revision-status"])
+  assert.ok(unique.has(id),"v1.6 MASTER diff control missing: "+id);
+for(const word of ["initRevisionCompare","revisionBridge.refresh()","history:masterSnapshots"])
+  assert.ok(js.includes(word),"v1.6 revision UI integration missing: "+word);
+const diffModule=fs.readFileSync(path.join(base,"studio/revision-diff.js"),"utf8");
+const compareModule=fs.readFileSync(path.join(base,"studio/revision-compare.js"),"utf8");
+for(const word of ["compareMasterRevisions","REVISION_DIFF_SCHEMA","artworkTransform",
+  "siteFile","planAlignment","material","extras","camera","lighting"])
+  assert.ok(diffModule.includes(word),"v1.6 snapshot comparison coverage missing: "+word);
+assert.match(compareModule,/masterFingerprint/,"comparison report must bind source snapshots");
+assert.match(compareModule,/\.textContent=/,"safe text-only rendering is required");
+assert.doesNotMatch(compareModule,/innerHTML|eval\(|fetch\(/,"review info must not be interpreted as HTML or uploaded");
+assert.match(css,/#revision-diff-panel/,"v1.6 comparison visual hierarchy missing");
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");
