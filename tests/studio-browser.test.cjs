@@ -1496,9 +1496,9 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await creator.locator("#plinth-finish").selectOption("black");
     await creator.locator("#plinth-create").click();
     assert.match(await creator.locator("#plinth-status").textContent(),/기단 #1/);
-    const modelFiles=["artwork-A.glb","artwork-B.glb","artwork-C.glb","artwork-D.glb"]
+    const creatorModelFiles=["artwork-A.glb","artwork-B.glb","artwork-C.glb","artwork-D.glb"]
       .map(name=>({name,mimeType:"model/gltf-binary",buffer:bytes}));
-    await creator.locator("#multi-art-files").setInputFiles(modelFiles);
+    await creator.locator("#multi-art-files").setInputFiles(creatorModelFiles);
     await creator.waitForFunction(()=>document.querySelector("#multi-art-status")?.textContent.includes("추가 작품 4 / 4"),
       null,{timeout:60000});
     assert.equal(await creator.locator(".multi-art-row").count(),4);
