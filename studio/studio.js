@@ -1704,6 +1704,7 @@ function syncLock() {
   document.querySelectorAll("[data-add-extra]").forEach(btn => { btn.disabled = approvedMaster; });
   ["art-material","art-material-color","apply-material","reset-material"].forEach(id=>{$(id).disabled=approvedMaster;});
   updateExtrasStatus();
+  refreshVisualSlots();
   controls.forEach(el => el.disabled = approvedMaster);
   ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale",
     "dimension-width","dimension-depth","dimension-height","dimension-mode","dimension-distortion","dimension-apply",
@@ -2294,6 +2295,7 @@ function sceneConfig() {
     groundPlacement: { auto: $("auto-ground").checked, offset: +$("ground-offset").value },
     extras: serializeExtras(extrasRoot),
     layers:structuredClone(layerState),
+    visualVariants:structuredClone(visualVariants),
     navSpeed: +$("nav-speed").value,
     lightPreset: $("light-preset").value,
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked },
@@ -2326,6 +2328,7 @@ function validateProjectConfig(data) {
         !(data.library || []).some(a=>a.id===x.assetId)) ||
       (data.layers !== undefined && !validateLayerState(data.layers)) ||
       (data.render !== undefined && !validRenderConfig(data.render)) ||
+      (data.visualVariants !== undefined && !validStoredVisualVariants(data.visualVariants)) ||
       (data.placementReference !== undefined && !validPlacementReference(data.placementReference)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
       (data.site.up !== undefined && !["y","z"].includes(data.site.up)) ||
@@ -2449,7 +2452,10 @@ function importSceneConfig(data) {
   renderMasterHistory();
   if(collaborationBridge)collaborationBridge.setState(data.collaboration);
   if(spatialBridge)spatialBridge.setState(data.spatialReview);
+  for(const slot of VISUAL_SLOTS)delete visualVariants[slot];
+  Object.assign(visualVariants,structuredClone(data.visualVariants||{}));
   syncLock();
+  refreshVisualSlots();
   clearUndo();
 }
 // The portable project ZIP stores the actual original bytes, not just filenames.
@@ -3201,6 +3207,19 @@ $("focus-selected-quick").addEventListener("click",focusCurrentSelection);
 $("focus-site-quick").addEventListener("click",focusImportedSite);
 $("focus").addEventListener("click", fitCamera);
 $("project-quick-save").addEventListener("click",()=>$("export-project").click());
+$("installation-check").addEventListener("click",()=>{
+  try{assessInstallation();}catch(e){$("installation-check-status").textContent=e.message;}
+});
+$("pedestrian-eye-near").addEventListener("click",()=>pedestrianCamera("near"));
+$("pedestrian-eye-approach").addEventListener("click",()=>pedestrianCamera("approach"));
+document.querySelectorAll("[data-option-save]").forEach(el=>
+  el.addEventListener("click",()=>saveVisualOption(el.dataset.optionSave)));
+document.querySelectorAll("[data-option-load]").forEach(el=>
+  el.addEventListener("click",()=>loadVisualOption(el.dataset.optionLoad)));
+$("visual-preflight").addEventListener("click",()=>{
+  try{checkVisualReadiness();}catch(e){$("visual-preflight-status").textContent=e.message;}
+});
+$("visual-options-export").addEventListener("click",exportVisualOptions);
 $("shot-export").addEventListener("click", exportImage);
 $("export-master-pack").addEventListener("click",exportMasterPack);
 initVisualReview({
