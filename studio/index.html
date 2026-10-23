@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.2</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.2.1</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -32,6 +32,10 @@
         <h2>프로젝트</h2>
         <label for="project-name">프로젝트 이름</label>
         <input id="project-name" type="text" value="새 공공미술 시안" maxlength="100">
+        <div class="inline"><button id="quick-save" type="button" class="primary full">현재 프로젝트 저장</button><button id="quick-reload" type="button" class="outline full">저장 목록 새로고침</button></div>
+        <select id="quick-project-select" aria-label="브라우저에 저장된 프로젝트"><option value="">저장된 프로젝트 선택</option></select>
+        <div class="inline"><button id="quick-load" type="button" class="outline full">선택 프로젝트 불러오기</button><button id="quick-delete" type="button" class="outline full">저장본 삭제</button></div>
+        <p id="quick-save-status" class="hint" aria-live="polite">이 브라우저에만 저장됩니다. 영구 보관용으로는 원본 포함 ZIP도 다운로드하세요.</p>
         <p class="hint">거리 단위는 m(미터), Y축은 높이입니다.</p>
       </section>
       <section class="section">
@@ -55,7 +59,7 @@
             <select id="site-up"><option value="y">Y-up</option><option value="z">Z-up</option></select></div>
         </div>
         <p class="hint">FBX 등의 로더가 파일 단위를 내부 변환한 경우 단위 설정을 추가로 적용하면 중복 보정됩니다. 크기를 반드시 확인하세요.</p>
-        <div class="site-inspection-panel" id="site-import-inspector">
+        <details class="optional-tool" id="site-inspector-fold"><summary>고급 현장 점검 (필요할 때만)</summary><div class="site-inspection-panel" id="site-import-inspector">
           <div class="section-title"><h2>현장 가져오기 정밀 점검</h2><span class="tag">v1.1</span></div>
           <label class="toggle"><input type="checkbox" id="site-center-origin"> 뷰어 원점을 현장 모델 중심으로 맞추기</label>
           <p class="hint">중심 보정은 원본 메시의 좌표를 수정하지 않고 현장 루트 그룹만 이동합니다. 작품 위치·배치도 좌표는 자동으로 옮기지 않으므로 새 현장 작업을 시작할 때 설정하세요.</p>
@@ -65,7 +69,7 @@
             <summary>SketchUp · Revit · IFC · DWG 변환 가이드</summary>
             <p class="hint">SKP/RVT/IFC/DWG 원본은 직접 열 수 없습니다. 사용 중인 전문 소프트웨어에서 GLB 또는 glTF 2.0으로 변환하고, 외부 텍스처·BIN이 있으면 .gltf 및 관련 파일들을 하나의 ZIP으로 묶어 불러오세요. 현장 단위와 Y-up 높이축, 건물·수목·바닥이 포함됐는지 확인하세요.</p>
           </details>
-        </div>
+        </div></details>
         <div id="fallback-ground" class="fallback-ground"><label for="floor-map">바닥 매핑 (예시 공간 전용)</label>
         <select id="floor-map">
           <option value="concrete">연회색 콘크리트</option>
@@ -76,7 +80,7 @@
         </select>
         </div>
         <p id="site-ground-note" class="hint" hidden>실제 현장 모델의 바닥·마감을 우선 표시합니다. 예시 바닥만 숨겨집니다.</p>
-        <div class="site-plan-controls">
+        <details class="optional-tool" id="site-plan-fold"><summary>배치도 이미지 정렬 (선택사항)</summary><div class="site-plan-controls">
           <h2>배치도 위치 정렬 <span class="small-muted">OPTIONAL</span></h2>
           <label class="file-button secondary" for="map-file"><span>+ 배치도 이미지 불러오기</span><small>PNG · JPG · WEBP</small></label>
           <input id="map-file" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp">
@@ -96,7 +100,7 @@
           <input id="plan-opacity" type="range" min="10" max="100" step="5" value="55">
           <button id="plan-pick-center" class="outline full" type="button">현장 클릭해서 배치도 중심점 맞추기</button>
           <p class="hint">배치도 폭·좌표·회전으로 수동 정렬합니다. 사진을 자동 측량하거나 도면의 좌표를 추정하지 않습니다.</p>
-        </div>
+        </div></details>
       </section>
       <section class="section">
         <div class="section-title"><h2>02. 설치 작품</h2><span id="art-status" class="tag">샘플</span></div>
@@ -104,6 +108,12 @@
         <input id="art-file" class="sr-only" type="file" accept=".glb,.gltf,.obj,.stl,model/gltf-binary">
         <button class="outline full" type="button" id="sample-art">샘플 조형물 다시 넣기</button>
         <p id="art-filename" class="asset-caption">현재: 편집 가능한 샘플 조형물</p>
+        <div class="supplemental-models">
+          <label class="file-button secondary" for="multi-art-files"><span>+ 작품 모델 추가 (최대 5개)</span><small>기본 작품 1개 + 추가 작품 GLB 4개 · 개별 위치 조정</small></label>
+          <input id="multi-art-files" class="sr-only" type="file" accept=".glb,model/gltf-binary" multiple>
+          <p id="multi-art-status" class="hint" aria-live="polite">추가 작품 0 / 4 · 삭제 시 빈 슬롯 다시 사용 가능</p>
+          <div id="multi-art-list" class="extra-list" aria-label="추가 작품 목록"></div>
+        </div>
         <label for="art-height">작품 실제 높이 (m)</label>
         <div class="inline"><input id="art-height" type="number" min="0.05" max="100" step="0.1" value="3"><button id="apply-height" class="outline" type="button">높이 맞춤</button></div>
         <p class="hint">업로드한 모델의 크기는 <strong>자동 변경하지 않습니다.</strong> GLB/OBJ/STL의 단위를 미터로 가정하며, 단위 확인 후 '높이 맞춤'으로만 변경됩니다.</p>
@@ -145,6 +155,12 @@
       </div>
       <div id="viewport" tabindex="0" aria-label="마우스 왼쪽 드래그로 화면 회전, 오른쪽으로 이동, 휠로 확대 및 축소">
         <div id="visual-composition-overlay" class="visual-composition-overlay" aria-hidden="true" hidden></div>
+        <svg id="measurement-overlay" class="measurement-overlay" aria-label="3D 거리 측정 보조선" viewBox="0 0 100 100" preserveAspectRatio="none" hidden>
+          <line id="measure-visible-line" x1="0" y1="0" x2="0" y2="0"/>
+          <circle id="measure-visible-a" r="5" cx="0" cy="0"/>
+          <circle id="measure-visible-b" r="5" cx="0" cy="0"/>
+        </svg>
+        <div id="measure-mid-label" class="measurement-label" hidden>0.000 m</div>
         <div id="spatial-pin-overlay" class="spatial-pin-overlay" aria-label="승인 MASTER 검토 핀"></div>
       </div>
       <span id="coords" class="viewport-coords">X 0.00 · Y 0.00 · Z 0.00</span>
@@ -152,8 +168,8 @@
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </section>
     <aside class="sidepanel right">
-      <div class="panel-head"><span class="eyebrow">02 / INSPECTOR</span><h1>조작 패널</h1><p>레이어와 선택한 객체를 관리합니다.</p></div>
-      <section class="section layer-manager" id="layer-manager">
+      <div class="panel-head"><span class="eyebrow">02 / INSPECTOR</span><h1>조작 패널</h1><p>레이어와 선택한 객체를 관리합니다.</p><div class="inline"><button id="collapse-panels" type="button" class="outline full">모두 접기</button><button id="expand-panels" type="button" class="outline full">모두 펼치기</button></div></div>
+      <details class="inspector-fold" open><summary>SCENE LAYERS / 레이어</summary><section class="section layer-manager" id="layer-manager">
         <div class="section-title"><h2>SCENE LAYERS / 레이어</h2><span class="tag">v0.6</span></div>
         <p class="hint">눈: 표시·숨김 / 자물쇠: 편집 선택 잠금. 원본 현장 메시의 형상과 좌표는 항상 보호됩니다.</p>
         <div id="layer-groups" class="layer-groups">
@@ -177,8 +193,8 @@
           <summary>추가 식재·조명 개별 관리 <span id="extra-layer-count">0개</span></summary>
           <div id="layer-extra-list" class="layer-extra-list"></div>
         </details>
-      </section>
-      <section class="section" id="site-visibility-studio">
+      </section></details>
+      <details class="inspector-fold" open><summary>SITE VIEW / 현장 집중 뷰</summary><section class="section" id="site-visibility-studio">
         <div class="section-title"><h2>SITE VIEW / 현장 집중 뷰</h2><span class="tag">v2.2</span></div>
         <p class="hint">대형 현장에서도 설치 작품을 잘 볼 수 있도록 현장만 잠시 반투명·단면 표시합니다. 편집된 3D 형태나 승인 MASTER는 바뀌지 않습니다.</p>
         <label for="site-view-mode">현장 미리보기</label>
@@ -216,8 +232,8 @@
         </select>
         <p id="site-view-stat" class="hint" aria-live="polite">대형 모델 탐색을 위한 화면 표시 전용 설정입니다.</p>
         <p class="hint">원본 건축·조경 메시와 재질을 보존합니다. 이 가림 효과는 PNG·MASTER 8컷·GLB 출력에 포함되지 않습니다. 단면은 건물 메시의 수학적 잘림 표시일 뿐 실제 단면 내부를 새로 모델링하지 않습니다.</p>
-      </section>
-      <section class="section">
+      </section></details>
+      <details class="inspector-fold" open><summary>선택 객체 Transform</summary><section class="section">
         <div class="section-title"><h2>선택 객체 Transform</h2><span id="object-state" class="tag">편집 가능</span></div>
         <p class="hint">작품·식재·조명을 화면에서 클릭해 선택하고 이동(G)·회전(R)·크기(S)를 조정하세요.</p>
         <button class="outline full" id="select-artwork" type="button">작품 선택</button>
@@ -261,8 +277,8 @@
         <p id="master-summary" class="hint" aria-live="polite">승인된 마스터 없음</p>
         <button id="restore-master-camera" class="outline full" type="button" disabled>승인 마스터의 카메라·조명으로 복귀</button>
         <div id="master-history" class="master-history" aria-label="승인 마스터 버전 이력"></div>
-      </section>
-      <section class="section" id="precision-placement">
+      </section></details>
+      <details class="inspector-fold" open><summary>PLINTH & ANCHOR / 설치 정밀화</summary><section class="section" id="precision-placement">
         <div class="section-title"><h2>PLINTH & ANCHOR / 설치 정밀화</h2><span class="tag">v2.1</span></div>
         <p class="hint">현장 원본은 변경하지 않고 독립 기단을 생성합니다. 기단 높이는 Y축, 폭은 X축, 깊이는 Z축입니다.</p>
         <div class="dimensioning-row">
@@ -270,8 +286,10 @@
           <div><label for="plinth-depth">깊이 D (m)</label><input id="plinth-depth" type="number" min=".05" max="30" step=".05" value="2"></div>
           <div><label for="plinth-height">높이 H (m)</label><input id="plinth-height" type="number" min=".05" max="30" step=".05" value=".4"></div>
         </div>
+        <label for="plinth-shape">좌대 형태</label>
+        <select id="plinth-shape"><option value="box">사각형</option><option value="round">원형</option></select>
         <label for="plinth-finish">기단 마감</label>
-        <select id="plinth-finish"><option value="concrete">콘크리트</option><option value="stone">석재</option><option value="metal">금속</option></select>
+        <select id="plinth-finish"><option value="white">화이트</option><option value="metal">메탈</option><option value="black">블랙</option><option value="concrete">콘크리트 (기존)</option><option value="stone">석재 (기존)</option></select>
         <button id="plinth-create" class="outline full" type="button">작품 아래 기단 만들고 작품 높이 맞춤</button>
         <button id="plinth-update" class="outline full" type="button">선택한 기단 치수·마감 수정</button>
         <button id="plinth-align" class="outline full" type="button">선택한 기단 위로 작품 수평·높이 정렬</button>
@@ -295,8 +313,8 @@
           <button id="anchor-apply" class="outline full" type="button">작품 기준점 이동</button>
         </div>
         <p id="anchor-status" class="hint" aria-live="polite">XY/Z 좌표는 뷰어 기준 m입니다. 전후좌우는 월드 축 방향이므로 현장 방위와 따로 확인하세요.</p>
-      </section>
-      <section class="section" id="precision-modeling">
+      </section></details>
+      <details class="inspector-fold" open><summary>ADVANCED MODELING</summary><section class="section" id="precision-modeling">
         <div class="section-title"><h2>ADVANCED MODELING</h2><span class="tag">v1.3</span></div>
         <p class="hint">작품 원본과 현장 지오메트리는 수정하지 않고, 배치된 개체를 복제·그룹 이동합니다. 실제 설치 검토 전 실측 도면과 비교해 주세요.</p>
         <button id="precision-duplicate" class="outline full" type="button">선택한 작품·오브제 복제 (X +2m)</button>
@@ -320,22 +338,24 @@
         <button id="precision-collision" class="outline full" type="button">배치 객체 ↔ 건물 간섭 검사</button>
         <p id="precision-collision-status" class="hint" aria-live="polite">간섭 검사는 회전된 객체를 포함한 월드 AABB 대략값이며, BIM 충돌검사·구조 안전 확인을 대체하지 않습니다.</p>
         <button id="precision-report" class="outline full" type="button">정밀 측정·간섭 리포트 JSON 저장</button>
-      </section>
-      <section class="section">
+      </section></details>
+      <details class="inspector-fold" open><summary>식재·인물·거리 가구·조명</summary><section class="section">
         <h2>식재·인물·거리 가구·조명</h2>
         <p class="hint">추가 버튼을 누른 뒤 3D 현장을 클릭해 배치합니다. 실측 현장 모델에는 기존 건물·조경을 그대로 보존합니다.</p>
         <div class="asset-palette">
           <button type="button" data-add-extra="tree-round">🌳 활엽수</button>
           <button type="button" data-add-extra="tree-cone">🌲 침엽수</button>
           <button type="button" data-add-extra="shrub">🌿 덤불</button>
+          <button type="button" data-add-extra="flower-shrub">🌸 꽃 덤불</button>
           <button type="button" data-add-extra="tree-autumn">🍂 가을 수목</button>
-          <button type="button" data-add-extra="person-standing">🚶 사람 1.73m</button>
+          <button type="button" data-add-extra="person-standing">🚶 기존 인물 1.73m</button>
+          <button type="button" data-add-extra="person-male">🚶 남성 1.75m</button>
+          <button type="button" data-add-extra="person-female">🚶‍♀️ 여성 1.60m</button>
           <button type="button" data-add-extra="park-bench">🪑 벤치</button>
           <button type="button" data-add-extra="round-planter">🪴 화분</button>
-          <button type="button" data-add-extra="point-light">💡 포인트 조명</button>
-          <button type="button" data-add-extra="spot-light">🔦 스폿 조명</button>
+          <button type="button" data-add-extra="point-light">💡 바닥 업라이트 (광선 표시)</button>
         </div>
-        <div class="asset-library-panel" id="asset-library-panel">
+        <details class="optional-tool" id="asset-library-fold"><summary>고급 GLB 에셋 도구 (기존 파일 호환)</summary><div class="asset-library-panel" id="asset-library-panel">
           <div class="section-title"><h2>외부 GLB 에셋 라이브러리</h2><span class="tag">v1.2</span></div>
           <p class="hint">실제 수목·사람·가구 3D GLB를 직접 업로드하세요. 독립형 GLB 최대 6종, 각 20MB, 합계 60MB, 모델당 삼각형 25만 개 이내입니다. 자동 에셋 다운로드는 제공하지 않습니다.</p>
           <label class="file-button secondary" for="library-asset-file"><span>+ GLB 에셋 불러오기</span><small>glTF 2.0 GLB · 텍스처 포함 권장</small></label>
@@ -353,7 +373,7 @@
           <p id="library-status" class="hint" aria-live="polite">등록 에셋 0 / 6 · GLB 원본 파일은 프로젝트 ZIP에 보관됩니다.</p>
           <p class="hint">고해상도 에셋은 성능 진단으로 폴리곤 수를 확인하며, 렌더 품질을 임의로 낮추지 않습니다.</p>
           <p class="hint">실제 에셋은 제공된 GLB의 텍스처·형상·크기를 유지합니다. 크기는 객체 선택 후 Scale 도구로 조절하세요. 소스의 사용권은 직접 확인해 주세요.</p>
-        </div>
+        </div></details>
         <div id="extra-count" class="hint">추가된 오브제 0개</div>
         <div id="extra-list" class="extra-list" aria-label="배치한 오브제 목록"></div>
         <div id="extra-light-controls" hidden>
@@ -362,8 +382,8 @@
           <label for="extra-light-color">선택한 조명 색상</label>
           <input type="color" id="extra-light-color" value="#fff4dd">
         </div>
-      </section>
-      <section class="section">
+      </section></details>
+      <details class="inspector-fold" open><summary>라이팅 / 조명</summary><section class="section">
         <div class="section-title"><h2>라이팅 / 조명</h2><span class="tag">v1.9</span></div>
         <label for="light-preset">자연광 프리셋</label>
         <select id="light-preset"><option value="custom">사용자 설정</option><option value="clear" selected>맑은 낮</option><option value="cloudy">흐린 낮</option><option value="golden">늦은 오후</option><option value="night">야간 조명</option></select>
@@ -385,8 +405,8 @@
         <label for="visual-sky">배경 하늘색</label>
         <select id="visual-sky"><option value="cool">연한 하늘 회색</option><option value="warm">따뜻한 주광</option><option value="white">뉴트럴 화이트</option></select>
         <p class="hint">조명·배경·카메라 설정만 변경하며 원본 건축과 조형물 메시·PBR 재질은 자동 수정하지 않습니다.</p>
-      </section>
-      <section class="section" id="render-look">
+      </section></details>
+      <details class="inspector-fold" open><summary>환경광 / HDRI</summary><section class="section" id="render-look">
         <h2>환경광 / HDRI</h2>
         <label for="env-mode">환경 반사 모드</label>
         <select id="env-mode">
@@ -402,8 +422,8 @@
         <label for="env-strength">환경 반사 강도 <output id="env-strength-value">1.0</output></label>
         <input id="env-strength" type="range" min="0" max="3" step=".1" value="1">
         <p class="hint">기본 모드는 실제 HDRI 사진이 아닌 환경광 프리셋입니다. .HDR 파일을 업로드해야 사진 기반 환경 반사를 사용합니다.</p>
-      </section>
-      <section class="section" id="render-materials">
+      </section></details>
+      <details class="inspector-fold" open><summary>작품 재질 / 명시적 변경</summary><section class="section" id="render-materials">
         <h2>작품 재질 / 명시적 변경</h2>
         <label for="art-material">표면 마감 프리셋</label>
         <select id="art-material">
@@ -421,8 +441,8 @@
         <button id="reset-material" class="outline full" type="button">원본 작품 재질로 되돌리기</button>
         <p id="material-status" class="hint" aria-live="polite">원본 파일의 재질과 텍스처를 그대로 유지 중입니다.</p>
         <p class="hint">적용 시 작품에만 별도 렌더 재질을 사용합니다. 현장 모델·원본 작품 파일을 수정하지 않으며, MASTER LOCK 후 변경할 수 없습니다.</p>
-      </section>
-      <section class="section">
+      </section></details>
+      <details class="inspector-fold" open><summary>카메라 / 시점</summary><section class="section">
         <h2>카메라 / 시점</h2>
         <label for="nav-speed">마우스 화면 이동·회전 속도 <output id="nav-speed-value">2.6×</output></label>
         <input type="range" id="nav-speed" min=".5" max="5" step=".1" value="2.6">
@@ -474,8 +494,8 @@
         <button id="visual-quality-check" class="outline full" type="button">시안 출력 품질 점검</button>
         <p id="visual-quality-status" class="visual-quality-status" aria-live="polite">실제 파일 사용 여부와 출력 해상도 등을 점검할 수 있습니다.</p>
         <p class="hint">렌더 시 그리드·조작 기즈모·태양 위치·구도 가이드는 제외됩니다. GPU 한계를 넘는 설정은 자동 축소합니다. Blender Cycles나 이미지 생성 AI 실사화는 아닙니다.</p>
-      </section>
-      <section class="section" id="master-render-panel">
+      </section></details>
+      <details class="inspector-fold" open><summary>MASTER 8-VIEW RENDER</summary><section class="section" id="master-render-panel">
         <div class="section-title"><h2>MASTER 8-VIEW RENDER</h2><span class="tag">v0.8</span></div>
         <p class="hint">승인한 MASTER VIEW를 기준으로 8개 시점을 자동 생성합니다. 렌더 중 현장·작품·재질·레이어는 수정하지 않으며 원래 카메라로 복귀합니다.</p>
         <div class="batch-view-grid" aria-label="8개 표준 렌더 시점">
@@ -493,8 +513,8 @@
         <button id="export-master-pack" class="primary full" type="button" disabled>MASTER 8컷 ZIP 렌더 저장</button>
         <p id="batch-status" class="hint" aria-live="polite">먼저 MASTER VIEW를 승인하면 일괄 출력할 수 있습니다.</p>
         <p class="hint">ZIP에는 8개 PNG, 촬영 메타데이터, 기준 시안 검수 정보와 선택한 경우 컨택트 시트가 포함됩니다. 3D 원본까지 보관하려면 아래 전체 프로젝트 ZIP을 사용하세요.</p>
-      </section>
-      <section class="section" id="render-review">
+      </section></details>
+      <details class="inspector-fold" open><summary>REALISM REVIEW / 실사화 검수</summary><section class="section" id="render-review">
         <div class="section-title"><h2>REALISM REVIEW / 실사화 검수</h2><span class="tag">v0.9</span></div>
         <p class="hint">승인된 MASTER 8컷 ZIP을 기준으로 외부에서 만든 실사화 후보 PNG/JPG를 비교합니다. 이 스튜디오에서 AI 이미지를 직접 생성하는 기능은 아닙니다.</p>
         <label class="file-button secondary" for="review-batch-file">+ MASTER 8컷 렌더 ZIP 불러오기</label>
@@ -538,8 +558,8 @@
         <button class="primary full" id="review-export" type="button" disabled>원본·실사화 비교 검수 ZIP 저장</button>
         <p id="review-status" class="hint" aria-live="polite">현재 MASTER 승인 이후 기준 8컷 렌더 ZIP을 불러오세요.</p>
         <p class="hint">체크리스트 승인은 사용자 확인 기록이지 AI의 형상 정확도 보증이 아닙니다. 8컷 중 미승인 이미지가 있으면 ZIP은 DRAFT로 표시됩니다.</p>
-      </section>
-      <section class="section" id="release-readiness">
+      </section></details>
+      <details class="inspector-fold" open><summary>PROJECT QA / 실무 준비 검수</summary><section class="section" id="release-readiness">
         <div class="section-title"><h2>PROJECT QA / 실무 준비 검수</h2><span class="tag" id="readiness-badge">추가 검토 필요</span></div>
         <p class="hint">실제 현장·작품 파일, 승인 MASTER, 도면·원본 검수를 점검합니다. 사내 제안서 검토를 위한 준비 확인이며 법적·구조적 승인과 구분됩니다.</p>
         <div class="readiness-checks">
@@ -552,8 +572,8 @@
         <p id="readiness-status" class="hint" aria-live="polite">프로젝트 검수 결과 계산 중</p>
         <button id="readiness-export" class="outline full" type="button">사내 검수 리포트 JSON 저장</button>
         <p class="hint">READY는 사내 검토 준비 상태입니다. 실제 현장 승인, 엔지니어 검토, 작가 허락을 자동으로 인증하지 않습니다.</p>
-      </section>
-      <section class="section" id="proposal-export-panel">
+      </section></details>
+      <details class="inspector-fold" open><summary>PROPOSAL EXPORT / 제안서 패키지</summary><section class="section" id="proposal-export-panel">
         <div class="section-title"><h2>PROPOSAL EXPORT / 제안서 패키지</h2><span class="tag">v1.4</span></div>
         <p class="hint">현재 승인 MASTER에서 생성한 8컷 렌더 ZIP을 가져와 16:9 발표용 HTML 시트, 이미지, 제원·배치 요약, 측정·검수 보고서를 한 번에 만듭니다.</p>
         <label class="file-button secondary" for="proposal-render-file">+ 승인 MASTER 8컷 ZIP 불러오기</label>
@@ -573,8 +593,8 @@
         </div>
         <p id="proposal-status" class="hint" aria-live="polite">MASTER 8컷 ZIP을 가져오면 제안서 패키지를 제작할 수 있습니다.</p>
         <p class="hint">압축 해제 후 <code>proposal-sheets.html</code>을 브라우저에서 열어 확인하고 필요 시 인쇄→PDF로 저장하세요. 원본 작품·현장 모델은 변경하지 않습니다. 자동 작성된 실측·인허가 확정 정보는 포함되지 않습니다.</p>
-      </section>
-      <section class="section" id="team-collaboration-panel">
+      </section></details>
+      <details class="inspector-fold" open><summary>TEAM REVIEW / 협업 검토</summary><section class="section" id="team-collaboration-panel">
         <div class="section-title"><h2>TEAM REVIEW / 협업 검토</h2><span class="tag">v1.5</span></div>
         <p class="hint">승인된 MASTER 버전별로 검토를 요청하고, 디렉터의 수정 의견 또는 수동 승인 기록을 남깁니다. 저장·교환은 로컬 JSON 및 전체 프로젝트 ZIP 방식입니다.</p>
         <div id="collab-active" class="collab-active" aria-live="polite">검토 대상 MASTER 없음</div>
@@ -600,8 +620,8 @@
         <h3>MASTER VERSION HISTORY</h3>
         <div id="collab-history" class="collab-history"></div>
         <p class="hint">다른 기기와 협업하려면 검토 요청이 포함된 <b>전체 프로젝트 ZIP</b>과 검토 JSON을 전달하세요. 수정 요청 후에는 새 MASTER Revision을 만들고 재검토합니다. SHA-256은 변경 비교용 지문이며 사용자 신원·법적 승인 인증이 아닙니다. 실시간 동기화 기능은 제공하지 않습니다.</p>
-      </section>
-      <section class="section" id="revision-diff-panel">
+      </section></details>
+      <details class="inspector-fold" open><summary>REVISION DIFF / 승인본 변경점</summary><section class="section" id="revision-diff-panel">
         <div class="section-title"><h2>REVISION DIFF / 승인본 변경점</h2><span class="tag">v1.6</span></div>
         <p class="hint">두 승인 MASTER의 저장된 설계 속성을 읽기 전용으로 비교합니다. 작품 설치 좌표·회전·배율, 소스 이름, 재질, 에셋 배치, 레이어, 카메라·조명을 구분해 확인하세요.</p>
         <label for="revision-base">기준 승인본 · BEFORE</label>
@@ -614,8 +634,8 @@
         <button id="revision-export" class="outline full" type="button" disabled>Revision 변경점 JSON 보고서 저장</button>
         <p id="revision-status" class="hint" aria-live="polite">비교 항목을 선택한 뒤 보고서를 저장할 수 있습니다.</p>
         <p class="hint">이 비교는 승인 당시 저장된 모델링 속성만 검사합니다. 현장·작품 GLB 실제 정점, 내장 텍스처, 구조 안전성, 실측, 법적 인허가의 동일성을 자동으로 보증하지 않습니다. 소스 파일명 일치는 원본 파일 내용 일치의 증거가 아닙니다.</p>
-      </section>
-      <section class="section" id="spatial-review-panel">
+      </section></details>
+      <details class="inspector-fold" open><summary>SPATIAL REVIEW / 3D 검토 핀</summary><section class="section" id="spatial-review-panel">
         <div class="section-title"><h2>SPATIAL REVIEW / 3D 검토 핀</h2><span class="tag">v1.7</span></div>
         <p class="hint">승인된 MASTER 장면에서 작품·건물·조경 위의 검토 지점을 찍고 의견을 남깁니다. 검토 핀은 화면에만 표시하며 원본 작품·현장·카메라·렌더 이미지를 수정하지 않습니다.</p>
         <div class="spatial-summary" id="spatial-summary">MASTER 승인 후 사용 가능</div>
@@ -633,8 +653,8 @@
         <button id="spatial-export" type="button" class="outline full" disabled>검토 핀 JSON 보고서 저장</button>
         <p id="spatial-status" class="hint" aria-live="polite">작성자·의견을 입력한 뒤 승인 MASTER의 표면을 클릭하세요.</p>
         <p class="hint">핀 위치는 해당 MASTER 당시의 3D 월드 좌표(m)입니다. 다음 Revision에서는 이전 핀을 표시하지 않고 기록만 보존합니다. 전체 프로젝트 ZIP과 설정 JSON에 함께 저장되며, 구조 안전·현장 실측·작성자 신원 검증을 대신하지 않습니다.</p>
-      </section>
-      <section class="section">
+      </section></details>
+      <details class="inspector-fold" open><summary>프로젝트 저장</summary><section class="section">
         <h2>프로젝트 저장</h2>
         <button id="export-project" class="primary full" type="button">전체 프로젝트 ZIP 저장 (모델 포함)</button>
         <label class="file-button secondary" for="import-project">+ 전체 프로젝트 ZIP 불러오기</label>
@@ -645,7 +665,7 @@
         <input id="import-json" class="sr-only" type="file" accept=".json,application/json">
         <button id="export-glb" class="outline full" type="button">현재 장면 GLB 내보내기</button>
         <p class="hint">JSON은 설정만 저장하는 기존 방식으로 유지합니다. 모델 복원에는 위 ZIP을 이용하세요. GLB는 3D 메시 내보내기용입니다.</p>
-      </section>
+      </section></details>
     </aside>
   </main>
 </div>
