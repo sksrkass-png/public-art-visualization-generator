@@ -1528,6 +1528,64 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await ux.locator("#project-quick-save").click();
     assert.match((await quickDL).suggestedFilename(),/Curator/i);
     await ux.close();
+    // v2.2.1: selection outline is display-only and can be dismissed by
+    // clicking the empty scene; large, remote-origin OBJ fits without resize.
+    const focusPage=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
+    focusPage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await focusPage.goto("http://127.0.0.1:8787/studio/?panels=open",
+      {waitUntil:"domcontentloaded",timeout:60000});
+    await focusPage.locator("#viewport canvas").waitFor({timeout:25000});
+    assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"no",
+      "startup has no yellow border or XYZ transform gizmo");
+    await focusPage.locator("#select-artwork").click();
+    assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"yes",
+      "explicit artwork selection shows the yellow 3D outline");
+    const pngWithOutline=focusPage.waitForEvent("download",{timeout:40000});
+    await focusPage.locator("#shot-export").click();
+    const selectedRender=fs.readFileSync(await (await pngWithOutline).path());
+    const position=await focusPage.locator("#viewport canvas").boundingBox();
+    await focusPage.mouse.click(position.x+16,position.y+16);
+    assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"no",
+      "empty left click hides the selection outline and gizmo");
+    const pngWithoutOutline=focusPage.waitForEvent("download",{timeout:40000});
+    await focusPage.locator("#shot-export").click();
+    const clearRender=fs.readFileSync(await (await pngWithoutOutline).path());
+    assert.equal(Buffer.compare(selectedRender,clearRender),0,
+      "editor-only yellow box must never change official exported PNG bytes");
+    await focusPage.locator("#select-artwork").click();
+    await focusPage.keyboard.press("Escape");
+    assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"no");
+    const objBuffer=Buffer.from([
+      "o RemoteGiantSite",
+      "v 10000 0 10000","v 14500 0 10000","v 14500 0 14500",
+      "v 10000 0 14500","v 10000 30 10000",
+      "f 1 2 5","f 2 3 5","f 3 4 5","f 4 1 5"
+    ].join("\n"),"utf8");
+    await focusPage.locator("#site-file").setInputFiles({
+      name:"large-remote-4500m.obj",mimeType:"text/plain",buffer:objBuffer
+    });
+    await focusPage.waitForFunction(()=>
+      document.querySelector("#site-status")?.textContent==="실제 모델" &&
+      document.querySelector("#camera-focus-status")?.textContent.includes("대형 현장 자동 맞춤"),
+      null,{timeout:30000});
+    const bigDl=focusPage.waitForEvent("download",{timeout:20000});
+    await focusPage.locator("#export-json").click();
+    const giant=JSON.parse(fs.readFileSync(await (await bigDl).path(),"utf8"));
+    const distance=Math.hypot(...giant.camera.position.map((v,i)=>v-giant.camera.target[i]));
+    assert.ok(distance>800,"large OBJ camera view distance must exceed former orbit limit");
+    assert.ok(giant.camera.target[0]>10000 && giant.camera.target[2]>10000,
+      "camera target should start at loaded OBJ site, not a distant empty origin");
+    await focusPage.locator("#focus-selected-quick").click();
+    const artDl=focusPage.waitForEvent("download",{timeout:20000});
+    await focusPage.locator("#export-json").click();
+    const after=JSON.parse(fs.readFileSync(await (await artDl).path(),"utf8"));
+    assert.ok(Math.abs(after.camera.target[0])<20 && Math.abs(after.camera.target[2])<20,
+      "one click returns camera to primary sculpture without scaling or relocating it");
+    assert.deepEqual(after.artwork.transform,giant.artwork.transform,
+      "camera framing must not change artwork dimensions or XYZ");
+    await focusPage.locator("#focus-site-quick").click();
+    assert.match(await focusPage.locator("#camera-focus-status").textContent(),/현장 전체 맞춤/);
+    await focusPage.close();
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
