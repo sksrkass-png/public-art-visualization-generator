@@ -1126,7 +1126,7 @@ function refreshPlinthControls(){
   const selected=selectedRoot?.userData?.extraKind==="plinth"?selectedRoot:null;
   $("plinth-update").disabled=approvedMaster||!selected||!selectedCanEdit();
   $("plinth-align").disabled=approvedMaster||!selected||!selectedCanEdit()||!canEditObject(artRoot,artRoot,layerState,approvedMaster);
-  $("plinth-create").disabled=approvedMaster||extrasRoot.children.length>=120||
+  $("plinth-create").disabled=approvedMaster||extrasRoot.children.length>=120||linkedPlinths().length>0||
     !canEditObject(artRoot,artRoot,layerState,approvedMaster);
   if(selected){
     if(document.activeElement!==$("plinth-width"))$("plinth-width").value=selected.scale.x.toFixed(3);
@@ -1158,6 +1158,7 @@ function createPlinth(){
     return notify("MASTER 잠금/작품 레이어 잠금을 해제하세요.");
   try{
     if(extrasRoot.children.length>=120)throw Error("추가 오브제는 최대 120개입니다.");
+    if(linkedPlinths().length)throw Error("이미 작품에 연결된 기단이 있습니다. 기존 기단을 선택해 수정하세요.");
     const {w,d,h,finish}=plinthInputs();
     const bounds=artworkWorldBox();
     const center=bounds.getCenter(new THREE.Vector3());
@@ -2785,6 +2786,8 @@ controls.forEach(el => el.addEventListener("change", () => setTransformFromField
 $("master-lock").addEventListener("click", () => {
   if (approvedMaster && !window.confirm("MASTER LOCK을 해제하고 새 수정 버전을 시작하시겠습니까?")) return;
   activeProjectOperation++;
+  if (!approvedMaster && !validPlacementReference(currentPlacementReference()))
+    return notify("설치 기준점 XYZ가 유효하지 않습니다. 10만 m 범위의 숫자를 입력하세요.");
   if (approvedMaster) {
     revision++;
     approvedMaster = false;
