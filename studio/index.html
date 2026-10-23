@@ -392,9 +392,9 @@
         <label for="sun-elevation">태양 고도 <output id="sun-elevation-value">45°</output></label>
         <input id="sun-elevation" type="range" min="5" max="85" step="1" value="45">
         <label for="sun-strength">직사광량 <output id="sun-strength-value">2.0</output></label>
-        <input id="sun-strength" type="range" min="0" max="5" step=".1" value="2">
-        <label for="ambient">환경광 <output id="ambient-value">1.3</output></label>
-        <input id="ambient" type="range" min="0" max="4" step=".1" value="1.3">
+        <input id="sun-strength" type="range" min="0" max="5" step=".1" value="2.6">
+        <label for="ambient">환경광 <output id="ambient-value">0.8</output></label>
+        <input id="ambient" type="range" min="0" max="4" step=".1" value="0.8">
         <label for="exposure">노출 <output id="exposure-value">1.0</output></label>
         <input id="exposure" type="range" min=".4" max="2.2" step=".05" value="1">
         <label class="toggle"><input id="shadows" type="checkbox" checked> 실제 그림자 켜기</label>
@@ -404,6 +404,7 @@
         <select id="visual-tone"><option value="aces">ACES · 부드러운 하이라이트</option><option value="neutral">Neutral · 자연스러운 채도</option></select>
         <label for="visual-sky">배경 하늘색</label>
         <select id="visual-sky"><option value="cool">연한 하늘 회색</option><option value="warm">따뜻한 주광</option><option value="white">뉴트럴 화이트</option></select>
+        <p class="hint">그림자가 약하면 환경광을 0.5~0.8 수준으로 낮추고 직사광량을 2.0~3.0으로 유지하세요. 실제 그림자는 원본 현장 바닥의 그림자 수신 설정도 영향을 줍니다.</p>
         <p class="hint">조명·배경·카메라 설정만 변경하며 원본 건축과 조형물 메시·PBR 재질은 자동 수정하지 않습니다.</p>
       </section></details>
       <details class="inspector-fold" open><summary>환경광 / HDRI</summary><section class="section" id="render-look">
