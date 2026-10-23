@@ -293,7 +293,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     const bounds = await canvas.boundingBox();
     assert.ok(bounds?.width && bounds?.height);
     for (const [kind, expected] of [
-      ["tree-round", 1], ["tree-cone", 2], ["shrub", 3], ["point-light", 4], ["shrub-flower", 5]
+      ["tree-round", 1], ["tree-cone", 2], ["shrub", 3], ["shrub-flower", 4], ["point-light", 5]
     ]) {
       await page.locator('[data-add-extra="'+kind+'"]').click();
       await page.mouse.click(bounds.x+bounds.width*.65,bounds.y+bounds.height*.82);
@@ -327,7 +327,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.locator("#undo").click();
     assert.equal(await page.locator("#extra-list button").count(), 5, "undo restores removed foliage");
     await page.locator("#extra-list button").last().click();
-    assert.match(await page.locator("#object-name").textContent(), /스폿 조명/);
+    assert.match(await page.locator("#object-name").textContent(), /포인트 조명/);
     assert.equal(await page.locator("#extra-light-controls").isVisible(), true);
     await page.locator("#extra-light-power").evaluate(el => {
       el.value="8";
