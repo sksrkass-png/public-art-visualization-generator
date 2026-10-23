@@ -259,3 +259,17 @@
 .visual-frame-modes button:hover,.visual-lenses button:hover{background:#252a30;border-color:#252a30;color:white}
 .visual-quality-status{white-space:pre-line;margin:8px 0;padding:11px;border-left:3px solid #9faeb3;
   background:#f5f7f7;color:#444;font-size:10px;line-height:1.85;overflow-wrap:anywhere}
+
+/* v2.1 – precise mounting controls, dimension-aware and compact on desktop/mobile */
+.dimensioning-block{border:1px solid #e4e1dc;border-left:3px solid #657f88;padding:11px;margin:14px 0;background:#f8faf9}
+.dimensioning-block h3{margin:0 0 8px;font-size:11px}
+.dimensioning-block .tag{margin-bottom:8px}
+.dimensioning-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.dimensioning-row>div{min-width:0}
+.section .dimensioning-row label{margin:6px 0 4px!important;font-size:9.5px!important;white-space:normal}
+.section .dimensioning-row input[type="number"]{padding:8px 5px;width:100%;min-width:0;font-size:11px;text-align:center}
+#precision-placement{border-top:2px solid #9dadb3;background:linear-gradient(#f6f9fa,#fff)}
+#precision-placement .section-subtitle{margin-top:16px}
+#dimension-status,#plinth-status,#anchor-status{white-space:pre-wrap;overflow-wrap:anywhere}
+#dimension-apply:disabled,#plinth-create:disabled,#plinth-update:disabled,
+#plinth-align:disabled,#anchor-apply:disabled,#anchor-pick:disabled{opacity:.45;cursor:not-allowed}

@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.0</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.1</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -108,6 +108,25 @@
         <div class="inline"><input id="art-height" type="number" min="0.05" max="100" step="0.1" value="3"><button id="apply-height" class="outline" type="button">높이 맞춤</button></div>
         <p class="hint">업로드한 모델의 크기는 <strong>자동 변경하지 않습니다.</strong> GLB/OBJ/STL의 단위를 미터로 가정하며, 단위 확인 후 '높이 맞춤'으로만 변경됩니다.</p>
         <p class="hint">불러온 모델 원본 크기: <strong id="source-dimensions">—</strong></p>
+        <div class="dimensioning-block">
+          <div class="section-title"><h3>W × D × H 실측 치수 맞춤</h3><span class="tag">v2.1</span></div>
+          <p id="art-current-wdh" class="hint">현재 치수 계산 중 · m 단위</p>
+          <div class="dimensioning-row">
+            <div><label for="dimension-width">폭 W (m)</label><input id="dimension-width" type="number" min=".05" max="100" step=".01" value="2"></div>
+            <div><label for="dimension-depth">깊이 D (m)</label><input id="dimension-depth" type="number" min=".05" max="100" step=".01" value="2"></div>
+            <div><label for="dimension-height">높이 H (m)</label><input id="dimension-height" type="number" min=".05" max="100" step=".01" value="3"></div>
+          </div>
+          <label for="dimension-mode">치수 조정 방식</label>
+          <select id="dimension-mode">
+            <option value="uniform-height">높이 기준 · 원래 비율 유지</option>
+            <option value="uniform-width">폭 기준 · 원래 비율 유지</option>
+            <option value="uniform-depth">깊이 기준 · 원래 비율 유지</option>
+            <option value="independent">W/D/H 개별 · 작품 비율 변경</option>
+          </select>
+          <label class="toggle"><input id="dimension-distortion" type="checkbox"> 개별 축 조정 시 작품 형태 비율 변경을 명시적으로 승인합니다.</label>
+          <button id="dimension-apply" class="outline full" type="button">지정 치수로 작품 크기 조정</button>
+          <p id="dimension-status" class="hint" aria-live="polite">비율 유지 모드는 선택한 기준 축의 실제 길이에 맞춥니다. 회전된 작품의 축별 스케일 보정은 지원하지 않습니다.</p>
+        </div>
       </section>
       <div class="notice">현장 프리셋은 <strong>조작 확인용 예시 공간</strong>입니다. 실제 설계의 배치·입면·조경을 재현하려면 실측 현장 모델(예: GLB·FBX·OBJ) 또는 배치도 원본이 필요합니다.</div>
     </aside>
@@ -203,6 +222,40 @@
         <p id="master-summary" class="hint" aria-live="polite">승인된 마스터 없음</p>
         <button id="restore-master-camera" class="outline full" type="button" disabled>승인 마스터의 카메라·조명으로 복귀</button>
         <div id="master-history" class="master-history" aria-label="승인 마스터 버전 이력"></div>
+      </section>
+      <section class="section" id="precision-placement">
+        <div class="section-title"><h2>PLINTH & ANCHOR / 설치 정밀화</h2><span class="tag">v2.1</span></div>
+        <p class="hint">현장 원본은 변경하지 않고 독립 기단을 생성합니다. 기단 높이는 Y축, 폭은 X축, 깊이는 Z축입니다.</p>
+        <div class="dimensioning-row">
+          <div><label for="plinth-width">기단 폭 W (m)</label><input id="plinth-width" type="number" min=".05" max="30" step=".05" value="2"></div>
+          <div><label for="plinth-depth">깊이 D (m)</label><input id="plinth-depth" type="number" min=".05" max="30" step=".05" value="2"></div>
+          <div><label for="plinth-height">높이 H (m)</label><input id="plinth-height" type="number" min=".05" max="30" step=".05" value=".4"></div>
+        </div>
+        <label for="plinth-finish">기단 마감</label>
+        <select id="plinth-finish"><option value="concrete">콘크리트</option><option value="stone">석재</option><option value="metal">금속</option></select>
+        <button id="plinth-create" class="outline full" type="button">작품 아래 기단 만들고 작품 높이 맞춤</button>
+        <button id="plinth-update" class="outline full" type="button">선택한 기단 치수·마감 수정</button>
+        <button id="plinth-align" class="outline full" type="button">선택한 기단 위로 작품 수평·높이 정렬</button>
+        <p id="plinth-status" class="hint" aria-live="polite">기단은 작품 원본과 분리하여 생성하며, 정렬은 사용자가 버튼을 눌렀을 때만 실행합니다.</p>
+        <div class="section-subtitle">SITE ANCHOR / 현장 기준점 좌표</div>
+        <label for="anchor-mode">작품 기준점</label>
+        <select id="anchor-mode">
+          <option value="center">하단 중앙</option>
+          <option value="front-left">전면 좌측 (월드 X-/Z+)</option>
+          <option value="front-right">전면 우측 (월드 X+/Z+)</option>
+          <option value="rear-left">후면 좌측 (월드 X-/Z-)</option>
+          <option value="rear-right">후면 우측 (월드 X+/Z-)</option>
+        </select>
+        <div class="dimensioning-row">
+          <div><label for="anchor-x">기준 X (m)</label><input id="anchor-x" type="number" step=".01" value="0"></div>
+          <div><label for="anchor-y">기준 Y (m)</label><input id="anchor-y" type="number" step=".01" value="0"></div>
+          <div><label for="anchor-z">기준 Z (m)</label><input id="anchor-z" type="number" step=".01" value="0"></div>
+        </div>
+        <div class="inline">
+          <button id="anchor-pick" class="outline full" type="button">현장 클릭 기준점 지정</button>
+          <button id="anchor-apply" class="outline full" type="button">작품 기준점 이동</button>
+        </div>
+        <p id="anchor-status" class="hint" aria-live="polite">XY/Z 좌표는 뷰어 기준 m입니다. 전후좌우는 월드 축 방향이므로 현장 방위와 따로 확인하세요.</p>
       </section>
       <section class="section" id="precision-modeling">
         <div class="section-title"><h2>ADVANCED MODELING</h2><span class="tag">v1.3</span></div>

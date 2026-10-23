@@ -5,7 +5,7 @@ import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 // Procedural planting is intentionally schematic rather than a claim of true
 // botanical/photogrammetry accuracy. All extras are independent editables.
 export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "tree-autumn",
-  "person-standing", "park-bench", "round-planter", "custom-glb", "artwork-copy", "point-light", "spot-light"]);
+  "person-standing", "park-bench", "round-planter", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
 
 function mesh(geometry, color, roughness = .85, metalness = 0) {
   const o = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, roughness, metalness }));
@@ -138,6 +138,20 @@ function roundPlanter(root){
   const foliage=mesh(new THREE.IcosahedronGeometry(.56,2),0x5d8355);
   foliage.scale.set(1,.7,1);foliage.position.y=1.02;root.add(foliage);
 }
+export const PLINTH_MATERIALS=Object.freeze({
+  concrete:{color:0xb1b4b3,roughness:.9,metalness:0},
+  stone:{color:0x999991,roughness:.7,metalness:0},
+  metal:{color:0x8c9499,roughness:.3,metalness:.85}
+});
+export function applyPlinthFinish(root,finish) {
+  if(root?.userData?.extraKind!=="plinth"||!Object.hasOwn(PLINTH_MATERIALS,finish))
+    throw Error("유효한 기단 마감이 아닙니다.");
+  root.userData.plinthFinish=finish;
+  const material=root.children.find(child=>child.isMesh)?.material;
+  const spec=PLINTH_MATERIALS[finish];
+  if(material){material.color.setHex(spec.color);material.roughness=spec.roughness;
+    material.metalness=spec.metalness;material.needsUpdate=true;}
+}
 function lightIcon(root, kind) {
   const icon = new THREE.Mesh(new THREE.SphereGeometry(.19,14,10),
     new THREE.MeshBasicMaterial({color:kind==="spot-light"?0xffcf88:0xfff4b4,depthTest:false,transparent:true,opacity:.85}));
@@ -174,7 +188,7 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   root.name=({ "tree-round":"활엽수", "tree-cone":"침엽수", "shrub":"덤불",
     "tree-autumn":"가을 활엽수", "person-standing":"보행자", "park-bench":"공원 벤치",
     "round-planter":"화분", "custom-glb":"사용자 GLB", "artwork-copy":"작품 복제",
-    "point-light":"포인트 조명","spot-light":"스폿 조명" })[kind]+" #"+id;
+    "point-light":"포인트 조명","spot-light":"스폿 조명","plinth":"기단" })[kind]+" #"+id;
   if(kind==="tree-round")(appearanceVersion === 1 ? legacyTreeRound : treeRound)(root);
   else if(kind==="tree-cone")(appearanceVersion === 1 ? legacyTreeCone : treeCone)(root);
   else if(kind==="shrub")(appearanceVersion === 1 ? legacyShrub : shrub)(root);
@@ -182,6 +196,14 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   else if(kind==="person-standing")standingPerson(root);
   else if(kind==="park-bench")parkBench(root);
   else if(kind==="round-planter")roundPlanter(root);
+  else if(kind==="plinth"){
+    // Unit pedestal with bottom at local y=0; root scale is width / height / depth (m).
+    const shape=mesh(new THREE.BoxGeometry(1,1,1),0xb1b4b3);
+    shape.position.y=.5;
+    shape.name="Plinth solid (dimensions via root scale)";
+    root.add(shape);
+    applyPlinthFinish(root,"concrete");
+  }
   else if(kind==="artwork-copy"){
     if(!artRoot?.children?.length)throw Error("원본 작품 모델을 먼저 불러와 주세요.");
     const holder=new THREE.Group();
@@ -215,6 +237,7 @@ export function serializeExtras(container) {
       hidden:root.userData.layerHidden === true,
       selectionLocked:root.userData.layerLocked === true,
       ...(root.userData.groupId?{groupId:root.userData.groupId}:{}),
+      ...(root.userData.extraKind==="plinth"?{finish:root.userData.plinthFinish||"concrete",followArtwork:root.userData.followArtwork===true}:{}),
       transform:{
         p:root.position.toArray(),
         r:root.rotation.toArray().slice(0,3),
@@ -231,6 +254,8 @@ export function validateExtras(extras) {
     if(!x||!EXTRA_TYPES.includes(x.kind)||!Number.isInteger(x.id)||x.id<1||ids.has(x.id))return false;
     if(x.appearanceVersion !== undefined && ![1,2].includes(x.appearanceVersion))return false;
     if(x.kind==="custom-glb" && !/^lib[1-9]\d{0,4}$/.test(x.assetId||""))return false;
+    if(x.kind==="plinth" && x.finish!==undefined && !Object.hasOwn(PLINTH_MATERIALS,x.finish))return false;
+    if(x.followArtwork!==undefined && (x.kind!=="plinth" || typeof x.followArtwork!=="boolean"))return false;
     if(x.hidden !== undefined && typeof x.hidden !== "boolean")return false;
     if(x.selectionLocked !== undefined && typeof x.selectionLocked !== "boolean")return false;
     if(x.groupId!==undefined && (!Number.isInteger(x.groupId)||x.groupId<1||x.groupId>120))return false;
@@ -239,6 +264,7 @@ export function validateExtras(extras) {
     if(!t||!["p","r","s"].every(k=>Array.isArray(t[k])&&t[k].length===3&&
       t[k].every(v=>typeof v==="number"&&Number.isFinite(v)&&Math.abs(v)<100000)))return false;
     if(t.s.some(v=>v<=0.00001||v>1000))return false;
+    if(x.kind==="plinth" && t.s.some(v=>v<.05||v>30))return false;
     if(x.power!==undefined&&(!Number.isFinite(x.power)||x.power<0||x.power>100))return false;
     if(x.color!==undefined&&!/^#[\da-f]{6}$/i.test(x.color))return false;
   }
@@ -255,6 +281,10 @@ export function restoreExtras(container,entries,library=null,artRoot=null) {
     root.position.fromArray(x.transform.p);
     root.rotation.set(...x.transform.r);
     root.scale.fromArray(x.transform.s);
+    if(x.kind==="plinth"){
+      applyPlinthFinish(root,x.finish||"concrete");
+      root.userData.followArtwork=x.followArtwork===true;
+    }
     const light=extraLight(root);
     if(light){
       if(x.power!==undefined)light.intensity=x.power;

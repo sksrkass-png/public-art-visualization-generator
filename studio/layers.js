@@ -54,7 +54,7 @@ export function isExtraLight(root) {
   return !!root?.userData?.extraKind?.includes("light");
 }
 export function layerForObject(root, artRoot) {
-  if (root === artRoot || root?.userData?.extraKind==="artwork-copy" ||
+  if (root === artRoot || root?.userData?.extraKind==="artwork-copy" || root?.userData?.extraKind==="plinth" ||
       (root?.userData?.extraKind==="custom-glb" && root?.userData?.assetCategory==="artwork"))
     return "artwork";
   return isExtraLight(root) ? "lighting" : "planting";

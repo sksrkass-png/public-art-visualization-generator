@@ -30,7 +30,9 @@ import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precis
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
 import { decodeSiteBundle, inspectImportedSite, validSiteAlignment } from "./site-import.js";
-import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible } from "./extras.js";
+import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish } from "./extras.js";
+import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
+  validPlacementReference,validatePlinthDimensions} from "./dimensioning.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
 import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
   enumerateSiteMeshes, applyLayerVisibility, normalizeSiteAnnotations, canEditObject,
@@ -1091,6 +1093,162 @@ async function loadPlan(file) {
 function snapshot(root = artRoot) {
   return { p: root.position.toArray(), r: root.rotation.toArray().slice(0, 3), s: root.scale.toArray() };
 }
+// v2.1 — precision mounting is always user-initiated. Source mesh vertices remain intact.
+function artworkWorldBox(){
+  artRoot.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(artRoot);
+  if(box.isEmpty())throw Error("작품 모델을 먼저 불러오세요.");
+  return box;
+}
+function currentPlacementReference(){
+  return {
+    mode:$("anchor-mode").value,
+    position:["x","y","z"].map(axis=>Number($("anchor-"+axis).value))
+  };
+}
+function restorePlacementReference(value){
+  const ref=validPlacementReference(value)?value:{mode:"center",position:[0,0,0]};
+  $("anchor-mode").value=ref.mode;
+  ["x","y","z"].forEach((axis,i)=>{$("anchor-"+axis).value=String(ref.position[i]);});
+}
+function updateArtworkDimensionReadout(){
+  if(!artRoot.children.length)return;
+  const size=artworkWorldBox().getSize(new THREE.Vector3());
+  const dimensions=[size.x,size.z,size.y];
+  $("art-current-wdh").textContent="현재 W "+size.x.toFixed(3)+" × D "+size.z.toFixed(3)+
+    " × H "+size.y.toFixed(3)+" m · 월드 외접 크기";
+  ["width","depth","height"].forEach((field,i)=>{
+    if(document.activeElement!==$("dimension-"+field))
+      $("dimension-"+field).value=dimensions[i].toFixed(3);
+  });
+}
+function refreshPlinthControls(){
+  const selected=selectedRoot?.userData?.extraKind==="plinth"?selectedRoot:null;
+  $("plinth-update").disabled=approvedMaster||!selected||!selectedCanEdit();
+  $("plinth-align").disabled=approvedMaster||!selected||!selectedCanEdit()||!canEditObject(artRoot,artRoot,layerState,approvedMaster);
+  $("plinth-create").disabled=approvedMaster||extrasRoot.children.length>=120||linkedPlinths().length>0||
+    !canEditObject(artRoot,artRoot,layerState,approvedMaster);
+  if(selected){
+    if(document.activeElement!==$("plinth-width"))$("plinth-width").value=selected.scale.x.toFixed(3);
+    if(document.activeElement!==$("plinth-depth"))$("plinth-depth").value=selected.scale.z.toFixed(3);
+    if(document.activeElement!==$("plinth-height"))$("plinth-height").value=selected.scale.y.toFixed(3);
+    if(document.activeElement!==$("plinth-finish"))$("plinth-finish").value=selected.userData.plinthFinish||"concrete";
+  }
+}
+function plinthInputs(){
+  const w=Number($("plinth-width").value),d=Number($("plinth-depth").value),h=Number($("plinth-height").value);
+  if(!validatePlinthDimensions(w,d,h))throw Error("기단 W/D/H는 각각 0.05~30m 범위여야 합니다.");
+  return {w,d,h,finish:$("plinth-finish").value};
+}
+function linkedPlinths(){
+  return extrasRoot.children.filter(root=>root.userData.extraKind==="plinth" &&
+    root.userData.followArtwork===true);
+}
+function translateLinkedPlinths(delta){
+  if(!delta || delta.lengthSq()<1e-12)return;
+  for(const root of linkedPlinths())root.position.add(delta);
+}
+function artworkAssemblyBounds(){
+  const b=artworkWorldBox();
+  for(const root of linkedPlinths())b.union(new THREE.Box3().setFromObject(root));
+  return b;
+}
+function createPlinth(){
+  if(approvedMaster||!canEditObject(artRoot,artRoot,layerState,approvedMaster))
+    return notify("MASTER 잠금/작품 레이어 잠금을 해제하세요.");
+  try{
+    if(extrasRoot.children.length>=120)throw Error("추가 오브제는 최대 120개입니다.");
+    if(linkedPlinths().length)throw Error("이미 작품에 연결된 기단이 있습니다. 기존 기단을 선택해 수정하세요.");
+    const {w,d,h,finish}=plinthInputs();
+    const bounds=artworkWorldBox();
+    const center=bounds.getCenter(new THREE.Vector3());
+    const before=editSnapshot();
+    const root=makeExtra("plinth",nextExtraId++,2);
+    root.scale.set(w,h,d);
+    root.position.set(center.x,bounds.min.y,center.z);
+    applyPlinthFinish(root,finish);
+    root.userData.followArtwork=true;
+    extrasRoot.add(root);
+    artRoot.position.y+=h;
+    selectRoot(root);
+    refreshLayers({redrawSite:false});
+    updateExtrasStatus();
+    updateLight();commit(before);
+    $("plinth-status").textContent="기단 #"+root.userData.extraId+
+      " 생성 · 작품 하단을 기단 상단으로 "+h.toFixed(3)+"m 올렸습니다. 실제 지면과 간섭은 별도로 확인하세요.";
+    notify("독립 기단 설치 + 원본 작품 하단 정렬 완료");
+  }catch(error){$("plinth-status").textContent=error.message;notify(error.message);}
+}
+function updateSelectedPlinth(){
+  if(approvedMaster||selectedRoot?.userData?.extraKind!=="plinth"||!selectedCanEdit())return;
+  try{
+    const {w,d,h,finish}=plinthInputs();
+    const before=editSnapshot();
+    selectedRoot.scale.set(w,h,d);
+    applyPlinthFinish(selectedRoot,finish);
+    commit(before);updateInspector(true);
+    $("plinth-status").textContent="선택 기단의 W/D/H와 마감 수정 완료 · 작품은 움직이지 않았습니다.";
+  }catch(error){$("plinth-status").textContent=error.message;notify(error.message);}
+}
+function alignArtworkOnPlinth(){
+  if(approvedMaster||selectedRoot?.userData?.extraKind!=="plinth"||!selectedCanEdit()||
+    !canEditObject(artRoot,artRoot,layerState,approvedMaster))return;
+  const before=editSnapshot();
+  const plinthBox=new THREE.Box3().setFromObject(selectedRoot);
+  const artBox=artworkWorldBox();
+  const center=artBox.getCenter(new THREE.Vector3());
+  const plinthCenter=plinthBox.getCenter(new THREE.Vector3());
+  artRoot.position.x+=plinthCenter.x-center.x;
+  artRoot.position.z+=plinthCenter.z-center.z;
+  artRoot.position.y+=plinthBox.max.y-artBox.min.y;
+  commit(before);updateLight();updateInspector(true);
+  $("plinth-status").textContent="기단 상단 중심에 작품 배치 완료 · 원본 형상 및 기단은 변경되지 않았습니다.";
+}
+function applyArtworkDimensions(){
+  if(approvedMaster||!canEditObject(artRoot,artRoot,layerState,approvedMaster))
+    return notify("작품 잠금을 해제한 후 크기를 설정하세요.");
+  try{
+    const mode=$("dimension-mode").value;
+    if(!DIM_MODES.includes(mode))throw Error("치수 조정 방식을 확인하세요.");
+    if(mode==="independent" && artRoot.rotation.toArray().slice(0,3).some(n=>Math.abs(n)>1e-6))
+      throw Error("회전된 작품에서는 W/D/H 개별 조정을 제한합니다. 회전을 정리하거나 원래 비율 유지 모드를 사용하세요.");
+    const box=artworkWorldBox(),dims=box.getSize(new THREE.Vector3());
+    const target=["width","height","depth"].map(field=>Number($("dimension-"+field).value));
+    if(target.some(v=>!Number.isFinite(v)||v<.05||v>100))
+      throw Error("지정 크기는 각 축마다 0.05~100m 범위입니다.");
+    const scale=fitDimensionScale([dims.x,dims.y,dims.z],artRoot.scale.toArray(),
+      target,mode,$("dimension-distortion").checked);
+    const before=editSnapshot(),bottom=box.min.y,center=box.getCenter(new THREE.Vector3());
+    artRoot.scale.fromArray(scale);
+    const next=artworkWorldBox(),newCenter=next.getCenter(new THREE.Vector3());
+    artRoot.position.x+=center.x-newCenter.x;
+    artRoot.position.y+=bottom-next.min.y;
+    artRoot.position.z+=center.z-newCenter.z;
+    commit(before);updateLight();updateInspector(true);
+    const measured=artworkWorldBox().getSize(new THREE.Vector3());
+    $("dimension-status").textContent="적용 완료 · W "+measured.x.toFixed(3)+
+      " / D "+measured.z.toFixed(3)+" / H "+measured.y.toFixed(3)+
+      "m · 모델 정점 수정 없음"+(mode==="independent"?" · 작품 비율 변경됨":" · 작품 비율 유지");
+  }catch(error){$("dimension-status").textContent=error.message;notify(error.message);}
+}
+function applyArtworkAnchor(){
+  if(approvedMaster||!canEditObject(artRoot,artRoot,layerState,approvedMaster))
+    return notify("작품 및 MASTER 잠금을 확인하세요.");
+  try{
+    const ref=currentPlacementReference();
+    if(!validPlacementReference(ref))throw Error("기준 좌표는 정확한 숫자여야 합니다.");
+    const box=artworkAssemblyBounds();
+    const delta=targetAnchorTranslation({min:box.min.toArray(),max:box.max.toArray()},
+      ref.mode,ref.position);
+    const before=editSnapshot();
+    const shift=new THREE.Vector3(...delta);
+    artRoot.position.add(shift);
+    translateLinkedPlinths(shift);
+    commit(before);updateLight();updateInspector(true);
+    $("anchor-status").textContent="기준점 이동 "+delta.map(v=>v.toFixed(3)).join(" / ")+
+      "m · 지정 XYZ에 맞췄습니다. 월드 X/Z 기준이며 현장 방위·실측은 별도 확인하세요.";
+  }catch(error){$("anchor-status").textContent=error.message;notify(error.message);}
+}
 function editSnapshot() {
   return { artwork: snapshot(), extras: serializeExtras(extrasRoot),
     material:structuredClone(artworkMaterialState),
@@ -1166,6 +1324,7 @@ function masterSnapshot() {
     layers:structuredClone(layerState),
     material:structuredClone(artworkMaterialState),
     render:currentRenderConfig(),
+    placementReference:currentPlacementReference(),
     planAlignment: planAlignmentSnapshot()
   };
 }
@@ -1181,6 +1340,7 @@ function validMasterSnapshot(entry) {
     (entry.layers === undefined || validateLayerState(entry.layers)) &&
     (entry.material === undefined || validMaterialConfig(entry.material)) &&
     (entry.render === undefined || validRenderConfig(entry.render)) &&
+    (entry.placementReference === undefined || validPlacementReference(entry.placementReference)) &&
     (entry.siteSetup === undefined ||
       (entry.siteSetup && Object.hasOwn(SITE_UNIT_TO_M,entry.siteSetup.unit) &&
         ["y","z"].includes(entry.siteSetup.up) &&
@@ -1210,6 +1370,8 @@ function renderMasterHistory() {
   });
   if(revisionBridge)revisionBridge.refresh();
   if(spatialBridge)spatialBridge.refresh();
+  refreshPlinthControls();
+  updateArtworkDimensionReadout();
 }
 function restoreMasterCamera(index) {
   const saved = masterSnapshots[index];
@@ -1264,7 +1426,10 @@ function syncLock() {
   ["art-material","art-material-color","apply-material","reset-material"].forEach(id=>{$(id).disabled=approvedMaster;});
   updateExtrasStatus();
   controls.forEach(el => el.disabled = approvedMaster);
-  ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale"]
+  ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale",
+    "dimension-width","dimension-depth","dimension-height","dimension-mode","dimension-distortion","dimension-apply",
+    "plinth-width","plinth-depth","plinth-height","plinth-finish","plinth-create","plinth-update","plinth-align",
+    "anchor-mode","anchor-x","anchor-y","anchor-z","anchor-pick","anchor-apply"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   $("master-lock").classList.toggle("locked", approvedMaster);
   $("master-lock").textContent = approvedMaster ? "🔒 MASTER LOCK 승인됨 · 수정하려면 잠금 해제" : "MASTER VIEW 승인 · 작품 잠금";
@@ -1292,6 +1457,8 @@ function updateInspector(force = false) {
   const bounds = new THREE.Box3().setFromObject(selectedRoot);
   const d = bounds.getSize(new THREE.Vector3());
   $("dimensions").textContent = [d.x, d.y, d.z].map(v => v.toFixed(2)).join(" × ") + " m (W×H×D)";
+  updateArtworkDimensionReadout();
+  refreshPlinthControls();
   $("coords").textContent = ["X", "Y", "Z"].map((k, i) => k + " " + state.p[i].toFixed(2)).join(" · ");
   $("object-name").textContent = selectedRoot.name;
   const light = selectedRoot === artRoot ? null : extraLight(selectedRoot);
@@ -1464,11 +1631,20 @@ function groundSelected({ silent = false } = {}) {
     return null;
   }
   const before = editSnapshot();
-  const result = snapRootToSurface(selectedRoot, siteRoot, {
+  // Artwork with a linked plinth must touch the site at the PLINTH bottom,
+  // not at the sculpture's raised bottom.
+  const linked=selectedRoot===artRoot?linkedPlinths():[];
+  const snapTarget=linked[0]||selectedRoot;
+  const result = snapRootToSurface(snapTarget, siteRoot, {
     allowFallback: !siteSourceFile,
     offset: toFinite($("ground-offset").value, 0, -20, 50)
   });
   if (result) {
+    if(linked.length){
+      artRoot.position.y+=result.deltaY;
+      for(const other of linked.slice(1))other.position.y+=result.deltaY;
+      updateLight();
+    }
     commit(before);
     updateInspector(true);
     $("ground-status").textContent = "밀착 완료 · 표면 높이 " + result.surfaceHeight.toFixed(2) +
@@ -1483,13 +1659,26 @@ function groundSelected({ silent = false } = {}) {
 function placeSelectedOnSite(hit) {
   if (!selectedCanEdit() || !hit) return;
   const before = editSnapshot();
-  selectedRoot.position.x = hit.point.x;
-  selectedRoot.position.z = hit.point.z;
-  if (selectedRoot !== artRoot && extraLight(selectedRoot)) {
-    selectedRoot.position.y = hit.point.y + 3 + toFinite($("ground-offset").value, 0, -20, 50);
+  const linked=selectedRoot===artRoot?linkedPlinths():[];
+  if(linked.length){
+    const assembly=artworkAssemblyBounds();
+    const center=assembly.getCenter(new THREE.Vector3());
+    const delta=new THREE.Vector3(
+      hit.point.x-center.x,hit.point.y+toFinite($("ground-offset").value,0,-20,50)-assembly.min.y,
+      hit.point.z-center.z
+    );
+    artRoot.position.add(delta);
+    translateLinkedPlinths(delta);
+    updateLight();
   } else {
-    const box = new THREE.Box3().setFromObject(selectedRoot);
-    selectedRoot.position.y += hit.point.y + toFinite($("ground-offset").value, 0, -20, 50) - box.min.y;
+    selectedRoot.position.x = hit.point.x;
+    selectedRoot.position.z = hit.point.z;
+    if (selectedRoot !== artRoot && extraLight(selectedRoot)) {
+    selectedRoot.position.y = hit.point.y + 3 + toFinite($("ground-offset").value, 0, -20, 50);
+    } else {
+      const box = new THREE.Box3().setFromObject(selectedRoot);
+      selectedRoot.position.y += hit.point.y + toFinite($("ground-offset").value, 0, -20, 50) - box.min.y;
+    }
   }
   commit(before);
   updateInspector(true);
@@ -1527,6 +1716,9 @@ function handleSelection(event) {
     }
     if (kind === "measure-point") {
       addMeasuredPoint(hit.point);
+    } else if (kind === "art-anchor") {
+      ["x","y","z"].forEach((axis,i)=>{$("anchor-"+axis).value=hit.point.toArray()[i].toFixed(4);});
+      $("anchor-status").textContent="현장 클릭 기준점 "+hit.point.toArray().map(n=>n.toFixed(3)).join(" / ")+"m · 작품 이동 버튼을 눌러 적용하세요.";
     } else if (kind === "plan-center") {
       $("plan-x").value = hit.point.x.toFixed(3);
       $("plan-z").value = hit.point.z.toFixed(3);
@@ -1572,7 +1764,8 @@ function setTransformFromField(el) {
     if (Math.abs(previousAxis) > 1e-8) selectedRoot.scale.multiplyScalar(next / previousAxis);
   }
   else selectedRoot[el.dataset.transform][el.dataset.axis] = next;
-  if ($("auto-ground").checked && el.dataset.transform === "position" &&
+  if ($("auto-ground").checked && !(selectedRoot===artRoot&&linkedPlinths().length) &&
+      el.dataset.transform === "position" &&
       ["x","z"].includes(el.dataset.axis) && !extraLight(selectedRoot)) {
     snapRootToSurface(selectedRoot, siteRoot, {
       allowFallback: !siteSourceFile,
@@ -1581,6 +1774,8 @@ function setTransformFromField(el) {
   }
   if(el.dataset.transform==="position" && selectedRoot!==artRoot)
     shiftGroupMembers(selectedRoot,selectedRoot.position.clone().sub(oldPosition));
+  if(el.dataset.transform==="position" && selectedRoot===artRoot)
+    translateLinkedPlinths(selectedRoot.position.clone().sub(oldPosition));
   commit(before);
   updateInspector();
   if(selectedRoot===artRoot)updateLight();
@@ -1651,6 +1846,8 @@ async function importModel(file, isSite) {
     const model = await decodeModel(file, isSite);
     if(!isSite && extrasRoot.children.some(o=>o.userData.extraKind==="artwork-copy"))
       throw Error("작품 복제본이 남아 있습니다. 복제본을 삭제한 뒤 원본 작품을 교체하세요.");
+    if(!isSite && linkedPlinths().length)
+      throw Error("작품 연결 기단을 먼저 삭제한 후 원본 작품을 교체하세요.");
     const siteStats = isSite ? inspectSiteGeometry(model) : null;
     const inspected = isSite ? inspectImportedSite(model) : null;
     if (approvedMaster || op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
@@ -1741,6 +1938,7 @@ function sceneConfig() {
     lightPreset: $("light-preset").value,
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked },
     render:currentRenderConfig(),
+    placementReference:currentPlacementReference(),
     masterSnapshots,
     collaboration:collaborationBridge?.getState(),
     spatialReview:spatialBridge?.getState(),
@@ -1768,6 +1966,7 @@ function validateProjectConfig(data) {
         !(data.library || []).some(a=>a.id===x.assetId)) ||
       (data.layers !== undefined && !validateLayerState(data.layers)) ||
       (data.render !== undefined && !validRenderConfig(data.render)) ||
+      (data.placementReference !== undefined && !validPlacementReference(data.placementReference)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
       (data.site.up !== undefined && !["y","z"].includes(data.site.up)) ||
       (data.site.alignment !== undefined && !validSiteAlignment(data.site.alignment)) ||
@@ -1879,6 +2078,7 @@ function importSceneConfig(data) {
   if(data.render?.environmentMode==="hdr" && !hdrTexture){
     $("env-filename").textContent="재업로드 필요: "+data.render.environmentFile;
   }
+  restorePlacementReference(data.placementReference);
   if (Array.isArray(data.masterSnapshots)) {
     masterSnapshots = structuredClone(data.masterSnapshots);
   } else {
@@ -2080,6 +2280,7 @@ function baselineForMaster(){
     layers:structuredClone(layerState),
     material:structuredClone(artworkMaterialState),
     artworkFile:artFileName,siteFile:siteFileName,
+    placementReference:currentPlacementReference(),
     siteSetup:{unit:$("site-unit").value,up:$("site-up").value,
       centerOrigin:$("site-center-origin").checked}
   };
@@ -2559,10 +2760,23 @@ $("sample-art").addEventListener("click", () => {
   if (approvedMaster) return notify("MASTER LOCK 해제 후 작품을 변경하세요.");
   if(extrasRoot.children.some(o=>o.userData.extraKind==="artwork-copy"))
     return notify("기존 복제 작품을 삭제한 뒤 원본을 변경하세요.");
+  if(linkedPlinths().length)
+    return notify("작품에 연결된 기단을 먼저 삭제한 뒤 원본을 변경하세요.");
   activeArtOperation++;
   activeProjectOperation++;
   setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 }); changeView("main");
 });
+$("dimension-apply").addEventListener("click",applyArtworkDimensions);
+$("plinth-create").addEventListener("click",createPlinth);
+$("plinth-update").addEventListener("click",updateSelectedPlinth);
+$("plinth-align").addEventListener("click",alignArtworkOnPlinth);
+$("anchor-pick").addEventListener("click",()=>{
+  if(approvedMaster)return;
+  placementMode="art-anchor";
+  $("placement-hint").hidden=false;
+  $("placement-hint").textContent="현장 표면을 클릭해 설치 기준점 선택 · Esc 취소";
+});
+$("anchor-apply").addEventListener("click",applyArtworkAnchor);
 $("apply-height").addEventListener("click", () => {
   if (approvedMaster) return;
   const h = safeNumber($("art-height").value, NaN, .05, 100);
@@ -2576,6 +2790,8 @@ controls.forEach(el => el.addEventListener("change", () => setTransformFromField
 $("master-lock").addEventListener("click", () => {
   if (approvedMaster && !window.confirm("MASTER LOCK을 해제하고 새 수정 버전을 시작하시겠습니까?")) return;
   activeProjectOperation++;
+  if (!approvedMaster && !validPlacementReference(currentPlacementReference()))
+    return notify("설치 기준점 XYZ가 유효하지 않습니다. 10만 m 범위의 숫자를 입력하세요.");
   if (approvedMaster) {
     revision++;
     approvedMaster = false;
@@ -2699,8 +2915,16 @@ transform.addEventListener("mouseUp", () => {
     ?lastDrag.extras.find(x=>x.id===selectedRoot.userData.extraId)?.transform.p : null;
   if (lastDrag && !approvedMaster && selectedMode === "translate" && $("auto-ground").checked &&
       !extraLight(selectedRoot)) {
-    snapRootToSurface(selectedRoot, siteRoot, { allowFallback: !siteSourceFile,
-      offset: toFinite($("ground-offset").value, 0, -20, 50) });
+    const linked=selectedRoot===artRoot?linkedPlinths():[];
+    const target=linked[0]||selectedRoot;
+    const result=snapRootToSurface(target,siteRoot,{
+      allowFallback:!siteSourceFile,
+      offset:toFinite($("ground-offset").value,0,-20,50)
+    });
+    if(result&&linked.length){
+      artRoot.position.y+=result.deltaY;
+      for(const other of linked.slice(1))other.position.y+=result.deltaY;
+    }
   }
   if(lastDrag && !approvedMaster && selectedMode==="translate" && dragStart){
     const delta=selectedRoot.position.clone().sub(new THREE.Vector3().fromArray(dragStart));
@@ -2730,6 +2954,7 @@ transform.addEventListener("objectChange", () => {
   // Maintain solar direction during interactive artwork dragging; do not
   // recompute the expensive shadow fit until the drag is finished.
   const artDelta=artRoot.position.clone().sub(sun.target.position);
+  if(!approvedMaster && selectedRoot===artRoot)translateLinkedPlinths(artDelta);
   sun.position.add(artDelta);
   sun.target.position.copy(artRoot.position);
   sun.target.updateMatrixWorld();
