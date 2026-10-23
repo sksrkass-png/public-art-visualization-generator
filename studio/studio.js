@@ -1749,10 +1749,20 @@ function createPlacedExtra(kind, position) {
 function deleteSelectedExtra() {
   if (!selectedCanEdit() || selectedRoot === artRoot || !selectedRoot.parent) return;
   const before = editSnapshot();
+  const deletedId=selectedRoot.userData.extraKind==="custom-glb" &&
+    selectedRoot.userData.assetCategory==="artwork"?selectedRoot.userData.assetId:null;
   selectedRoot.parent.remove(selectedRoot);
   selectRoot(artRoot);
-  commit(before);
-  notify("선택한 오브제를 삭제했습니다. Ctrl+Z로 복원할 수 있습니다.");
+  if(deletedId && !extrasRoot.children.some(o=>o.userData.assetId===deletedId)){
+    assetLibrary.delete(deletedId);
+    clearUndo(); // discarded source can't be resurrected from an obsolete undo snapshot
+    refreshAssetLibraryUI();
+    notify("추가 작품과 원본 GLB 슬롯을 정리했습니다. 복원하려면 GLB를 다시 불러오세요.");
+  }else{
+    commit(before);
+    notify("선택한 오브제를 삭제했습니다. Ctrl+Z로 복원할 수 있습니다.");
+  }
+  updateMultiArtStatus();
 }
 function groundSelected({ silent = false } = {}) {
   if (!selectedCanEdit()) return null;
