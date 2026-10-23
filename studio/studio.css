@@ -310,3 +310,10 @@
 .studio-advanced-mode #site-import-inspector,
 .studio-advanced-mode .site-plan-controls,
 .studio-advanced-mode #asset-library-panel{display:block!important}
+
+/* v2.2.1: fixed camera shortcuts for very large OBJ installations. */
+.scene-focus-tools{min-width:0;display:flex;gap:6px;flex-wrap:wrap}
+.scene-focus-tools button{flex:1 1 100px;max-width:100%;min-width:0;white-space:nowrap}
+.camera-focus-status{display:block;font-size:10px;line-height:1.6;color:#555;
+  padding:5px 10px;background:#f4f5f6;overflow-wrap:anywhere}
+@media(max-width:850px){.scene-focus-tools button{font-size:10px;padding:7px 5px}}
