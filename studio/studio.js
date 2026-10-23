@@ -556,6 +556,55 @@ function refreshLayers({redrawSite = false} = {}) {
   });
   refreshAssetLibraryUI();
 }
+// v2.2 transient visualization tools: never become part of MASTER or saved site geometry.
+function resetSitePreviewUI(){
+  siteViewport.reset();
+  $("site-view-mode").value="solid";
+  $("site-focus-radius").value="0";
+  $("site-section-side").value="x-left";
+  $("site-section-offset").value="0";
+  $("site-view-stat").textContent="현장 표시 원본 복원 · 임시 가림·단면 효과 없음";
+}
+function applySitePreview(){
+  try{
+    const next=normalizeSiteViewSettings({
+      mode:$("site-view-mode").value,
+      cut:$("site-section-side").value,
+      offset:Number($("site-section-offset").value),
+      radius:Number($("site-focus-radius").value)
+    });
+    if(Number($("site-section-offset").value)!==next.offset)
+      throw Error("단면 이동은 -100~100m 범위에서 설정하세요.");
+    const stats=siteViewport.set(next);
+    if(stats.limited){
+      $("site-view-stat").textContent=
+        "현장 메시 "+stats.meshCount+"개 · 안전 제한 "+10000+"개 초과: 일부만 가리거나 잘라내지 않고 원본 화면을 유지합니다.";
+      return;
+    }
+    $("site-view-stat").textContent=
+      "현장 메시 "+stats.meshCount+"개 · 집중 뷰에서 제외 "+stats.hiddenByFocus+
+      "개 · 렌더용 임시 재질 "+stats.temporaryMaterials+"개 · 원본 변경 없음";
+  }catch(error){
+    siteViewport.set({mode:"solid",radius:0});
+    $("site-view-stat").textContent="현장 보기 실패: "+error.message;
+    notify(error.message);
+  }
+}
+function setupNavigationPerformance(){
+  const mode=$("site-navigation-performance").value;
+  const high=Math.min(window.devicePixelRatio||1,2);
+  if(mode==="quality"&&!orbitDragging)renderer.setPixelRatio(high);
+}
+let orbitDragging=false;
+orbit.addEventListener("start",()=>{
+  orbitDragging=true;
+  if($("site-navigation-performance").value==="adaptive")
+    renderer.setPixelRatio(Math.min(1,window.devicePixelRatio||1));
+});
+orbit.addEventListener("end",()=>{
+  orbitDragging=false;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+});
 function setLayerGroupVisible(key, value) {
   if(approvedMaster || !LAYER_KEYS.includes(key))return;
   const before=editSnapshot();
@@ -2089,6 +2138,7 @@ function importSceneConfig(data) {
   if(data.render?.environmentMode==="hdr" && !hdrTexture){
     $("env-filename").textContent="재업로드 필요: "+data.render.environmentFile;
   }
+  resetSitePreviewUI();
   restorePlacementReference(data.placementReference);
   if (Array.isArray(data.masterSnapshots)) {
     masterSnapshots = structuredClone(data.masterSnapshots);
@@ -2639,6 +2689,9 @@ $("site-preset").addEventListener("change", e => {
   activeProjectOperation++;
   buildSite(e.target.value); notify("예시 현장 프리셋을 적용했습니다.");
 });
+$("site-view-apply").addEventListener("click",applySitePreview);
+$("site-view-reset").addEventListener("click",resetSitePreviewUI);
+$("site-navigation-performance").addEventListener("change",setupNavigationPerformance);
 $("site-file").addEventListener("change", e => importModel(e.target.files[0], true));
 $("art-file").addEventListener("change", e => importModel(e.target.files[0], false));
 $("map-file").addEventListener("change", e => loadPlan(e.target.files[0]));
