@@ -866,7 +866,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     const rect=await sceneCanvas.boundingBox();
     const baselineCount=await page.locator("#extra-list button").count();
     for(const [index,kind] of
-      ["tree-autumn","person-standing","park-bench","round-planter"].entries()){
+      ["tree-autumn","person-man","park-bench","round-planter"].entries()){
       await page.locator('[data-add-extra="'+kind+'"]').click();
       await page.mouse.click(rect.x+rect.width*.65,rect.y+rect.height*.82);
       await page.waitForFunction(n=>document.querySelectorAll("#extra-list button").length===n,
