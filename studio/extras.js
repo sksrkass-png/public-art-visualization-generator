@@ -188,21 +188,36 @@ function lightIcon(root, kind) {
   icon.renderOrder=1000;
   root.add(icon);
 }
-function lightFixture(root,kind) {
-  const light = kind==="point-light" ?
-    new THREE.PointLight(0xfff4dd,4,0,2):
-    new THREE.SpotLight(0xfff4dd,10,20,Math.PI/5,.35,2);
+function lightFixture(root,kind,appearanceVersion=2) {
+  // v3 point-light is an upward architectural uplight. Existing v1–v2 project
+  // lights reopen with the original behavior to protect approved scenes.
+  const uplight=kind==="point-light"&&appearanceVersion>=3;
+  const light=uplight?new THREE.SpotLight(0xfff1cc,16,12,Math.PI/7,.55,1.5):
+    kind==="point-light"?new THREE.PointLight(0xfff4dd,4,0,2):
+      new THREE.SpotLight(0xfff4dd,10,20,Math.PI/5,.35,2);
   light.name=kind;
   light.castShadow=true;
   light.shadow.mapSize.set(512,512);
-  root.add(light);
-  if(kind==="spot-light"){
+  if(uplight){
+    light.position.y=.17;
+    const target=new THREE.Object3D();
+    target.position.y=5;root.add(target);light.target=target;
+    const beam=new THREE.Mesh(new THREE.ConeGeometry(1.35,4.8,28,1,true),
+      new THREE.MeshBasicMaterial({color:0xffecca,transparent:true,opacity:.075,
+        depthWrite:false,side:THREE.DoubleSide}));
+    beam.rotation.z=Math.PI;
+    beam.position.y=2.5;
+    beam.name="Visible architectural uplight beam (visual preview)";
+    root.add(beam);
+    const body=mesh(new THREE.CylinderGeometry(.17,.2,.14,20),0x4c4e50,.38,.75);
+    body.position.y=.07;root.add(body);
+  } else if(kind==="spot-light"){
     const target=new THREE.Object3D();
     target.position.set(0,-5,0);
     target.name="Spot target";
-    root.add(target);
-    light.target=target;
+    root.add(target);light.target=target;
   }
+  root.add(light);
   lightIcon(root,kind);
   return light;
 }
@@ -251,7 +266,7 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
     root.add(instantiateLibraryAsset(source));
     root.name=source.file.name.replace(/\.glb$/i,"")+" #"+id;
   }
-  else lightFixture(root,kind);
+  else lightFixture(root,kind,appearanceVersion);
   return root;
 }
 export function extraLight(root) {
@@ -284,7 +299,7 @@ export function validateExtras(extras) {
   const ids=new Set();
   for(const x of extras) {
     if(!x||!EXTRA_TYPES.includes(x.kind)||!Number.isInteger(x.id)||x.id<1||ids.has(x.id))return false;
-    if(x.appearanceVersion !== undefined && ![1,2].includes(x.appearanceVersion))return false;
+    if(x.appearanceVersion !== undefined && ![1,2,3].includes(x.appearanceVersion))return false;
     if(x.kind==="custom-glb" && !/^lib[1-9]\d{0,4}$/.test(x.assetId||""))return false;
     if(x.kind==="plinth" && x.shape!==undefined && !["box","round"].includes(x.shape))return false;
     if(x.kind==="plinth" && x.finish!==undefined && !Object.hasOwn(PLINTH_MATERIALS,x.finish))return false;
