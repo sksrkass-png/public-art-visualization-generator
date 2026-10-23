@@ -1586,6 +1586,77 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await focusPage.locator("#focus-site-quick").click();
     assert.match(await focusPage.locator("#camera-focus-status").textContent(),/현장 전체 맞춤/);
     await focusPage.close();
+    // v2.3–v2.5: preserve raw source scene while reviewing three visual options.
+    const visualPage=await browser.newPage({viewport:{width:1300,height:820},acceptDownloads:true});
+    visualPage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await visualPage.goto("http://127.0.0.1:8787/studio/?panels=open",
+      {waitUntil:"domcontentloaded",timeout:60000});
+    await visualPage.locator("#viewport canvas").waitFor({timeout:30000});
+    await visualPage.locator("#installation-clearance").fill("1.5");
+    await visualPage.locator("#installation-check").click();
+    assert.match(await visualPage.locator("#installation-check-status").textContent(),/예비 검사/);
+    assert.match(await visualPage.locator("#installation-check-status").textContent(),/건물 메시/);
+    await visualPage.locator("#pedestrian-eye-near").click();
+    assert.match(await visualPage.locator("#installation-check-status").textContent(),/1.60m/);
+    await visualPage.locator("#pedestrian-eye-approach").click();
+    assert.match(await visualPage.locator("#installation-check-status").textContent(),/원거리/);
+    await visualPage.locator('[data-option-save="A"]').click();
+    assert.match(await visualPage.locator("#visual-option-status").textContent(),/저장 슬롯 1\/3/);
+    const vx=visualPage.locator('[data-transform="position"][data-axis="x"]');
+    await vx.fill("4");
+    await vx.dispatchEvent("change");
+    await visualPage.locator('[data-option-save="B"]').click();
+    assert.match(await visualPage.locator("#visual-option-status").textContent(),/저장 슬롯 2\/3/);
+    await visualPage.locator('[data-option-load="A"]').click();
+    assert.equal(Number(await vx.inputValue()),0,"A scene must restore exact source positioning");
+    const optionsJSONDownload=visualPage.waitForEvent("download",{timeout:30000});
+    await visualPage.locator("#export-json").click();
+    const optionsJSON=JSON.parse(fs.readFileSync(await (await optionsJSONDownload).path(),"utf8"));
+    assert.equal(optionsJSON.visualVariants.A.scene.artwork.p[0],0);
+    assert.equal(optionsJSON.visualVariants.B.scene.artwork.p[0],4);
+    await visualPage.locator("#visual-preflight").click();
+    assert.match(await visualPage.locator("#visual-preflight-status").textContent(),/실제/);
+    await visualPage.locator("#visual-options-resolution").selectOption("1");
+    const visualZipDl=visualPage.waitForEvent("download",{timeout:120000});
+    await visualPage.locator("#visual-options-export").click();
+    const comparison=await visualZipDl;
+    const comparisonPath=await comparison.path();
+    assert.match(comparison.suggestedFilename(),/A_B_C-visuals\.zip/);
+    const zipAudit=JSON.parse(execFileSync("python3",["-c",[
+      "import zipfile,json,sys",
+      "z=zipfile.ZipFile(sys.argv[1]); n=z.namelist()",
+      "d=z.read('A-visual.png'); e=z.read('B-visual.png')",
+      "m=json.loads(z.read('visual-metadata.json'))",
+      "print(json.dumps({'names':n,'diff':d!=e,'meta':m}))"
+    ].join("\n"),comparisonPath],{encoding:"utf8"}));
+    assert.equal(zipAudit.diff,true,"different sculpture coordinates create different rendered images");
+    assert.ok(zipAudit.names.includes("00-visual-comparison.png"),"side by side visual sheet required");
+    assert.deepEqual(zipAudit.meta.slots,["A","B"]);
+    const postExportDl=visualPage.waitForEvent("download",{timeout:20000});
+    await visualPage.locator("#export-json").click();
+    const afterVisual=JSON.parse(fs.readFileSync(await (await postExportDl).path(),"utf8"));
+    assert.deepEqual(afterVisual.artwork.transform,optionsJSON.artwork.transform,
+      "comparison renderer must never mutate the actual current source artwork");
+    assert.deepEqual(afterVisual.extras,optionsJSON.extras,
+      "comparison renderer must never mutate original extras and approved plinths");
+    const sceneZipDownload=visualPage.waitForEvent("download",{timeout:90000});
+    await visualPage.locator("#project-quick-save").click();
+    const sceneZipPath=await (await sceneZipDownload).path();
+    const recoveredPage=await browser.newPage({viewport:{width:1300,height:820},acceptDownloads:true});
+    recoveredPage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await recoveredPage.goto("http://127.0.0.1:8787/studio/?panels=open",{waitUntil:"domcontentloaded",timeout:60000});
+    await recoveredPage.locator("#viewport canvas").waitFor({timeout:30000});
+    await recoveredPage.locator("#import-project").setInputFiles(sceneZipPath);
+    await recoveredPage.waitForFunction(()=>document.querySelector("#visual-option-status")?.textContent.includes("저장 슬롯 2/3"),
+      null,{timeout:50000});
+    await recoveredPage.locator('[data-option-load="B"]').click();
+    const recoveredX=Number(await recoveredPage.locator('[data-transform="position"][data-axis="x"]').inputValue());
+    assert.equal(recoveredX,4,"portable project ZIP must restore each A/B/C modeling option");
+    await recoveredPage.locator("#master-lock").click();
+    assert.equal(await recoveredPage.locator('[data-option-load="A"]').isDisabled(),true,
+      "approved MASTER must prevent option scene replacement");
+    await recoveredPage.close();
+    await visualPage.close();
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
