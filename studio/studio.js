@@ -520,6 +520,42 @@ function showPairMeasurement(){
       (m.boxOverlap?" · 박스 겹침 (예비 간섭)":"");
   }catch(error){$("measure-objects-status").textContent="객체 측정 불가: "+error.message;}
 }
+function drawDistanceOverlay(){
+  const svg=$("measurement-overlay"),label=$("measure-mid-label");
+  const points=measuredPoints;
+  if(!points.length){svg.hidden=true;label.hidden=true;return;}
+  camera.updateMatrixWorld();
+  const projection=points.map(p=>{
+    const v=new THREE.Vector3(...p);
+    const view=v.clone().project(camera);
+    const direction=v.clone().sub(camera.position);
+    const look=camera.getWorldDirection(new THREE.Vector3());
+    const valid=direction.dot(look)>0 && Number.isFinite(view.x)&&Number.isFinite(view.y) &&
+      Math.abs(view.x)<=1 && Math.abs(view.y)<=1 && view.z<=1;
+    return {x:(view.x+1)*50,y:(1-view.y)*50,valid};
+  });
+  if(projection.some(p=>!p.valid)){svg.hidden=true;label.hidden=true;return;}
+  svg.hidden=false;
+  $("measure-visible-a").setAttribute("cx",projection[0].x);
+  $("measure-visible-a").setAttribute("cy",projection[0].y);
+  if(projection.length===2){
+    $("measure-visible-b").setAttribute("cx",projection[1].x);
+    $("measure-visible-b").setAttribute("cy",projection[1].y);
+    $("measure-visible-b").style.display="";
+    $("measure-visible-line").setAttribute("x1",projection[0].x);
+    $("measure-visible-line").setAttribute("y1",projection[0].y);
+    $("measure-visible-line").setAttribute("x2",projection[1].x);
+    $("measure-visible-line").setAttribute("y2",projection[1].y);
+    $("measure-visible-line").style.display="";
+    label.hidden=false;
+    label.style.left=((projection[0].x+projection[1].x)/2)+"%";
+    label.style.top=((projection[0].y+projection[1].y)/2)+"%";
+    label.textContent=new THREE.Vector3(...points[0]).distanceTo(new THREE.Vector3(...points[1])).toFixed(3)+" m";
+  }else{
+    $("measure-visible-b").style.display="none";
+    $("measure-visible-line").style.display="none";label.hidden=true;
+  }
+}
 function addMeasuredPoint(point){
   if(measuredPoints.length>=2)measuredPoints=[];
   measuredPoints.push(point.toArray());
@@ -2800,6 +2836,12 @@ $("site-preset").addEventListener("change", e => {
   activeProjectOperation++;
   buildSite(e.target.value); notify("예시 현장 프리셋을 적용했습니다.");
 });
+$("collapse-panels").addEventListener("click",()=>{
+  document.querySelectorAll(".right .inspector-fold").forEach(d=>d.open=false);
+});
+$("expand-panels").addEventListener("click",()=>{
+  document.querySelectorAll(".right .inspector-fold").forEach(d=>d.open=true);
+});
 $("site-view-apply").addEventListener("click",applySitePreview);
 $("site-view-reset").addEventListener("click",resetSitePreviewUI);
 $("site-navigation-performance").addEventListener("change",setupNavigationPerformance);
@@ -2930,6 +2972,7 @@ $("measure-site-clear").addEventListener("click",()=>{
   measuredPoints=[];
   if(placementMode==="measure-point"){placementMode=null;$("placement-hint").hidden=true;}
   $("measure-site-status").textContent="측정점 초기화됨";
+  drawDistanceOverlay();
 });
 $("measure-objects").addEventListener("click",showPairMeasurement);
 $("precision-collision").addEventListener("click",checkInterferences);
@@ -3183,6 +3226,7 @@ function animate() {
   requestAnimationFrame(animate);
   orbit.update();
   renderer.render(scene, camera);
+  drawDistanceOverlay();
   spatialBridge?.drawOverlay();
 }
 buildSite("plaza");
