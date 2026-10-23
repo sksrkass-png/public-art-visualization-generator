@@ -243,5 +243,19 @@ const modelingQuality=fs.readFileSync(path.join(base,"studio/modeling-quality.js
 assert.match(modelingQuality,/fitDistance/);
 assert.match(modelingQuality,/localContextRadius/);
 assert.match(fs.readFileSync(path.join(base,"studio/rendering.js"),"utf8"),/validVisualSettings/);
+// v2.1 independent plinth and world-coordinate artwork sizing.
+for(const id of ["dimension-width","dimension-depth","dimension-height","dimension-mode",
+  "dimension-distortion","dimension-apply","dimension-status","plinth-width","plinth-depth",
+  "plinth-height","plinth-finish","plinth-create","plinth-update","plinth-align",
+  "plinth-status","anchor-mode","anchor-x","anchor-y","anchor-z","anchor-pick","anchor-apply","anchor-status"])
+  assert.ok(unique.has(id),"v2.1 precision control missing: "+id);
+for(const m of ["fitDimensionScale","applyArtworkDimensions","createPlinth","alignArtworkOnPlinth",
+  "targetAnchorTranslation","validPlacementReference","placementReference:currentPlacementReference()"])
+  assert.ok(js.includes(m),"v2.1 sizing, plinth or anchor contract missing: "+m);
+const plinthModule=fs.readFileSync(path.join(base,"studio/extras.js"),"utf8");
+assert.match(plinthModule,/PLINTH_MATERIALS/);
+assert.match(plinthModule,/kind==="plinth"/);
+assert.match(plinthModule,/applyPlinthFinish/);
+assert.match(fs.readFileSync(path.join(base,"studio/dimensioning.js"),"utf8"),/fitDimensionScale/);
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");
