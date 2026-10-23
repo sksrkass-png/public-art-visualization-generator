@@ -55,8 +55,19 @@ export function compareMasterRevisions(before,after) {
       current:safeValue(newValue),summary:fmt(oldValue,unit)+" → "+fmt(newValue,unit)});
   };
   const fields=(group,severity,label,a,b)=>{
-    const all=[...new Set([...Object.keys(isObject(a)?a:{}),...Object.keys(isObject(b)?b:{})])].sort();
-    for(const key of all)add(group,severity,label+" · "+key,a?.[key],b?.[key]);
+    const walk=(name,left,right,depth)=>{
+      if(equal(left,right))return;
+      if(depth<4 && (isObject(left)||isObject(right))){
+        const keys=[...new Set([...Object.keys(isObject(left)?left:{}),
+          ...Object.keys(isObject(right)?right:{})])].sort();
+        if(keys.length && isObject(left)&&isObject(right)){
+          for(const key of keys)walk(name+" · "+key,left[key],right[key],depth+1);
+          return;
+        }
+      }
+      add(group,severity,name,left,right);
+    };
+    walk(label,a,b,0);
   };
   for(const [key,label,sev] of [
     ["siteFile","현장 소스 파일","critical"],
