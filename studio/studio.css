@@ -281,3 +281,24 @@
 #site-visibility-studio button:disabled{opacity:.5;cursor:not-allowed}
 #site-view-stat{background:#eef2f3;border-radius:4px;border-left:3px solid #8da2ac;padding:10px;
   white-space:pre-wrap;line-height:1.7}
+
+/* v2.2 field feedback: practical compact inspector and scene layout */
+#site-import-inspector,#site-import-inspector[hidden],.site-plan-controls,.site-plan-controls[hidden],
+#asset-library-panel,#asset-library-panel[hidden]{display:none!important}
+.sidepanel{overflow-x:hidden;min-width:0}
+.sidepanel .section,.inspector-fold{min-width:0;max-width:100%;box-sizing:border-box}
+.sidepanel .inline,.sidepanel .xyz,.sidepanel .asset-palette{min-width:0;max-width:100%}
+.sidepanel .inline{display:flex;flex-wrap:wrap;gap:6px}
+.sidepanel .inline>*{min-width:0;flex:1 1 100px;max-width:100%;box-sizing:border-box}
+.sidepanel .inline button{white-space:normal;overflow-wrap:anywhere;min-width:0;padding-left:5px;padding-right:5px}
+.inspector-fold{border-bottom:1px solid #e2e5e8}
+.inspector-fold >summary{list-style:none;position:sticky;top:0;z-index:2;cursor:pointer;
+  background:#f4f5f5;color:#20262d;padding:12px 17px 12px 26px;
+  font-size:11px;font-weight:750;line-height:1.45}
+.inspector-fold >summary:before{content:"▸";position:absolute;left:10px;top:12px;color:#727a82}
+.inspector-fold[open]>summary:before{content:"▾"}
+.inspector-fold >.section{border:0!important;margin:0!important;padding-top:10px!important;padding-bottom:13px!important}
+.inspector-fold >.section .section-title>h2,.inspector-fold >.section>h2:first-child{display:none}
+.inspector-fold:not([open])>.section{display:none}
+.art-multi-import{padding:8px 0 4px}
+.sidepanel.right .panel-head{padding-top:15px;padding-bottom:11px}
