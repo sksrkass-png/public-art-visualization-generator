@@ -32,6 +32,7 @@ export function validateCollaborationState(data) {
         typeof item.requester !== "string" || item.requester.length < 1 || item.requester.length > 90 ||
         typeof item.reviewer !== "string" || item.reviewer.length > 90 ||
         typeof item.note !== "string" || item.note.length > 1800 ||
+        typeof item.requestNote !== "string" || item.requestNote.length > 1800 ||
         (item.status !== "pending" && !item.reviewer.trim()) ||
         (item.status === "changes-requested" && !item.note.trim()) ||
         (item.status === "director-approved" && item.attested !== true) ||
@@ -75,6 +76,11 @@ export function initTeamCollaboration({getContext}) {
           "director-approved":"디렉터 수동 승인 기록됨"
         }[current.status])+" · 작성자: "+current.requester)
       : "REV "+ctx.master.revision+" · 아직 검토 요청 전";
+    $("collab-feedback").textContent=current
+      ? "요청: "+(current.requestNote||"메모 없음")+
+        (current.status==="pending"?"\n검토자 의견: 대기 중":
+          "\n검토자: "+current.reviewer+"\n의견: "+(current.note||"별도 의견 없음"))
+      : "검토 요청 및 의견이 여기에 표시됩니다.";
     const list=$("collab-history"); list.replaceChildren();
     for(const master of [...(ctx.history||[])].reverse().slice(0,MAX_RECORDS)){
       const record=state.records.find(r=>r.revision===master.revision &&
@@ -88,6 +94,7 @@ export function initTeamCollaboration({getContext}) {
         ? {"pending":"검토 중","changes-requested":"수정 요청","director-approved":"디렉터 승인(수동)"}[record.status]+
           (record.reviewer?" · "+record.reviewer:"")
         : "검토 기록 없음";
+      if(record && record.status!=="pending" && record.note)detail.textContent+=" · "+record.note.slice(0,90);
       row.append(title,detail);list.append(row);
     }
     if (!ctx.history?.length)list.textContent="기록된 MASTER 버전이 없습니다.";
@@ -105,7 +112,7 @@ export function initTeamCollaboration({getContext}) {
         throw Error("검토 중 MASTER 상태가 변경되었습니다. 다시 시도하세요.");
       const now=new Date().toISOString();
       state.records.push({revision:m.revision,masterApprovedAt:m.approvedAt,
-        masterDigest:digest,requester:author,reviewer:"",note:textValue($("collab-note").value,1800),
+        masterDigest:digest,requester:author,reviewer:"",requestNote:textValue($("collab-note").value,1800),note:"",
         status:"pending",attested:false,createdAt:now,updatedAt:now});
       if(state.records.length>MAX_RECORDS)state.records.shift();
       $("collab-attest").checked=false;
