@@ -38,6 +38,7 @@ jobs:
           node --check studio/spatial-review-data.js
           node --check studio/modeling-quality.js
           node --check studio/dimensioning.js
+          node --check studio/site-viewport.js
       - name: Run JSON import regression tests
         run: |
           node tests/json-import.test.cjs
@@ -48,3 +49,4 @@ jobs:
           node tests/studio-spatial-review.test.cjs
           node tests/studio-modeling-quality.test.cjs
           node tests/studio-dimensioning.test.cjs
+          node tests/studio-site-viewport.test.cjs

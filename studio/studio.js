@@ -35,8 +35,9 @@ import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
   validPlacementReference,validatePlinthDimensions} from "./dimensioning.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
 import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
-  enumerateSiteMeshes, applyLayerVisibility, normalizeSiteAnnotations, canEditObject,
+  enumerateSiteMeshes, invalidateSiteMeshIndex, applyLayerVisibility, normalizeSiteAnnotations, canEditObject,
   layerForObject } from "./layers.js";
+import {createSiteViewportController,normalizeSiteViewSettings} from "./site-viewport.js";
 
 const $ = id => document.getElementById(id);
 const viewport = $("viewport");
@@ -150,6 +151,7 @@ let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
 let proposalBridge = null, collaborationBridge = null, revisionBridge = null, spatialBridge = null;
 const assetLibrary=new Map();
+const siteViewport=createSiteViewportController({renderer,siteRoot,artRoot});
 let nextLibraryId=1,activeLibraryOperation=0;
 const neutralEnvironment=scene.environment;
 let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
@@ -516,7 +518,10 @@ function selectedCanEdit() {
   return canEditObject(selectedRoot,artRoot,layerState,approvedMaster);
 }
 function refreshLayers({redrawSite = false} = {}) {
+  // Clear temporary clipped/ghost display before recomputing source visibility.
+  const resumeSite=siteViewport.suspend();
   const entries=applyLayerVisibility(layerState,siteRoot,artRoot,extrasRoot);
+  resumeSite();
   const counts=siteLayerCounts(entries);
   $("site-mesh-count").textContent=entries.length+"개";
   for(const key of LAYER_KEYS){
@@ -551,6 +556,55 @@ function refreshLayers({redrawSite = false} = {}) {
   });
   refreshAssetLibraryUI();
 }
+// v2.2 transient visualization tools: never become part of MASTER or saved site geometry.
+function resetSitePreviewUI(){
+  siteViewport.reset();
+  $("site-view-mode").value="solid";
+  $("site-focus-radius").value="0";
+  $("site-section-side").value="x-left";
+  $("site-section-offset").value="0";
+  $("site-view-stat").textContent="현장 표시 원본 복원 · 임시 가림·단면 효과 없음";
+}
+function applySitePreview(){
+  try{
+    const next=normalizeSiteViewSettings({
+      mode:$("site-view-mode").value,
+      cut:$("site-section-side").value,
+      offset:Number($("site-section-offset").value),
+      radius:Number($("site-focus-radius").value)
+    });
+    if(Number($("site-section-offset").value)!==next.offset)
+      throw Error("단면 이동은 -100~100m 범위에서 설정하세요.");
+    const stats=siteViewport.set(next);
+    if(stats.limited){
+      $("site-view-stat").textContent=
+        "현장 메시 "+stats.meshCount+"개 · 안전 제한 "+10000+"개 초과: 일부만 가리거나 잘라내지 않고 원본 화면을 유지합니다.";
+      return;
+    }
+    $("site-view-stat").textContent=
+      "현장 메시 "+stats.meshCount+"개 · 집중 뷰에서 제외 "+stats.hiddenByFocus+
+      "개 · 렌더용 임시 재질 "+stats.temporaryMaterials+"개 · 원본 변경 없음";
+  }catch(error){
+    siteViewport.set({mode:"solid",radius:0});
+    $("site-view-stat").textContent="현장 보기 실패: "+error.message;
+    notify(error.message);
+  }
+}
+function setupNavigationPerformance(){
+  const mode=$("site-navigation-performance").value;
+  const high=Math.min(window.devicePixelRatio||1,2);
+  if(mode==="quality"&&!orbitDragging)renderer.setPixelRatio(high);
+}
+let orbitDragging=false;
+orbit.addEventListener("start",()=>{
+  orbitDragging=true;
+  if($("site-navigation-performance").value==="adaptive")
+    renderer.setPixelRatio(Math.min(1,window.devicePixelRatio||1));
+});
+orbit.addEventListener("end",()=>{
+  orbitDragging=false;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+});
 function setLayerGroupVisible(key, value) {
   if(approvedMaster || !LAYER_KEYS.includes(key))return;
   const before=editSnapshot();
@@ -601,11 +655,14 @@ function buildSite(preset) {
   sourceSiteInspection=null;
   $("site-unit").value = "m";
   $("site-up").value = "y";
+  siteViewport.reset();
+  invalidateSiteMeshIndex(siteRoot);
   clearGroup(siteRoot);
   siteFileName = "";
   siteSourceFile = null;
   resetSiteAnnotations();
   syncGroundAvailability();
+  resetSitePreviewUI();
   $("site-filename").textContent = "업로드된 현장 모델 없음";
   showSiteGeometryStats(null);
   updateSitePreflight();
@@ -629,6 +686,7 @@ function buildSite(preset) {
     for (let z of [-9, 9]) for (let x = -24; x <= 24; x += 8) tree(siteRoot, x, z, 4);
     for (let z of [-18, 18]) box(siteRoot, 54, 6, 5, 0, 3, z, 0xc6c8c8);
   }
+  invalidateSiteMeshIndex(siteRoot);
   refreshLayers({redrawSite:true});
 }
 function syncGroundAvailability() {
@@ -1852,8 +1910,11 @@ async function importModel(file, isSite) {
     const inspected = isSite ? inspectImportedSite(model) : null;
     if (approvedMaster || op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
     if (isSite) {
+      siteViewport.reset();
+      invalidateSiteMeshIndex(siteRoot);
       clearGroup(siteRoot);
       siteRoot.add(model);
+      resetSitePreviewUI();
       siteRoot.position.set(0,0,0);
       $("site-center-origin").checked=false;
       sourceSiteInspection=inspected;
@@ -2078,6 +2139,7 @@ function importSceneConfig(data) {
   if(data.render?.environmentMode==="hdr" && !hdrTexture){
     $("env-filename").textContent="재업로드 필요: "+data.render.environmentFile;
   }
+  resetSitePreviewUI();
   restorePlacementReference(data.placementReference);
   if (Array.isArray(data.masterSnapshots)) {
     masterSnapshots = structuredClone(data.masterSnapshots);
@@ -2215,8 +2277,11 @@ async function importProjectArchive(file) {
     refreshAssetLibraryUI();
     activeSiteOperation++; activeArtOperation++; activePlanOperation++;
     if (siteModel) {
+      siteViewport.reset();
+      invalidateSiteMeshIndex(siteRoot);
       clearGroup(siteRoot);
       siteRoot.add(siteModel);
+      resetSitePreviewUI();
       siteRoot.position.set(0,0,0);
       sourceSiteInspection=siteInspected;
       siteFileName = siteFile.name;
@@ -2336,6 +2401,7 @@ async function exportMasterPack() {
   };
   const views=createStandardCameras(viewCamera,artBounds);
   if(views.length!==8)return notify("렌더 시점 정의가 올바르지 않습니다.");
+  const restoreSitePreview=siteViewport.suspend();
   const sceneBefore=captureSceneIntegrity({
     artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState
   });
@@ -2465,6 +2531,7 @@ async function exportMasterPack() {
     for(const [node,wasVisible] of editorIcons)node.visible=wasVisible;
   }
   if(renderError){
+    restoreSitePreview();
     $("batch-status").textContent="일괄 렌더 실패: "+(renderError.message || "GPU 오류");
     syncBatchAvailability();
     return notify("8컷 렌더 실패 · 기존 장면은 복원됐습니다.");
@@ -2472,6 +2539,7 @@ async function exportMasterPack() {
   const sceneAfter=captureSceneIntegrity({
     artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState
   });
+  restoreSitePreview();
   manifest.qa.unchangedSceneAfter=masterConsistency(master,baselineForMaster()).ok;
   manifest.qa.sceneSignaturePreserved=sceneBefore===sceneAfter;
   if(!manifest.qa.unchangedSceneAfter || !manifest.qa.sceneSignaturePreserved){
@@ -2513,6 +2581,7 @@ async function exportMasterPack() {
   }
 }
 function exportImage() {
+  const restoreSitePreview=siteViewport.suspend();
   const w=Math.max(1,Math.round(viewport.clientWidth));
   const h=Math.max(1,Math.round(viewport.clientHeight));
   const originalRatio=renderer.getPixelRatio();
@@ -2555,9 +2624,11 @@ function exportImage() {
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(originalRatio);
     renderer.setSize(w,h,false);
+    restoreSitePreview();
   }
 }
 async function exportGLB() {
+  const restoreSitePreview=siteViewport.suspend();
   try {
     notify("GLB를 생성하고 있습니다.");
     const exportRoot = new THREE.Group();
@@ -2577,6 +2648,8 @@ async function exportGLB() {
   } catch (err) {
     console.error(err);
     notify("GLB 내보내기 실패: " + (err.message || "텍스처 확인 필요"));
+  } finally {
+    restoreSitePreview();
   }
 }
 
@@ -2617,6 +2690,9 @@ $("site-preset").addEventListener("change", e => {
   activeProjectOperation++;
   buildSite(e.target.value); notify("예시 현장 프리셋을 적용했습니다.");
 });
+$("site-view-apply").addEventListener("click",applySitePreview);
+$("site-view-reset").addEventListener("click",resetSitePreviewUI);
+$("site-navigation-performance").addEventListener("change",setupNavigationPerformance);
 $("site-file").addEventListener("change", e => importModel(e.target.files[0], true));
 $("art-file").addEventListener("change", e => importModel(e.target.files[0], false));
 $("map-file").addEventListener("change", e => loadPlan(e.target.files[0]));
