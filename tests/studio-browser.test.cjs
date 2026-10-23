@@ -1217,7 +1217,9 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     // A real transform edit appears in a subsequent MASTER Revision diff.
     page.once("dialog",dialog=>dialog.accept());
     await page.locator("#master-lock").click();
-    await x.fill("3.25");
+    await page.locator("#select-artwork").click();
+    const priorArtX=Number(await x.inputValue());
+    await x.fill(String(priorArtX+1.25));
     await x.dispatchEvent("change");
     await page.locator("#master-lock").click();
     await page.locator("#revision-base").selectOption(String(initialTargetIndex));
