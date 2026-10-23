@@ -1198,15 +1198,18 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(approvedData.artwork.locked,true,"review never unlocks MASTER");
     assert.match(await page.locator("#collab-history").textContent(),/디렉터 승인/);
         // v1.6: compare two persisted approved snapshots without changing live scene.
-    await page.locator("#revision-base").selectOption("0");
-    await page.locator("#revision-target").selectOption("1");
+    const existingMasters=approvedData.masterSnapshots;
+    const initialBaseIndex=existingMasters.length-2;
+    const initialTargetIndex=existingMasters.length-1;
+    await page.locator("#revision-base").selectOption(String(initialBaseIndex));
+    await page.locator("#revision-target").selectOption(String(initialTargetIndex));
     assert.equal(await page.locator("#revision-export").isEnabled(),true);
     const revisionDl=page.waitForEvent("download",{timeout:20000});
     await page.locator("#revision-export").click();
     const revisionReport=JSON.parse(fs.readFileSync(await (await revisionDl).path(),"utf8"));
     assert.equal(revisionReport.schema,"axoo-master-revision-diff-v1");
-    assert.equal(revisionReport.base.revision,1);
-    assert.equal(revisionReport.target.revision,2);
+    assert.equal(revisionReport.base.revision,existingMasters[initialBaseIndex].revision);
+    assert.equal(revisionReport.target.revision,existingMasters[initialTargetIndex].revision);
     assert.match(revisionReport.fingerprint.targetSHA256,/^[a-f0-9]{64}$/);
     assert.ok(revisionReport.limitations.some(x=>x.includes("vertices")),
       "no false guarantee about mesh geometry equality");
@@ -1217,9 +1220,12 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await x.fill("3.25");
     await x.dispatchEvent("change");
     await page.locator("#master-lock").click();
-    await page.locator("#revision-base").selectOption("1");
-    await page.locator("#revision-target").selectOption("2");
-    await page.waitForFunction(()=>document.querySelector("#revision-summary")?.textContent.includes("REV 2 → REV 3"));
+    await page.locator("#revision-base").selectOption(String(initialTargetIndex));
+    await page.locator("#revision-target").selectOption(String(existingMasters.length));
+    const previousRevision=existingMasters.at(-1).revision;
+    await page.waitForFunction(n=>
+      document.querySelector("#revision-summary")?.textContent.includes("REV "+n+" → REV "+(n+1)),
+      previousRevision);
     assert.match(await page.locator("#revision-changes").textContent(),/작품 설치 좌표 · X/);
     assert.match(await page.locator("#revision-changes").textContent(),/작품 좌표 이동 거리/);
     const beforeDiffSave=page.waitForEvent("download",{timeout:20000});
@@ -1229,7 +1235,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.locator("#revision-export").click();
     const revisedReport=JSON.parse(fs.readFileSync(await (await revisedReportDownload).path(),"utf8"));
     assert.ok(revisedReport.counts.critical>=2,"the new artwork position must be flagged as critical");
-    assert.equal(revisedReport.target.revision,3);
+    assert.equal(revisedReport.target.revision,previousRevision+1);
     const afterDiffSave=page.waitForEvent("download",{timeout:20000});
     await page.locator("#export-json").click();
     const afterDiffData=JSON.parse(fs.readFileSync(await (await afterDiffSave).path(),"utf8"));
