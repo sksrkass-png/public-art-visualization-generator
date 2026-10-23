@@ -1427,6 +1427,58 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(restored.artwork.locked,true,"MASTER approval survives complete portable ZIP restore");
     await restorePage.close();
     await precisionPage.close();
+    // v2.2: ensure view-only construction never leaks into official PNGs or project model.
+    const sitePage=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
+    sitePage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await sitePage.goto("http://127.0.0.1:8787/studio/",{waitUntil:"domcontentloaded",timeout:60000});
+    await sitePage.locator("#viewport canvas").waitFor({timeout:30000});
+    await sitePage.waitForFunction(()=>document.querySelector("#site-mesh-count")?.textContent!=="0개");
+    const siteInitial=await sitePage.locator("#site-mesh-count").textContent();
+    const officialBefore=sitePage.waitForEvent("download",{timeout:30000});
+    await sitePage.locator("#shot-export").click();
+    const originalPNG=fs.readFileSync(await (await officialBefore).path());
+    await sitePage.locator("#site-view-mode").selectOption("ghost");
+    await sitePage.locator("#site-focus-radius").selectOption("15");
+    await sitePage.locator("#site-view-apply").click();
+    assert.match(await sitePage.locator("#site-view-stat").textContent(),/임시 재질 [1-9]/);
+    const configBefore=sitePage.waitForEvent("download",{timeout:20000});
+    await sitePage.locator("#export-json").click();
+    const ghostConfig=JSON.parse(fs.readFileSync(await (await configBefore).path(),"utf8"));
+    assert.equal(Object.hasOwn(ghostConfig,"siteViewport"),false,
+      "display-only clipping is not part of project source data");
+    const ghostExport=sitePage.waitForEvent("download",{timeout:30000});
+    await sitePage.locator("#shot-export").click();
+    const ghostPNG=fs.readFileSync(await (await ghostExport).path());
+    assert.equal(Buffer.compare(originalPNG,ghostPNG),0,
+      "official PNG must ignore site ghost/focus preview and retain full source site");
+    await sitePage.locator("#site-view-mode").selectOption("section");
+    await sitePage.locator("#site-focus-radius").selectOption("0");
+    await sitePage.locator("#site-section-side").selectOption("z-rear");
+    await sitePage.locator("#site-section-offset").fill("5");
+    await sitePage.locator("#site-view-apply").click();
+    assert.match(await sitePage.locator("#site-view-stat").textContent(),/임시 재질 [1-9]/);
+    const sectionExport=sitePage.waitForEvent("download",{timeout:30000});
+    await sitePage.locator("#shot-export").click();
+    const sectionPNG=fs.readFileSync(await (await sectionExport).path());
+    assert.equal(Buffer.compare(originalPNG,sectionPNG),0,
+      "site clipping preview must not appear in official PNG export");
+    await sitePage.locator("#site-navigation-performance").selectOption("adaptive");
+    await sitePage.locator("#site-view-reset").click();
+    assert.match(await sitePage.locator("#site-view-stat").textContent(),/원본 복원/);
+    assert.equal(await sitePage.locator("#site-mesh-count").textContent(),siteInitial);
+    // Cached mesh index must invalidate after swapping the sample site.
+    await sitePage.locator("#site-preset").selectOption("courtyard");
+    const changed=await sitePage.locator("#site-mesh-count").textContent();
+    assert.notEqual(changed,siteInitial,"site cache must rebuild with new imported/preset geometry");
+    await sitePage.locator("#site-view-mode").selectOption("ghost");
+    await sitePage.locator("#site-view-apply").click();
+    assert.match(await sitePage.locator("#site-view-stat").textContent(),/현장 메시 [1-9]/);
+    const restoredInfo=sitePage.waitForEvent("download",{timeout:20000});
+    await sitePage.locator("#export-json").click();
+    const restoredConfig=JSON.parse(fs.readFileSync(await (await restoredInfo).path(),"utf8"));
+    assert.equal(restoredConfig.site.preset,"courtyard");
+    assert.equal(restoredConfig.render.visual?.guide||"none","none");
+    await sitePage.close();
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
