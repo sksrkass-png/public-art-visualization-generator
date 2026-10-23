@@ -1759,12 +1759,14 @@ function refreshSelectionOutline(){
     selectionBounds.setFromObject(selectedRoot);
   }
   selectionOutline.visible=!!visible&&!selectionBounds.isEmpty();
+  viewport.dataset.selectionActive=selectionOutline.visible?"yes":"no";
 }
 function clearCanvasSelection(){
   gizmoRequested=false;
   transform.detach();
   selectedRoot=artRoot;
   selectionOutline.visible=false;
+  viewport.dataset.selectionActive="no";
   updateInspector(true);
   updateExtrasStatus();
 }
