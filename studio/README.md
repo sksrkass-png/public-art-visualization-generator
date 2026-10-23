@@ -1,6 +1,19 @@
-# AXOO Public Art 3D Studio — v2.1
+# AXOO Public Art 3D Studio — v2.2
 
 Static browser-based public-art modeling editor. v1.5 review exchange is local and file-based; it is not real-time cloud collaboration.
+
+## v2.2 — Large site navigation / local focus / reversible scene clipping
+
+This release prioritizes **working with large, faithful 3D architecture and landscape scenes**, not administrative reports or paperwork.
+
+- **Site-only Ghost preview:** Choose **건물·조경 반투명 보기** from the inspector. Imported site mesh materials are temporarily cloned into 22%-opacity display materials while original sculpture and pedestal meshes remain fully opaque. All source site material pointers, maps, shader settings, mesh geometry and original per-mesh visibility are restored when the user resets the preview or exports images.
+- **World-space local installation focus:** Show only scene meshes that intersect the sphere around the **actual artwork centre** at 15, 30, 60 or 120 metres, or return to full site. Culling uses source mesh world axis-aligned bounding boxes (coarse, conservative) and never rewrites, discards, or removes the imported geometry. Large enclosing site ground meshes may remain visible by design. The selected focus range is only a viewport aid, not an edited site layer.
+- **Section/clip preview:** Choose X-left, X-right, Z-front, Z-rear or Y-above and optionally move the clipping plane ±100 viewer metres relative to artwork. Three.js local material clipping affects **site geometry only**; the artwork, pedestal, surroundings placed by the curator, and original building vertex data remain unaffected. This is an open geometric clip preview, **not a closed BIM section/cut volume**.
+- **Adaptive navigation pixel density:** Optional **이동 중 픽셀 밀도 자동 낮춤** reduces preview device pixel ratio only during orbit/pan interaction and automatically restores full device pixel ratio when navigation ends. Saved/exported render resolutions stay independent.
+- **Large scene stability:** Stable imported site mesh-path indexing is cached until a new source or site preset is loaded, reducing repeated scene traversals when changing layers. Preview processing is restricted to complete sites with **up to 10,000 site mesh objects**. For larger sites, the preview refuses partial clipping to avoid giving an inaccurate impression; users should simplify the imported model before using the feature.
+- **Original-model integrity:** Ghost, section and local focus are explicitly **viewer-only**. When exporting normal PNG, MASTER eight-view ZIP, or GLB, original materials and complete original-source site visibility are restored first. Once the capture finishes, the preview resumes automatically. Preview settings are intentionally **not saved** with MASTER or project scene JSON. Existing manual layer hiding is a separate persisted scene change; a preview reset does not override it.
+
+Verification: static/unit tests for clip-plane normals and local sphere culling, plus Chromium browser checks asserting a PNG exported with ghost/section enabled is **byte-identical** to the same original full-site PNG. This release **does not implement model-decimating LOD, geometry replacement or true out-of-core streaming**; these would require asset-specific preprocessing and accuracy verification.
 
 ## v2.1 — Precision dimensions, independent physical plinth, site XYZ anchors
 
