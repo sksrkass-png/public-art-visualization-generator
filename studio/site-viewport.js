@@ -115,7 +115,7 @@ export function createSiteViewportController({renderer,siteRoot,artRoot}) {
   }
   function set(next){settings=normalizeSiteViewSettings(next);return apply();}
   function suspend(){
-    const had=changed.size>0 || originalLocalClipping!==null;
+    const had=settings.mode!=="solid" || settings.radius!==0;
     clear();
     let resumed=false;
     return ()=>{
