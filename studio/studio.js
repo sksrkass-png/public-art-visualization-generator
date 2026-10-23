@@ -1114,6 +1114,7 @@ function restoreEdit(state) {
   const picked = state.selectedId ? extrasRoot.children.find(x => x.userData.extraId === state.selectedId) : artRoot;
   selectRoot(picked || artRoot);
   updateExtrasStatus();
+  updateLight();
 }
 function clearUndo() {
   undoStack = [];
@@ -1579,6 +1580,7 @@ function setTransformFromField(el) {
     shiftGroupMembers(selectedRoot,selectedRoot.position.clone().sub(oldPosition));
   commit(before);
   updateInspector();
+  if(selectedRoot===artRoot)updateLight();
 }
 const SITE_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl", "ply", "dae", "3ds", "zip"]);
 const ARTWORK_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "stl"]);
@@ -2704,6 +2706,7 @@ transform.addEventListener("mouseUp", () => {
   if (lastDrag) commit(lastDrag);
   lastDrag = null;
   updateInspector();
+  if(selectedRoot===artRoot)updateLight();
 });
 transform.addEventListener("objectChange", () => {
   // Keep size proportional by default, including direct gizmo manipulation.
@@ -2721,7 +2724,12 @@ transform.addEventListener("objectChange", () => {
   }
   // Artistic geometry is never rebuilt. All transforms are on the root group.
   updateInspector();
+  // Maintain solar direction during interactive artwork dragging; do not
+  // recompute the expensive shadow fit until the drag is finished.
+  const artDelta=artRoot.position.clone().sub(sun.target.position);
+  sun.position.add(artDelta);
   sun.target.position.copy(artRoot.position);
+  sun.target.updateMatrixWorld();
 });
 renderer.domElement.addEventListener("pointerdown", () => { mouseMoved = false; });
 renderer.domElement.addEventListener("pointermove", e => { if (e.buttons) mouseMoved = true; });
