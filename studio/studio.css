@@ -273,3 +273,11 @@
 #dimension-status,#plinth-status,#anchor-status{white-space:pre-wrap;overflow-wrap:anywhere}
 #dimension-apply:disabled,#plinth-create:disabled,#plinth-update:disabled,
 #plinth-align:disabled,#anchor-apply:disabled,#anchor-pick:disabled{opacity:.45;cursor:not-allowed}
+
+/* v2.2 — temporary imported-site visualization tools */
+#site-visibility-studio{border-top:2px solid #8397a0;background:linear-gradient(#f3f7f8,#fff)}
+#site-visibility-studio .section-title h2{letter-spacing:.035em}
+#site-visibility-studio select,#site-visibility-studio input[type=number]{width:100%;min-width:0}
+#site-visibility-studio button:disabled{opacity:.5;cursor:not-allowed}
+#site-view-stat{background:#eef2f3;border-radius:4px;border-left:3px solid #8da2ac;padding:10px;
+  white-space:pre-wrap;line-height:1.7}
