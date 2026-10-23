@@ -1155,6 +1155,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     const requestData=JSON.parse(fs.readFileSync(await (await requestDl).path(),"utf8"));
     assert.equal(requestData.schema,"axoo-team-review-v1");
     assert.equal(requestData.record.status,"pending");
+    assert.match(requestData.record.requestNote,/Please review/);
     assert.match(requestData.record.masterDigest,/^[a-f0-9]{64}$/);
     await page.locator("#collab-reviewer").fill("AXOO Director");
     await page.locator("#collab-note").fill("Raise the label position and review from eye level.");
