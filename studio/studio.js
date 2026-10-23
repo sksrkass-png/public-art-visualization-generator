@@ -893,22 +893,23 @@ function sceneFrame(mode){
     allRadius=both.radius;
   }
   const radius=localContextRadius(artSphere.radius,allRadius,mode);
-  const distance=fitDistance(Math.max(.3,radius),camera.fov,camera.aspect,1.32);
   const delta=camera.position.clone().sub(orbit.target);
   if(delta.lengthSq()<.0001)delta.set(1,.45,1);
   delta.normalize();
-  const allowed=Math.min(780,Math.max(2,distance));
+  const settings=cameraFocusSettings({radius:Math.max(.3,radius),fov:camera.fov,
+    aspect:camera.aspect,padding:1.32});
+  const allowed=settings.distance;
+  orbit.maxDistance=settings.maxDistance;
   camera.position.copy(center).addScaledVector(delta,allowed);
   orbit.target.copy(center);
-  camera.near=Math.max(.01,allowed/30000);
-  camera.far=Math.max(3000,allowed*4);
+  camera.near=settings.near;
+  camera.far=settings.far;
   camera.updateProjectionMatrix();
   orbit.update();
-  const clipped=distance>780;
   $("visual-frame-status").textContent=
     {sculpture:"작품 중심",nearby:"작품 + 근거리 환경",site:"전체 현장"}[mode]+
-    " · 카메라 거리 "+allowed.toFixed(1)+"m"+(clipped?" · 큰 현장: 카메라 이동 상한 780m 적용":"");
-  if(clipped)notify("현장 전체가 너무 넓어 확대 범위를 제한했습니다. 필요한 설치 구역 위주로 확인하세요.");
+    " · 카메라 거리 "+allowed.toFixed(1)+"m"+
+    (settings.limited?" · 초대형 OBJ 프레이밍 안전 상한 적용":"");
 }
 function checkVisualQuality(){
   const size=targetSize(viewport.clientWidth,viewport.clientHeight,
@@ -1646,6 +1647,42 @@ function updateLight() {
     $(id + "-value").textContent = $(id).value + (id.startsWith("sun-") && id !== "sun-strength" ? "°" : "");
   });
 }
+function fitCameraToBounds(bounds,label,{preserveDirection=true}={}){
+  if(bounds.isEmpty())return false;
+  const sphere=bounds.getBoundingSphere(new THREE.Sphere());
+  if(!Number.isFinite(sphere.radius)||sphere.radius<=0)return false;
+  const config=cameraFocusSettings({
+    radius:Math.max(.15,sphere.radius),fov:camera.fov,
+    aspect:viewport.clientWidth/Math.max(1,viewport.clientHeight),padding:1.35
+  });
+  const direction=preserveDirection?
+    camera.position.clone().sub(orbit.target):new THREE.Vector3(1,.6,1);
+  if(direction.lengthSq()<.000001)direction.set(1,.6,1);
+  direction.normalize();
+  orbit.maxDistance=config.maxDistance;
+  orbit.minDistance=Math.max(.01,Math.min(.25,config.distance/150));
+  camera.near=config.near;
+  camera.far=config.far;
+  camera.position.copy(sphere.center).addScaledVector(direction,config.distance);
+  orbit.target.copy(sphere.center);
+  camera.updateProjectionMatrix();
+  orbit.update();
+  $("camera-focus-status").textContent=label+" · 카메라 거리 "+
+    config.distance.toFixed(1)+"m · 원본 모델 크기·좌표 변경 없음"+
+    (config.limited?" · 매우 큰 모델이므로 표시 한계 확인":"");
+  return true;
+}
+function focusImportedSite(){
+  const box=new THREE.Box3().setFromObject(siteRoot);
+  if(box.isEmpty())return notify("현장 모델이 없습니다. 현장 3D 파일을 먼저 불러오세요.");
+  fitCameraToBounds(box,"현장 전체 맞춤");
+}
+function focusCurrentSelection(){
+  const root=gizmoRequested?selectedRoot:artRoot;
+  const box=new THREE.Box3().setFromObject(root);
+  if(box.isEmpty())return notify("선택할 모델이 없습니다.");
+  fitCameraToBounds(box,gizmoRequested?"선택 객체 맞춤":"작품 맞춤");
+}
 function artworkTarget() {
   const box = new THREE.Box3().setFromObject(artRoot);
   if (box.isEmpty()) return new THREE.Vector3(0, 1.5, 0);
@@ -1669,6 +1706,8 @@ function changeView(name) {
   camera.position.set(center.x + o[0], center.y + o[1], center.z + o[2]);
   orbit.target.copy(center);
   orbit.update();
+  if(size.length()>160 && name==="main")
+    fitCameraToBounds(new THREE.Box3().setFromObject(artRoot),"대형 작품 자동 맞춤");
   document.querySelectorAll("[data-view]").forEach(b => b.classList.toggle("active", b.dataset.view === name));
 }
 function fitCamera() { changeView("main"); }
@@ -2048,6 +2087,10 @@ async function importModel(file, isSite) {
       }
       showSiteGeometryStats(inspectSiteGeometry(siteRoot));
       updateSitePreflight();
+      const siteSphere=new THREE.Box3().setFromObject(siteRoot).getBoundingSphere(new THREE.Sphere());
+      const toArt=siteSphere.center.distanceTo(artworkTarget());
+      if(shouldAutoFocusImportedSite(siteSphere.radius,toArt))
+        fitCameraToBounds(new THREE.Box3().setFromObject(siteRoot),"대형 현장 자동 맞춤");
       notify("현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
     } else {
       // Imported geometry retains original dimensions; never fit to stale 3m field.
@@ -3006,6 +3049,8 @@ $("redo").addEventListener("click", redo);
     updateLight();
   }));
 document.querySelectorAll("[data-view]").forEach(el => el.addEventListener("click", () => changeView(el.dataset.view)));
+$("focus-selected-quick").addEventListener("click",focusCurrentSelection);
+$("focus-site-quick").addEventListener("click",focusImportedSite);
 $("focus").addEventListener("click", fitCamera);
 $("project-quick-save").addEventListener("click",()=>$("export-project").click());
 $("shot-export").addEventListener("click", exportImage);
