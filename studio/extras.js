@@ -175,6 +175,19 @@ export function applyPlinthFinish(root,finish) {
   if(material){material.color.setHex(spec.color);material.roughness=spec.roughness;
     material.metalness=spec.metalness;material.needsUpdate=true;}
 }
+export function applyPlinthShape(root,shape){
+  if(root?.userData?.extraKind!=="plinth"||!["box","round"].includes(shape))
+    throw Error("지원하지 않는 좌대 형태입니다.");
+  if(root.userData.plinthShape===shape)return;
+  const model=root.children.find(item=>item.isMesh);
+  if(!model)throw Error("좌대 메시를 찾을 수 없습니다.");
+  const old=model.geometry;
+  model.geometry=shape==="round"
+    ?new THREE.CylinderGeometry(.5,.5,1,48)
+    :new THREE.BoxGeometry(1,1,1);
+  old.dispose();
+  root.userData.plinthShape=shape;
+}
 function lightIcon(root, kind) {
   const icon = new THREE.Mesh(new THREE.SphereGeometry(.19,14,10),
     new THREE.MeshBasicMaterial({color:kind==="spot-light"?0xffcf88:0xfff4b4,depthTest:false,transparent:true,opacity:.85}));
