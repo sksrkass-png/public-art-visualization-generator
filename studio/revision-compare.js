@@ -56,7 +56,8 @@ export function initRevisionCompare({getContext}){
       summary.textContent="REV "+result.base.revision+" → REV "+result.target.revision+
         " · 변경 "+result.total+"건 (핵심 "+counts.critical+" · 배치 "+counts.context+
         " · 표현 "+counts.visual+")"+
-        (locked&&matchesMaster?" · 현재 MASTER 일치":" · 과거 승인 스냅샷 비교");
+        (locked&&matchesMaster?" · 현재 MASTER 일치":" · 과거 승인 스냅샷 비교")+
+        (result.unverified.length?" · 일부 구형 MASTER 속성 미기록":"");
       if(result.total===0){
         const row=document.createElement("p");
         row.textContent="기록된 주요 스냅샷 속성의 변경 사항이 없습니다. 원본 메시·바이너리 동일성을 보증하지 않습니다.";
