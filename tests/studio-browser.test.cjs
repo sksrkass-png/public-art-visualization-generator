@@ -1389,8 +1389,9 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.deepEqual(precisionData.placementReference,{mode:"front-left",position:[10,.5,20]});
     assert.equal(precisionData.extras[0].finish,"metal");
     assert.equal(precisionData.extras[0].transform.s[0],3);
-    // Plinth itself remains at former location until the curator explicitly repositions it.
-    assert.equal(precisionData.extras[0].transform.p[0],plinthFirst.extras[0].transform.p[0]);
+    assert.notEqual(precisionData.extras[0].transform.p[0],plinthFirst.extras[0].transform.p[0],
+      "paired plinth must follow sculpture anchor relocation");
+    assert.equal(precisionData.extras[0].followArtwork,true);
     await precisionPage.locator("#select-artwork").click();
     await precisionPage.locator("#dimension-mode").selectOption("independent");
     await precisionPage.locator("#dimension-distortion").uncheck();
