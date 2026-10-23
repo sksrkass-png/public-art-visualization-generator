@@ -1,3 +1,4 @@
+import {validVisualSettings,normalizeVisualSettings} from "./modeling-quality.js";
 import * as THREE from "three";
 
 export const OUTPUT_ASPECTS = Object.freeze({
@@ -27,15 +28,17 @@ export function validRenderConfig(data) {
     Number.isFinite(data.envIntensity) && data.envIntensity>=0 && data.envIntensity<=3 &&
     Number.isFinite(data.focalLength) && data.focalLength>=16 && data.focalLength<=120 &&
     [2,3,4].includes(data.multiplier) &&
-    validMaterialConfig(data.artworkMaterial);
+    validMaterialConfig(data.artworkMaterial) &&
+    (data.visual===undefined || validVisualSettings(data.visual));
 }
 export function normalizeRenderConfig(value) {
   const defaults={
     aspect:"viewport", environmentMode:"neutral",environmentFile:"",
     envIntensity:1, focalLength:38.3, multiplier:2,
-    artworkMaterial:{preset:"original",color:"#d0d6db"}
+    artworkMaterial:{preset:"original",color:"#d0d6db"},
+    visual:normalizeVisualSettings()
   };
-  return validRenderConfig(value) ? structuredClone(value) : defaults;
+  return validRenderConfig(value) ? {...structuredClone(value),visual:normalizeVisualSettings(value.visual)} : defaults;
 }
 export function targetSize(viewportWidth,viewportHeight,aspect,multiplier,maxTextureSize=8192,maxPixels=20000000) {
   const width=Math.max(1,Math.round(viewportWidth));

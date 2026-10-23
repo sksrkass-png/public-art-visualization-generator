@@ -24,6 +24,8 @@ import { initTeamCollaboration, validateCollaborationState } from "./collaborati
 import { initRevisionCompare } from "./revision-compare.js";
 import {initSpatialReview} from "./spatial-review.js";
 import {validSpatialReview} from "./spatial-review-data.js";
+import {FRAME_MODES,CAMERA_LENSES,normalizeVisualSettings,
+  fitDistance,localContextRadius,renderQualityFlags} from "./modeling-quality.js";
 import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precision.js";
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
@@ -701,12 +703,103 @@ function applySiteUnits() {
   if (siteSourceFile) showSiteGeometryStats(inspectSiteGeometry(siteRoot));
   updateSitePreflight();
 }
+function currentVisualSettings(){
+  return normalizeVisualSettings({
+    toneCurve:$("visual-tone").value,sky:$("visual-sky").value,
+    shadowProfile:$("visual-shadows").value,guide:$("visual-guide").value
+  });
+}
+function applyVisualGuide(){
+  const overlay=$("visual-composition-overlay");
+  const guide=$("visual-guide").value;
+  overlay.hidden=guide==="none";
+  overlay.className="visual-composition-overlay"+(guide==="none"?"":" visual-guide-"+guide);
+}
+function applyVisualLook(){
+  const settings=currentVisualSettings();
+  renderer.toneMapping=settings.toneCurve==="neutral"?THREE.NeutralToneMapping:THREE.ACESFilmicToneMapping;
+  const skyColors={cool:0xdce0e2,warm:0xe7e0d4,white:0xf4f4f2};
+  const isNight=$("light-preset").value==="night";
+  scene.background.set(isNight?0x171f33:skyColors[settings.sky]);
+  const mapSize=Math.min(renderer.capabilities.maxTextureSize,
+    settings.shadowProfile==="high"?4096:2048);
+  if(sun.shadow.mapSize.x!==mapSize){
+    sun.shadow.mapSize.set(mapSize,mapSize);
+    if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
+  }
+  // Keep a tight shadow camera around the ARTWORK, not the entire imported city.
+  // This increases sculpture contact/detail resolution without touching site geometry.
+  const size=new THREE.Box3().setFromObject(artRoot).getSize(new THREE.Vector3());
+  const reach=Math.min(110,Math.max(8,Math.max(size.x,size.y,size.z)*2.1+7));
+  const shadowCam=sun.shadow.camera;
+  shadowCam.left=-reach;shadowCam.right=reach;
+  shadowCam.top=reach;shadowCam.bottom=-reach;
+  shadowCam.near=.5;shadowCam.far=Math.max(180,reach*3);
+  shadowCam.updateProjectionMatrix();
+  sun.shadow.bias=-.00012;
+  sun.shadow.normalBias=settings.shadowProfile==="high"?.025:.04;
+  sun.shadow.radius=settings.shadowProfile==="high"?1.6:2;
+  sun.shadow.needsUpdate=true;
+  applyVisualGuide();
+}
+function sceneFrame(mode){
+  if(!FRAME_MODES.includes(mode))return;
+  const artwork=new THREE.Box3().setFromObject(artRoot);
+  if(artwork.isEmpty())return notify("프레이밍할 작품 모델이 없습니다.");
+  const artSphere=artwork.getBoundingSphere(new THREE.Sphere());
+  const site=new THREE.Box3().setFromObject(siteRoot);
+  const siteSphere=site.isEmpty()?null:site.getBoundingSphere(new THREE.Sphere());
+  let center=artSphere.center.clone();
+  let allRadius=siteSphere?.radius||artSphere.radius;
+  if(mode==="site"&&siteSphere){
+    const union=artwork.clone().union(site);
+    const both=union.getBoundingSphere(new THREE.Sphere());
+    center=both.center;
+    allRadius=both.radius;
+  }
+  const radius=localContextRadius(artSphere.radius,allRadius,mode);
+  const distance=fitDistance(Math.max(.3,radius),camera.fov,camera.aspect,1.32);
+  const delta=camera.position.clone().sub(orbit.target);
+  if(delta.lengthSq()<.0001)delta.set(1,.45,1);
+  delta.normalize();
+  const allowed=Math.min(780,Math.max(2,distance));
+  camera.position.copy(center).addScaledVector(delta,allowed);
+  orbit.target.copy(center);
+  camera.near=Math.max(.01,allowed/30000);
+  camera.far=Math.max(3000,allowed*4);
+  camera.updateProjectionMatrix();
+  orbit.update();
+  const clipped=distance>780;
+  $("visual-frame-status").textContent=
+    {sculpture:"작품 중심",nearby:"작품 + 근거리 환경",site:"전체 현장"}[mode]+
+    " · 카메라 거리 "+allowed.toFixed(1)+"m"+(clipped?" · 큰 현장: 카메라 이동 상한 780m 적용":"");
+  if(clipped)notify("현장 전체가 너무 넓어 확대 범위를 제한했습니다. 필요한 설치 구역 위주로 확인하세요.");
+}
+function checkVisualQuality(){
+  const size=targetSize(viewport.clientWidth,viewport.clientHeight,
+    $("render-aspect").value,+$("render-resolution").value,renderer.capabilities.maxTextureSize);
+  const flags=renderQualityFlags({
+    width:size.width,height:size.height,limited:size.limited,
+    hasSite:!!siteSourceFile,hasArtwork:!!artSourceFile,
+    locked:approvedMaster,shadowProfile:$("visual-shadows").value
+  });
+  const dimensions=new THREE.Box3().setFromObject(artRoot).getSize(new THREE.Vector3());
+  const name=$("render-aspect").selectedOptions[0]?.textContent||"현재 화면";
+  $("visual-quality-status").textContent=[
+    "출력 "+size.width+"×"+size.height+"px · "+name,
+    "작품 크기 "+[dimensions.x,dimensions.z,dimensions.y].map(n=>n.toFixed(2)).join("×")+"m (W×D×H, 뷰어 값)",
+    "렌더 방식: WebGL PBR · GPU 최대 텍스처 "+renderer.capabilities.maxTextureSize+"px",
+    "모델은 시안용이며 현장 실측 검증·물리 기반 경로 추적·AI 실사화는 수행하지 않습니다.",
+    ...flags.map(x=>"• "+x)
+  ].join("\n");
+}
 function currentRenderConfig(){
   return {
     aspect:$("render-aspect").value,environmentMode:$("env-mode").value,
     environmentFile:hdrSourceFile?.name || "",envIntensity:Number($("env-strength").value),
     focalLength:Number(camera.getFocalLength().toFixed(3)),multiplier:Number($("render-resolution").value),
-    artworkMaterial:structuredClone(artworkMaterialState)
+    artworkMaterial:structuredClone(artworkMaterialState),
+    visual:currentVisualSettings()
   };
 }
 function applyEnvironment(){
@@ -804,6 +897,12 @@ function restoreRenderConfig(raw){
   $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
   $("env-strength").value=String(config.envIntensity);
   $("env-mode").value=config.environmentMode==="hdr"&&!hdrTexture?"neutral":config.environmentMode;
+  const visual=normalizeVisualSettings(config.visual);
+  $("visual-tone").value=visual.toneCurve;
+  $("visual-sky").value=visual.sky;
+  $("visual-shadows").value=visual.shadowProfile;
+  $("visual-guide").value=visual.guide;
+  applyVisualLook();
   applyEnvironment();
   setArtworkMaterial(config.artworkMaterial);
   updateRenderSizeLabel();
@@ -1018,6 +1117,7 @@ function restoreEdit(state) {
   const picked = state.selectedId ? extrasRoot.children.find(x => x.userData.extraId === state.selectedId) : artRoot;
   selectRoot(picked || artRoot);
   updateExtrasStatus();
+  updateLight();
 }
 function clearUndo() {
   undoStack = [];
@@ -1220,8 +1320,11 @@ function updateLight() {
   const az = THREE.MathUtils.degToRad(+$("sun-azimuth").value);
   const el = THREE.MathUtils.degToRad(+$("sun-elevation").value);
   const radius = 65;
-  sun.position.set(radius * Math.cos(el) * Math.sin(az), radius * Math.sin(el), radius * Math.cos(el) * Math.cos(az));
   sun.target.position.copy(artRoot.position);
+  // Light direction must remain correct even when a real-world site is far from origin.
+  sun.position.copy(sun.target.position).add(new THREE.Vector3(
+    radius * Math.cos(el) * Math.sin(az),
+    radius * Math.sin(el), radius * Math.cos(el) * Math.cos(az)));
   sun.target.updateMatrixWorld();
   sunGuide.position.copy(artRoot.position).addScaledVector(
     sun.position.clone().normalize(), 8
@@ -1231,7 +1334,7 @@ function updateLight() {
   ambient.intensity = +$("ambient").value;
   renderer.toneMappingExposure = +$("exposure").value;
   sun.color.set($("light-preset").value === "golden" ? 0xffc489 : 0xfff7e6);
-  scene.background.set($("light-preset").value === "night" ? 0x171f33 : 0xdce0e2);
+  applyVisualLook();
   sun.castShadow = $("shadows").checked;
   renderer.shadowMap.enabled = $("shadows").checked;
   ["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"].forEach(id => {
@@ -1480,6 +1583,7 @@ function setTransformFromField(el) {
     shiftGroupMembers(selectedRoot,selectedRoot.position.clone().sub(oldPosition));
   commit(before);
   updateInspector();
+  if(selectedRoot===artRoot)updateLight();
 }
 const SITE_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl", "ply", "dae", "3ds", "zip"]);
 const ARTWORK_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "stl"]);
@@ -2045,6 +2149,7 @@ async function exportMasterPack() {
   const originalPreset=$("light-preset").value;
   const originalEnvMode=$("env-mode").value;
   const originalEnvStrength=$("env-strength").value;
+  const originalVisual=currentVisualSettings();
   const states={
     grid:grid.visible,gizmo:transform.getHelper().visible,
     sun:sunGuide.visible,
@@ -2100,6 +2205,12 @@ async function exportMasterPack() {
         master.render.environmentMode;
       $("env-strength").value=String(master.render.envIntensity);
     }
+    if(master.render?.visual){
+      const visual=normalizeVisualSettings(master.render.visual);
+      $("visual-tone").value=visual.toneCurve;
+      $("visual-sky").value=visual.sky;
+      $("visual-shadows").value=visual.shadowProfile;
+    }
     updateLight();applyEnvironment();
     renderer.setPixelRatio(1);
     renderer.setSize(size.width,size.height,false);
@@ -2134,6 +2245,9 @@ async function exportMasterPack() {
     $("light-preset").value=originalPreset;
     $("env-mode").value=originalEnvMode;
     $("env-strength").value=originalEnvStrength;
+    $("visual-tone").value=originalVisual.toneCurve;
+    $("visual-sky").value=originalVisual.sky;
+    $("visual-shadows").value=originalVisual.shadowProfile;
     updateLight();applyEnvironment();
     camera.position.fromArray(pose.position);
     orbit.target.fromArray(pose.target);
@@ -2359,6 +2473,22 @@ $("reset-material").addEventListener("click",()=>{
   if(approvedMaster)return;
   setArtworkMaterial({preset:"original",color:"#d0d6db"},{recordUndo:true});
 });
+for(const input of ["visual-tone","visual-sky","visual-shadows"])
+  $(input).addEventListener("change",()=>{applyVisualLook();checkVisualQuality();});
+$("visual-guide").addEventListener("change",applyVisualGuide);
+document.querySelectorAll("[data-frame]").forEach(btn=>
+  btn.addEventListener("click",()=>sceneFrame(btn.dataset.frame)));
+document.querySelectorAll("[data-visual-lens]").forEach(btn=>
+  btn.addEventListener("click",()=>{
+    const focal=Number(btn.dataset.visualLens);
+    if(!CAMERA_LENSES.includes(focal))return;
+    $("camera-focal").value=String(focal);
+    camera.setFocalLength(focal);
+    camera.updateProjectionMatrix();
+    $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
+    $("visual-frame-status").textContent="렌즈 "+focal+"mm 적용 · 3D 작품 크기와 위치 불변";
+  }));
+$("visual-quality-check").addEventListener("click",checkVisualQuality);
 $("camera-focal").addEventListener("input",e=>{
   camera.setFocalLength(Number(e.target.value));
   camera.updateProjectionMatrix();
@@ -2579,6 +2709,7 @@ transform.addEventListener("mouseUp", () => {
   if (lastDrag) commit(lastDrag);
   lastDrag = null;
   updateInspector();
+  if(selectedRoot===artRoot)updateLight();
 });
 transform.addEventListener("objectChange", () => {
   // Keep size proportional by default, including direct gizmo manipulation.
@@ -2596,7 +2727,12 @@ transform.addEventListener("objectChange", () => {
   }
   // Artistic geometry is never rebuilt. All transforms are on the root group.
   updateInspector();
+  // Maintain solar direction during interactive artwork dragging; do not
+  // recompute the expensive shadow fit until the drag is finished.
+  const artDelta=artRoot.position.clone().sub(sun.target.position);
+  sun.position.add(artDelta);
   sun.target.position.copy(artRoot.position);
+  sun.target.updateMatrixWorld();
 });
 renderer.domElement.addEventListener("pointerdown", () => { mouseMoved = false; });
 renderer.domElement.addEventListener("pointermove", e => { if (e.buttons) mouseMoved = true; });
@@ -2637,6 +2773,7 @@ updateLight();
 applyEnvironment();
 restoreRenderConfig(null);
 fitCamera();
+checkVisualQuality();
 resize();
 animate();
 notify("3D Studio 준비 완료 · 작품을 클릭하거나 G/R/S로 조작하세요.");

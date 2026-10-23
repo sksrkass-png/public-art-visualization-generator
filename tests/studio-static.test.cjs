@@ -229,5 +229,19 @@ assert.match(spatial,/point.project\(camera\)/);
 assert.doesNotMatch(spatial,/innerHTML|\beval\(|fetch\(/,"user comments must be rendered as text only");
 assert.match(spatialData,/MAX_SPATIAL_PINS = 80/);
 assert.match(css,/#spatial-review-panel/);
+// v2.0: modeling/visual controls must be real (not inert) and never edit mesh.
+for(const id of ["visual-shadows","visual-tone","visual-sky","visual-guide",
+  "visual-frame-status","visual-composition-overlay","visual-quality-check","visual-quality-status"])
+ assert.ok(unique.has(id),"v2.0 modeling quality control missing: "+id);
+for(const m of ["sceneFrame(","applyVisualLook(","applyVisualGuide(","checkVisualQuality(",
+ "currentVisualSettings(","sun.position.copy(sun.target.position)"])
+ assert.ok(js.includes(m),"v2.0 camera or sunlight behavior missing: "+m);
+assert.ok(html.includes('data-frame="nearby"'),"artist & context framing option");
+assert.ok(html.includes('data-visual-lens="50"'),"50mm lens option");
+assert.match(css,/\.visual-guide-thirds/,"thirds composition must have visible screen rule");
+const modelingQuality=fs.readFileSync(path.join(base,"studio/modeling-quality.js"),"utf8");
+assert.match(modelingQuality,/fitDistance/);
+assert.match(modelingQuality,/localContextRadius/);
+assert.match(fs.readFileSync(path.join(base,"studio/rendering.js"),"utf8"),/validVisualSettings/);
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");
