@@ -302,3 +302,6 @@
 .inspector-fold:not([open])>.section{display:none}
 .art-multi-import{padding:8px 0 4px}
 .sidepanel.right .panel-head{padding-top:15px;padding-bottom:11px}
+
+.measurement-overlay{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
+.measurement-svg{display:block;width:100%;height:100%;overflow:hidden}
