@@ -217,7 +217,7 @@ for(const id of ["spatial-review-panel","spatial-pin-overlay","spatial-author","
  "spatial-place","spatial-cancel","spatial-summary","spatial-pin-list",
  "spatial-resolve","spatial-reopen","spatial-export","spatial-status"])
  assert.ok(unique.has(id),"v1.7 review pin control missing: "+id);
-for(const marker of ["initSpatialReview","spatialBridge.handleCanvasClick","spatialBridge.drawOverlay()",
+for(const marker of ["initSpatialReview","spatialBridge?.handleCanvasClick","spatialBridge?.drawOverlay()",
   "spatialReview:spatialBridge?.getState()","spatialBridge.setState(data.spatialReview)",
   "validSpatialReview(data.spatialReview)"])
  assert.ok(js.includes(marker),"v1.7 editor persistence/pin guard missing: "+marker);
