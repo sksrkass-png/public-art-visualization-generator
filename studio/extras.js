@@ -5,7 +5,7 @@ import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 // Procedural planting is intentionally schematic rather than a claim of true
 // botanical/photogrammetry accuracy. All extras are independent editables.
 export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "tree-autumn",
-  "person-standing", "park-bench", "round-planter", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
+  "person-standing", "person-male", "person-female", "flower-shrub", "park-bench", "round-planter", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
 
 function mesh(geometry, color, roughness = .85, metalness = 0) {
   const o = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, roughness, metalness }));
@@ -90,6 +90,16 @@ function shrub(root) {
   });
   detailFoliage(root,centers,20,23);
 }
+function flowerShrub(root){
+  shrub(root);
+  const colors=[0xf7b5cf,0xf6eacb,0xdd9fc7,0xffd6ad];
+  for(let i=0;i<24;i++){
+    const a=i*2.3999632, radius=.45+(i%4)*.18;
+    const flower=mesh(new THREE.SphereGeometry(.065+(i%3)*.012,8,6),colors[i%4]);
+    flower.position.set(Math.cos(a)*radius,.71+(i%5)*.115,Math.sin(a)*radius);
+    root.add(flower);
+  }
+}
 function autumnTree(root){
   treeRound(root);
   let i=0;
@@ -120,6 +130,17 @@ function standingPerson(root){
     arm.rotation.z=x<0?-.16:.16;root.add(arm);
   }
 }
+function scaledPerson(root,height,kind){
+  standingPerson(root);
+  const scale=height/1.73;
+  for(const item of root.children){
+    item.position.multiplyScalar(scale);
+    item.scale.multiplyScalar(scale);
+    if(kind==="female" && item.isMesh && item.material?.color?.getHex()===0x44576a)
+      item.material.color.setHex(0x9a647e);
+  }
+  root.userData.personHeightM=height;
+}
 function parkBench(root){
   const seat=mesh(new THREE.BoxGeometry(1.8,.12,.52),0x956f4e);
   seat.position.set(0,.51,0);root.add(seat);
@@ -141,7 +162,9 @@ function roundPlanter(root){
 export const PLINTH_MATERIALS=Object.freeze({
   concrete:{color:0xb1b4b3,roughness:.9,metalness:0},
   stone:{color:0x999991,roughness:.7,metalness:0},
-  metal:{color:0x8c9499,roughness:.3,metalness:.85}
+  metal:{color:0x8c9499,roughness:.3,metalness:.85},
+  white:{color:0xf1f0eb,roughness:.68,metalness:0},
+  black:{color:0x1e2022,roughness:.55,metalness:.12}
 });
 export function applyPlinthFinish(root,finish) {
   if(root?.userData?.extraKind!=="plinth"||!Object.hasOwn(PLINTH_MATERIALS,finish))
@@ -161,24 +184,35 @@ function lightIcon(root, kind) {
   root.add(icon);
 }
 function lightFixture(root,kind) {
-  const light = kind==="point-light" ?
-    new THREE.PointLight(0xfff4dd,4,0,2):
-    new THREE.SpotLight(0xfff4dd,10,20,Math.PI/5,.35,2);
+  const light = kind==="point-light" && root.userData.appearanceVersion>=2
+    ? new THREE.SpotLight(0xffe9c4,13,14,Math.PI/7,.45,1.6)
+    : kind==="point-light" ? new THREE.PointLight(0xfff4dd,4,0,2)
+    : new THREE.SpotLight(0xfff4dd,10,20,Math.PI/5,.35,2);
   light.name=kind;
   light.castShadow=true;
   light.shadow.mapSize.set(512,512);
   root.add(light);
-  if(kind==="spot-light"){
+  if(kind==="spot-light" || (kind==="point-light"&&root.userData.appearanceVersion>=2)){
     const target=new THREE.Object3D();
-    target.position.set(0,-5,0);
+    target.position.set(0,kind==="point-light"?9:-5,0);
     target.name="Spot target";
     root.add(target);
     light.target=target;
   }
+  if(kind==="point-light" && root.userData.appearanceVersion>=2){
+    const base=mesh(new THREE.CylinderGeometry(.135,.16,.12,16),0x25282b,.42,.65);
+    base.position.y=.06;root.add(base);
+    const beam=new THREE.Mesh(new THREE.ConeGeometry(1.35,6.8,28,1,true),
+      new THREE.MeshBasicMaterial({color:0xffe2ab,transparent:true,opacity:.055,
+        depthWrite:false,side:THREE.DoubleSide}));
+    beam.rotation.x=Math.PI;beam.position.y=3.55;
+    beam.userData.editorOnly=true;beam.name="Up-light direction preview";
+    root.add(beam);light.position.y=.17;
+  }
   lightIcon(root,kind);
   return light;
 }
-export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,artRoot=null) {
+export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,artRoot=null,plinthShape="box") {
   if(!EXTRA_TYPES.includes(kind))throw Error("Unknown decorative object kind");
   const root=new THREE.Group();
   root.userData.extraKind=kind;
@@ -187,18 +221,26 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   if(kind==="custom-glb")root.userData.assetId=assetId;
   root.name=({ "tree-round":"활엽수", "tree-cone":"침엽수", "shrub":"덤불",
     "tree-autumn":"가을 활엽수", "person-standing":"보행자", "park-bench":"공원 벤치",
-    "round-planter":"화분", "custom-glb":"사용자 GLB", "artwork-copy":"작품 복제",
+    "round-planter":"화분", "flower-shrub":"꽃 덤불", "person-male":"남성 1.75m", "person-female":"여성 1.60m",
+    "custom-glb":"사용자 GLB", "artwork-copy":"작품 복제",
     "point-light":"포인트 조명","spot-light":"스폿 조명","plinth":"기단" })[kind]+" #"+id;
   if(kind==="tree-round")(appearanceVersion === 1 ? legacyTreeRound : treeRound)(root);
   else if(kind==="tree-cone")(appearanceVersion === 1 ? legacyTreeCone : treeCone)(root);
   else if(kind==="shrub")(appearanceVersion === 1 ? legacyShrub : shrub)(root);
+  else if(kind==="flower-shrub")flowerShrub(root);
+  else if(kind==="person-male")scaledPerson(root,1.75,"male");
+  else if(kind==="person-female")scaledPerson(root,1.60,"female");
   else if(kind==="tree-autumn")autumnTree(root);
   else if(kind==="person-standing")standingPerson(root);
   else if(kind==="park-bench")parkBench(root);
   else if(kind==="round-planter")roundPlanter(root);
   else if(kind==="plinth"){
     // Unit pedestal with bottom at local y=0; root scale is width / height / depth (m).
-    const shape=mesh(new THREE.BoxGeometry(1,1,1),0xb1b4b3);
+    const geometry=plinthShape==="round"
+      ?new THREE.CylinderGeometry(.5,.5,1,48)
+      :new THREE.BoxGeometry(1,1,1);
+    const shape=mesh(geometry,0xb1b4b3);
+    root.userData.plinthShape=plinthShape==="round"?"round":"box";
     shape.position.y=.5;
     shape.name="Plinth solid (dimensions via root scale)";
     root.add(shape);
@@ -237,7 +279,7 @@ export function serializeExtras(container) {
       hidden:root.userData.layerHidden === true,
       selectionLocked:root.userData.layerLocked === true,
       ...(root.userData.groupId?{groupId:root.userData.groupId}:{}),
-      ...(root.userData.extraKind==="plinth"?{finish:root.userData.plinthFinish||"concrete",followArtwork:root.userData.followArtwork===true}:{}),
+      ...(root.userData.extraKind==="plinth"?{finish:root.userData.plinthFinish||"concrete",shape:root.userData.plinthShape||"box",followArtwork:root.userData.followArtwork===true}:{}),
       transform:{
         p:root.position.toArray(),
         r:root.rotation.toArray().slice(0,3),
@@ -255,6 +297,7 @@ export function validateExtras(extras) {
     if(x.appearanceVersion !== undefined && ![1,2].includes(x.appearanceVersion))return false;
     if(x.kind==="custom-glb" && !/^lib[1-9]\d{0,4}$/.test(x.assetId||""))return false;
     if(x.kind==="plinth" && x.finish!==undefined && !Object.hasOwn(PLINTH_MATERIALS,x.finish))return false;
+    if(x.kind==="plinth" && x.shape!==undefined && !["box","round"].includes(x.shape))return false;
     if(x.followArtwork!==undefined && (x.kind!=="plinth" || typeof x.followArtwork!=="boolean"))return false;
     if(x.hidden !== undefined && typeof x.hidden !== "boolean")return false;
     if(x.selectionLocked !== undefined && typeof x.selectionLocked !== "boolean")return false;
@@ -274,7 +317,7 @@ export function restoreExtras(container,entries,library=null,artRoot=null) {
   if(!validateExtras(entries))throw Error("Invalid scene extras");
   container.clear();
   for(const x of entries){
-    const root=makeExtra(x.kind,x.id,x.appearanceVersion || 1,x.assetId||null,library,artRoot);
+    const root=makeExtra(x.kind,x.id,x.appearanceVersion || 1,x.assetId||null,library,artRoot,x.shape||"box");
     root.userData.layerHidden = x.hidden === true;
     root.userData.layerLocked = x.selectionLocked === true;
     root.userData.groupId=x.groupId||null;
