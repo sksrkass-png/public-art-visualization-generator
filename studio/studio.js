@@ -2966,6 +2966,7 @@ $("redo").addEventListener("click", redo);
   }));
 document.querySelectorAll("[data-view]").forEach(el => el.addEventListener("click", () => changeView(el.dataset.view)));
 $("focus").addEventListener("click", fitCamera);
+$("project-quick-save").addEventListener("click",()=>$("export-project").click());
 $("shot-export").addEventListener("click", exportImage);
 $("export-master-pack").addEventListener("click",exportMasterPack);
 initVisualReview({
