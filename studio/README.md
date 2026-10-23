@@ -2,6 +2,14 @@
 
 Static browser-based public-art modeling editor. v1.5 review exchange is local and file-based; it is not real-time cloud collaboration.
 
+## v2.2.1 — Click selection / no-outline exports / large OBJ smart framing
+
+- **Left-click scene artwork or extra object:** reveals move/rotate/scale gizmo and a yellow 3D bounding-edge outline for clear visual selection. The yellow box is an editor helper placed outside source geometry, not a shader/material rewrite. This is an axis-aligned bounding *box* rather than an exact mesh contour.
+- **Left-click site mesh, blank sky or ground, or press Escape:** dismisses both selection outline and XYZ axes. Left-drag continues to orbit without deselecting. Placement and measurement click modes retain their original priority. Approved MASTER can be visually selected for inspection while its transforms remain locked.
+- **Fast framing always available above the viewport:** `선택 맞춤 (F)` or `현장 전체 (Shift+F)`. Selection focus uses a selected object when present, or the base artwork after deselection. Importing unusually large/distant-origin site models automatically focuses the imported site; the original world coordinates and mesh scale stay identical.
+- **Huge site camera:** 800m OrbitControls ceiling no longer forces kilometer-scale OBJ models out of frame. Instead bounds-aware perspective distance, zoom range and camera near/far planes scale with the actual site dimensions; an explicit upper guard avoids unbounded numerical values. Large artwork primary import also receives bounds-fitting when appropriate. This is a camera-only operation and not automatic model rescaling or survey validation.
+- **Export lock:** Yellow selection outlines appear only in the interactive 3D viewport. They are hidden for official PNG and MASTER eight-view captures. Exported GLB clones only source site/artwork/extras roots, so selection bounds are never part of the geometry payload. Browser regression confirms output with/without yellow outline is pixel-identical.
+
 ## v2.2 User Workflow Patch — curator-first modeling screen (October 2026)
 
 Focused on fewer clicks and accurate art installations; no additional reports/PDFs were introduced.
