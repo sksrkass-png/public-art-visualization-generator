@@ -1,6 +1,16 @@
-# AXOO Public Art 3D Studio — v2.0
+# AXOO Public Art 3D Studio — v2.1
 
 Static browser-based public-art modeling editor. v1.5 review exchange is local and file-based; it is not real-time cloud collaboration.
+
+## v2.1 — Precision dimensions, independent physical plinth, site XYZ anchors
+
+This release continues the real-modeling-first workflow. No proposal, review PDF or administrative-document features are added.
+
+- **Real W×D×H fit:** The artwork panel shows the current viewer world-aligned W / D / H size and lets the curator enter targets. Default `높이 기준 · 원래 비율 유지` adjusts all three scale axes uniformly to match target height; width/depth uniform modes also preserve the source proportions. Independent XYZ scaling is possible **only with explicit opt-in**, and is blocked for rotated artworks because their rotated world-axis bounds do not permit a simple exact XYZ scale solution. All size changes edit only the wrapper transform, NEVER original source geometry or mesh components. The artwork footprint center and bottom are preserved while scaling.
+- **Physical 3D pedestal:** Enter plinth W/D/H (metres) and one of concrete / stone / metal PBR finishes, then use **작품 아래 기단 만들고 작품 높이 맞춤**. A separate, editable `plinth` 3D mesh is created at the current artwork footprint and the artwork is raised to the plinth top. Editing plinth dimensions and finish affects **only the plinth**; `선택한 기단 위로 작품 수평·높이 정렬` is an explicit, user-triggered alignment. Only one automatically linked plinth per primary artwork may be created; select it to change dimensions rather than stacking duplicates.
+- **Attached-mount placement:** The plinth is on the editable artwork layer, and `followArtwork` metadata makes the linked mount follow the primary artwork when the user changes XYZ, drags the artwork or applies an XYZ installation anchor. Anchoring accounts for the full artwork-plus-plinth bounding box, so a ground reference point aligns the **base of the plinth**, not an elevated sculpture bottom. Site-click placement and ground adhesion likewise use the plinth bottom. Artwork-to-plinth **relative real size and material** still require site measurements and engineer review.
+- **Site anchor precision:** Choose lower centre or one of the four world-axis artwork corners, then enter XYZ metres or click a real upward-facing site mesh to record the target. **작품 기준점 이동** applies a translation to the artwork and linked plinth without modifying source CAD/GLB geometry. These axes are *viewer world X/Y/Z*, not automatically inferred cardinal directions, geodetic survey coordinates or BIM origin labels. The optional `placementReference` is saved with a newly approved MASTER and available in the portable project JSON/ZIP. Invalid coordinates block MASTER approval.
+- **Compatibility and QA:** New plinth objects retain dimensions, finishes and optional attachment through undo/redo and whole-project ZIP restore. Pre-v2.1 project files (without plinths or `placementReference`) remain valid. Any plinth changes after approval require the curator to unlock and explicitly reapprove a new MASTER; the v1.6 revision diff treats plinth changes as design-critical. No structural safety or certified installation clearance is inferred.
 
 ## v2.0 — Modeling scene quality: camera, sunlight, material presentation, PNG output
 
