@@ -1630,11 +1630,20 @@ function groundSelected({ silent = false } = {}) {
     return null;
   }
   const before = editSnapshot();
-  const result = snapRootToSurface(selectedRoot, siteRoot, {
+  // Artwork with a linked plinth must touch the site at the PLINTH bottom,
+  // not at the sculpture's raised bottom.
+  const linked=selectedRoot===artRoot?linkedPlinths():[];
+  const snapTarget=linked[0]||selectedRoot;
+  const result = snapRootToSurface(snapTarget, siteRoot, {
     allowFallback: !siteSourceFile,
     offset: toFinite($("ground-offset").value, 0, -20, 50)
   });
   if (result) {
+    if(linked.length){
+      artRoot.position.y+=result.deltaY;
+      for(const other of linked.slice(1))other.position.y+=result.deltaY;
+      updateLight();
+    }
     commit(before);
     updateInspector(true);
     $("ground-status").textContent = "밀착 완료 · 표면 높이 " + result.surfaceHeight.toFixed(2) +
@@ -1649,13 +1658,26 @@ function groundSelected({ silent = false } = {}) {
 function placeSelectedOnSite(hit) {
   if (!selectedCanEdit() || !hit) return;
   const before = editSnapshot();
-  selectedRoot.position.x = hit.point.x;
-  selectedRoot.position.z = hit.point.z;
-  if (selectedRoot !== artRoot && extraLight(selectedRoot)) {
-    selectedRoot.position.y = hit.point.y + 3 + toFinite($("ground-offset").value, 0, -20, 50);
+  const linked=selectedRoot===artRoot?linkedPlinths():[];
+  if(linked.length){
+    const assembly=artworkAssemblyBounds();
+    const center=assembly.getCenter(new THREE.Vector3());
+    const delta=new THREE.Vector3(
+      hit.point.x-center.x,hit.point.y+toFinite($("ground-offset").value,0,-20,50)-assembly.min.y,
+      hit.point.z-center.z
+    );
+    artRoot.position.add(delta);
+    translateLinkedPlinths(delta);
+    updateLight();
   } else {
-    const box = new THREE.Box3().setFromObject(selectedRoot);
-    selectedRoot.position.y += hit.point.y + toFinite($("ground-offset").value, 0, -20, 50) - box.min.y;
+    selectedRoot.position.x = hit.point.x;
+    selectedRoot.position.z = hit.point.z;
+    if (selectedRoot !== artRoot && extraLight(selectedRoot)) {
+    selectedRoot.position.y = hit.point.y + 3 + toFinite($("ground-offset").value, 0, -20, 50);
+    } else {
+      const box = new THREE.Box3().setFromObject(selectedRoot);
+      selectedRoot.position.y += hit.point.y + toFinite($("ground-offset").value, 0, -20, 50) - box.min.y;
+    }
   }
   commit(before);
   updateInspector(true);
