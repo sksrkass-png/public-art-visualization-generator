@@ -14,7 +14,9 @@ export function initRevisionCompare({getContext}){
     const value=signature;
     const next=JSON.stringify(history.map(m=>[m.revision,m.approvedAt,m.artworkFile,m.siteFile]));
     if(value===next)return;
+    const oldCount=base.options.length;
     const oldBase=base.selectedIndex,oldTarget=target.selectedIndex;
+    const previouslyLatest=oldCount>=2&&oldBase===oldCount-2&&oldTarget===oldCount-1;
     signature=next;
     for(const sel of [base,target]){
       sel.replaceChildren();
@@ -26,8 +28,8 @@ export function initRevisionCompare({getContext}){
       });
     }
     if(history.length>=2){
-      base.value=String(oldBase>=0&&oldBase<history.length?oldBase:history.length-2);
-      target.value=String(oldTarget>=0&&oldTarget<history.length?oldTarget:history.length-1);
+      base.value=String(!previouslyLatest&&oldBase>=0&&oldBase<history.length?oldBase:history.length-2);
+      target.value=String(!previouslyLatest&&oldTarget>=0&&oldTarget<history.length?oldTarget:history.length-1);
       if(base.value===target.value){
         base.value=String(history.length-2);target.value=String(history.length-1);
       }
