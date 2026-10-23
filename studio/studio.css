@@ -305,3 +305,8 @@
 
 .measurement-overlay{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
 .measurement-svg{display:block;width:100%;height:100%;overflow:hidden}
+
+/* Optional ?panels=open advanced layout permits legacy editing & comprehensive QA. */
+.studio-advanced-mode #site-import-inspector,
+.studio-advanced-mode .site-plan-controls,
+.studio-advanced-mode #asset-library-panel{display:block!important}
