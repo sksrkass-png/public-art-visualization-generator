@@ -22,6 +22,8 @@ import { initReadiness } from "./readiness.js";
 import { initProposalExport } from "./proposal.js";
 import { initTeamCollaboration, validateCollaborationState } from "./collaboration.js";
 import { initRevisionCompare } from "./revision-compare.js";
+import {initSpatialReview} from "./spatial-review.js";
+import {validSpatialReview} from "./spatial-review-data.js";
 import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precision.js";
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
@@ -142,7 +144,7 @@ let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
 const groupChecked=new Set();
 let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=null;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
-let proposalBridge = null, collaborationBridge = null, revisionBridge = null;
+let proposalBridge = null, collaborationBridge = null, revisionBridge = null, spatialBridge = null;
 const assetLibrary=new Map();
 let nextLibraryId=1,activeLibraryOperation=0;
 const neutralEnvironment=scene.environment;
@@ -863,6 +865,7 @@ function setArtwork(object, name, options = {}) {
   revision = 1;
   masterSnapshots = [];
   if(collaborationBridge)collaborationBridge.reset();
+  if(spatialBridge)spatialBridge.reset();
   clearUndo();
   if (Number.isFinite(options.height) && options.height > 0) fitArtworkHeight(options.height);
   transform.attach(artRoot);
@@ -1106,6 +1109,7 @@ function renderMasterHistory() {
     root.appendChild(row);
   });
   if(revisionBridge)revisionBridge.refresh();
+  if(spatialBridge)spatialBridge.refresh();
 }
 function restoreMasterCamera(index) {
   const saved = masterSnapshots[index];
@@ -1408,6 +1412,7 @@ function pickPlacement(event) {
   return surfaceAtPointer(event, camera, viewport, siteRoot, !siteSourceFile);
 }
 function handleSelection(event) {
+  if(spatialBridge?.handleCanvasClick(event,mouseMoved))return;
   if (mouseMoved || approvedMaster || transform.dragging || event.button !== 0) return;
   if (placementMode) {
     const hit = pickPlacement(event);
@@ -1634,6 +1639,7 @@ function sceneConfig() {
     render:currentRenderConfig(),
     masterSnapshots,
     collaboration:collaborationBridge?.getState(),
+    spatialReview:spatialBridge?.getState(),
     lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"].map(id => [id, +$(id).value])),
     shadows: $("shadows").checked,
     camera: { position: camera.position.toArray(), target: orbit.target.toArray() }
@@ -1668,6 +1674,7 @@ function validateProjectConfig(data) {
           !Number.isFinite(data.groundPlacement.offset) ||
           data.groundPlacement.offset < -20 || data.groundPlacement.offset > 50)) ||
       (data.collaboration !== undefined && !validateCollaborationState(data.collaboration)) ||
+      (data.spatialReview !== undefined && !validSpatialReview(data.spatialReview)) ||
       (data.masterSnapshots !== undefined &&
         (!Array.isArray(data.masterSnapshots) || data.masterSnapshots.length > 40 ||
           !data.masterSnapshots.every(validMasterSnapshot)))) {
@@ -1776,6 +1783,7 @@ function importSceneConfig(data) {
   }
   renderMasterHistory();
   if(collaborationBridge)collaborationBridge.setState(data.collaboration);
+  if(spatialBridge)spatialBridge.setState(data.spatialReview);
   syncLock();
   clearUndo();
 }
@@ -2521,6 +2529,17 @@ revisionBridge=initRevisionCompare({getContext:()=>({
   matchesMaster:!!masterSnapshots.length &&
     masterConsistency(masterSnapshots[masterSnapshots.length-1],baselineForMaster()).ok
 })});
+spatialBridge=initSpatialReview({
+  viewport,camera,artRoot,siteRoot,extrasRoot,floor,
+  allowExampleFloor:()=>!siteSourceFile,
+  getContext:()=>({
+    master:masterSnapshots[masterSnapshots.length-1] || null,
+    project:$("project-name").value,
+    locked:approvedMaster,
+    matchesMaster:!!masterSnapshots.length &&
+      masterConsistency(masterSnapshots[masterSnapshots.length-1],baselineForMaster()).ok
+  })
+});
 $("export-glb").addEventListener("click", exportGLB);
 $("export-project").addEventListener("click", exportProjectArchive);
 $("import-project").addEventListener("change", e => {
@@ -2584,6 +2603,7 @@ renderer.domElement.addEventListener("pointermove", e => { if (e.buttons) mouseM
 renderer.domElement.addEventListener("pointerup", handleSelection);
 window.addEventListener("keydown", e => {
   if (e.target instanceof HTMLElement && e.target.closest("input,textarea,select,[contenteditable]")) return;
+  if (e.key === "Escape" && spatialBridge?.cancel()) { e.preventDefault(); return; }
   if (e.key === "Escape" && placementMode) {
     placementMode = null; $("placement-hint").hidden = true; return;
   }
@@ -2606,6 +2626,7 @@ function animate() {
   requestAnimationFrame(animate);
   orbit.update();
   renderer.render(scene, camera);
+  spatialBridge?.drawOverlay();
 }
 buildSite("plaza");
 setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 });
