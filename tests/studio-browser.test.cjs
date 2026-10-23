@@ -26,7 +26,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     }));
   });
   try {
-    await page.goto("http://127.0.0.1:8787/studio/", { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto("http://127.0.0.1:8787/studio/?panels=open", { waitUntil: "domcontentloaded", timeout: 60000 });
     try{
       await page.locator("#viewport canvas").waitFor({ timeout: 12000 });
     }catch(err){
@@ -293,7 +293,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     const bounds = await canvas.boundingBox();
     assert.ok(bounds?.width && bounds?.height);
     for (const [kind, expected] of [
-      ["tree-round", 1], ["tree-cone", 2], ["shrub", 3], ["point-light", 4], ["spot-light", 5]
+      ["tree-round", 1], ["tree-cone", 2], ["shrub", 3], ["shrub-flower", 4], ["point-light", 5]
     ]) {
       await page.locator('[data-add-extra="'+kind+'"]').click();
       await page.mouse.click(bounds.x+bounds.width*.65,bounds.y+bounds.height*.82);
@@ -327,7 +327,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.locator("#undo").click();
     assert.equal(await page.locator("#extra-list button").count(), 5, "undo restores removed foliage");
     await page.locator("#extra-list button").last().click();
-    assert.match(await page.locator("#object-name").textContent(), /스폿 조명/);
+    assert.match(await page.locator("#object-name").textContent(), /포인트 조명/);
     assert.equal(await page.locator("#extra-light-controls").isVisible(), true);
     await page.locator("#extra-light-power").evaluate(el => {
       el.value="8";
@@ -866,7 +866,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     const rect=await sceneCanvas.boundingBox();
     const baselineCount=await page.locator("#extra-list button").count();
     for(const [index,kind] of
-      ["tree-autumn","person-standing","park-bench","round-planter"].entries()){
+      ["tree-autumn","person-man","park-bench","round-planter"].entries()){
       await page.locator('[data-add-extra="'+kind+'"]').click();
       await page.mouse.click(rect.x+rect.width*.65,rect.y+rect.height*.82);
       await page.waitForFunction(n=>document.querySelectorAll("#extra-list button").length===n,
@@ -1349,7 +1349,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     // v2.1: use an independent fresh scene so prior MASTER/asset regression tests stay intact.
     const precisionPage=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
     precisionPage.on("pageerror",err=>errors.push(err.stack||err.message));
-    await precisionPage.goto("http://127.0.0.1:8787/studio/",{waitUntil:"domcontentloaded",timeout:60000});
+    await precisionPage.goto("http://127.0.0.1:8787/studio/?panels=open",{waitUntil:"domcontentloaded",timeout:60000});
     await precisionPage.locator("#art-current-wdh").waitFor({timeout:30000});
     await precisionPage.waitForFunction(()=>document.querySelector("#art-current-wdh")?.textContent.includes("현재 W"));
     await precisionPage.locator("#dimension-mode").selectOption("uniform-height");
@@ -1413,7 +1413,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     const zipFile=await (await zipDL).path();
     const restorePage=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
     restorePage.on("pageerror",err=>errors.push(err.stack||err.message));
-    await restorePage.goto("http://127.0.0.1:8787/studio/",{waitUntil:"domcontentloaded",timeout:60000});
+    await restorePage.goto("http://127.0.0.1:8787/studio/?panels=open",{waitUntil:"domcontentloaded",timeout:60000});
     await restorePage.locator("#viewport canvas").waitFor({timeout:20000});
     await restorePage.locator("#import-project").setInputFiles(zipFile);
     await restorePage.waitForFunction(()=>document.querySelector("#master-lock")?.textContent.includes("MASTER LOCK 승인됨"),null,{timeout:45000});
@@ -1430,7 +1430,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     // v2.2: ensure view-only construction never leaks into official PNGs or project model.
     const sitePage=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
     sitePage.on("pageerror",e=>errors.push(e.stack||e.message));
-    await sitePage.goto("http://127.0.0.1:8787/studio/",{waitUntil:"domcontentloaded",timeout:60000});
+    await sitePage.goto("http://127.0.0.1:8787/studio/?panels=open",{waitUntil:"domcontentloaded",timeout:60000});
     await sitePage.locator("#viewport canvas").waitFor({timeout:30000});
     await sitePage.waitForFunction(()=>document.querySelector("#site-mesh-count")?.textContent!=="0개");
     const siteInitial=await sitePage.locator("#site-mesh-count").textContent();
@@ -1479,6 +1479,55 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(restoredConfig.site.preset,"courtyard");
     assert.equal(restoredConfig.render.visual?.guide||"none","none");
     await sitePage.close();
+    // v2.2 curator workflow: compact-by-default UI, multiple independent arts,
+    // released asset quota, circular black pedestal, full project ZIP.
+    const ux=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
+    ux.on("pageerror",e=>errors.push(e.stack||e.message));
+    await ux.goto("http://127.0.0.1:8787/studio/",{waitUntil:"domcontentloaded",timeout:60000});
+    await ux.locator("#viewport canvas").waitFor({timeout:20000});
+    assert.ok(await ux.locator("details.inspector-fold:not([open])").count()>3,
+      "ordinary visitors should get a genuinely compact inspector");
+    assert.equal(await ux.locator("#site-import-inspector").isVisible(),false);
+    assert.equal(await ux.locator("#asset-library-panel").isVisible(),false);
+    await ux.locator("details.inspector-fold").evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
+    for(let i=1;i<=4;i++){
+      await ux.locator("#multi-art-file").setInputFiles({
+        name:"extra-art-"+i+".glb",mimeType:"model/gltf-binary",buffer:bytes
+      });
+      await ux.waitForFunction(n=>
+        document.querySelector("#multi-art-status")?.textContent.includes("작품 "+n+"/5개"),i+1,
+        {timeout:25000});
+    }
+    assert.equal(await ux.locator("#multi-art-file").isDisabled(),true);
+    const fifth=ux.waitForEvent("download",{timeout:20000});
+    await ux.locator("#export-json").click();
+    const withFive=JSON.parse(fs.readFileSync(await (await fifth).path(),"utf8"));
+    assert.equal(withFive.extras.filter(x=>x.kind==="custom-glb").length,4);
+    await ux.locator("#delete-selected").click();
+    assert.equal(await ux.locator("#multi-art-file").isEnabled(),true);
+    assert.match(await ux.locator("#multi-art-status").textContent(),/작품 4\/5개/);
+    await ux.locator("#multi-art-file").setInputFiles({
+      name:"replacement-art.glb",mimeType:"model/gltf-binary",buffer:bytes
+    });
+    await ux.waitForFunction(()=>
+      document.querySelector("#multi-art-status")?.textContent.includes("작품 5/5개"),null,
+      {timeout:25000});
+    await ux.locator("#select-artwork").click();
+    await ux.locator("#plinth-shape").selectOption("round");
+    await ux.locator("#plinth-finish").selectOption("black");
+    await ux.locator("#plinth-create").click();
+    const uxDL=ux.waitForEvent("download",{timeout:20000});
+    await ux.locator("#export-json").click();
+    const uxJSON=JSON.parse(fs.readFileSync(await (await uxDL).path(),"utf8"));
+    assert.equal(uxJSON.extras.filter(x=>x.kind==="custom-glb").length,4);
+    const plinth=uxJSON.extras.find(x=>x.kind==="plinth");
+    assert.equal(plinth.shape,"round");
+    assert.equal(plinth.finish,"black");
+    await ux.locator("#project-name").fill("Curator UX Visual Test");
+    const quickDL=ux.waitForEvent("download",{timeout:90000});
+    await ux.locator("#project-quick-save").click();
+    assert.match((await quickDL).suggestedFilename(),/Curator/i);
+    await ux.close();
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {

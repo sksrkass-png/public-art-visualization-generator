@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.2</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.2 UX PATCH</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -28,6 +28,14 @@
   <main class="workspace">
     <aside class="sidepanel left">
       <div class="panel-head"><span class="eyebrow">01 / SCENE SETUP</span><h1>공간과 작품</h1><p>현장을 선택하고 작품 모델을 배치하세요.</p></div>
+      <div class="project-quick-save">
+        <p class="hint">프로젝트 이름으로 모델과 배치를 묶어 관리합니다.</p>
+        <div class="inline">
+          <button id="project-quick-save" class="primary full" type="button">💾 이름으로 프로젝트 ZIP 저장</button>
+          <label class="file-button secondary" for="import-project">📂 저장한 프로젝트 불러오기</label>
+        </div>
+        <p class="hint">모델 파일까지 복원하려면 JSON이 아닌 ZIP으로 저장하세요. 저장 파일은 로컬에서 보관합니다.</p>
+      </div>
       <section class="section">
         <h2>프로젝트</h2>
         <label for="project-name">프로젝트 이름</label>
@@ -55,7 +63,7 @@
             <select id="site-up"><option value="y">Y-up</option><option value="z">Z-up</option></select></div>
         </div>
         <p class="hint">FBX 등의 로더가 파일 단위를 내부 변환한 경우 단위 설정을 추가로 적용하면 중복 보정됩니다. 크기를 반드시 확인하세요.</p>
-        <div class="site-inspection-panel" id="site-import-inspector">
+        <div class="site-inspection-panel" id="site-import-inspector" hidden>
           <div class="section-title"><h2>현장 가져오기 정밀 점검</h2><span class="tag">v1.1</span></div>
           <label class="toggle"><input type="checkbox" id="site-center-origin"> 뷰어 원점을 현장 모델 중심으로 맞추기</label>
           <p class="hint">중심 보정은 원본 메시의 좌표를 수정하지 않고 현장 루트 그룹만 이동합니다. 작품 위치·배치도 좌표는 자동으로 옮기지 않으므로 새 현장 작업을 시작할 때 설정하세요.</p>
@@ -76,7 +84,7 @@
         </select>
         </div>
         <p id="site-ground-note" class="hint" hidden>실제 현장 모델의 바닥·마감을 우선 표시합니다. 예시 바닥만 숨겨집니다.</p>
-        <div class="site-plan-controls">
+        <div class="site-plan-controls" hidden>
           <h2>배치도 위치 정렬 <span class="small-muted">OPTIONAL</span></h2>
           <label class="file-button secondary" for="map-file"><span>+ 배치도 이미지 불러오기</span><small>PNG · JPG · WEBP</small></label>
           <input id="map-file" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp">
@@ -103,6 +111,12 @@
         <label class="file-button" for="art-file"><span>+ 작품 3D 모델 불러오기</span><small>GLB · GLTF · OBJ · STL</small></label>
         <input id="art-file" class="sr-only" type="file" accept=".glb,.gltf,.obj,.stl,model/gltf-binary">
         <button class="outline full" type="button" id="sample-art">샘플 조형물 다시 넣기</button>
+        <div class="art-multi-import">
+          <label class="file-button secondary" for="multi-art-file"><span>+ 추가 작품 GLB 불러오기 · 전체 최대 5개</span><small>독립형 GLB · 20MB 이하 / 개</small></label>
+          <input id="multi-art-file" class="sr-only" type="file" accept=".glb,model/gltf-binary">
+          <p class="hint">추가 작품은 독립형 GLB만 지원합니다. 원본 작품·추가 작품은 장면에서 별도로 선택할 수 있습니다.</p>
+          <p id="multi-art-status" class="hint" aria-live="polite">기본 작품 1개 + 추가 작품 최대 4개. 추가 작품 선택 후 삭제하면 슬롯을 다시 사용할 수 있습니다.</p>
+        </div>
         <p id="art-filename" class="asset-caption">현재: 편집 가능한 샘플 조형물</p>
         <label for="art-height">작품 실제 높이 (m)</label>
         <div class="inline"><input id="art-height" type="number" min="0.05" max="100" step="0.1" value="3"><button id="apply-height" class="outline" type="button">높이 맞춤</button></div>
@@ -145,6 +159,7 @@
       </div>
       <div id="viewport" tabindex="0" aria-label="마우스 왼쪽 드래그로 화면 회전, 오른쪽으로 이동, 휠로 확대 및 축소">
         <div id="visual-composition-overlay" class="visual-composition-overlay" aria-hidden="true" hidden></div>
+        <div id="measurement-overlay" class="measurement-overlay" aria-label="현장 측정 치수선"></div>
         <div id="spatial-pin-overlay" class="spatial-pin-overlay" aria-label="승인 MASTER 검토 핀"></div>
       </div>
       <span id="coords" class="viewport-coords">X 0.00 · Y 0.00 · Z 0.00</span>
@@ -271,7 +286,8 @@
           <div><label for="plinth-height">높이 H (m)</label><input id="plinth-height" type="number" min=".05" max="30" step=".05" value=".4"></div>
         </div>
         <label for="plinth-finish">기단 마감</label>
-        <select id="plinth-finish"><option value="concrete">콘크리트</option><option value="stone">석재</option><option value="metal">금속</option></select>
+        <select id="plinth-finish"><option value="white">화이트</option><option value="metal">메탈</option><option value="black">블랙</option><option value="concrete">기존 콘크리트</option><option value="stone">석재 (기존 호환)</option></select>
+        <label for="plinth-shape">좌대 형태</label><select id="plinth-shape"><option value="box">사각형</option><option value="round">원형</option></select>
         <button id="plinth-create" class="outline full" type="button">작품 아래 기단 만들고 작품 높이 맞춤</button>
         <button id="plinth-update" class="outline full" type="button">선택한 기단 치수·마감 수정</button>
         <button id="plinth-align" class="outline full" type="button">선택한 기단 위로 작품 수평·높이 정렬</button>
@@ -329,13 +345,13 @@
           <button type="button" data-add-extra="tree-cone">🌲 침엽수</button>
           <button type="button" data-add-extra="shrub">🌿 덤불</button>
           <button type="button" data-add-extra="tree-autumn">🍂 가을 수목</button>
-          <button type="button" data-add-extra="person-standing">🚶 사람 1.73m</button>
+          <button type="button" data-add-extra="person-man">🚶 남성 175cm</button><button type="button" data-add-extra="person-woman">🚶‍♀️ 여성 160cm</button>
           <button type="button" data-add-extra="park-bench">🪑 벤치</button>
           <button type="button" data-add-extra="round-planter">🪴 화분</button>
           <button type="button" data-add-extra="point-light">💡 포인트 조명</button>
-          <button type="button" data-add-extra="spot-light">🔦 스폿 조명</button>
+          <button type="button" data-add-extra="shrub-flower">🌺 꽃 덤불</button>
         </div>
-        <div class="asset-library-panel" id="asset-library-panel">
+        <div class="asset-library-panel" id="asset-library-panel" hidden>
           <div class="section-title"><h2>외부 GLB 에셋 라이브러리</h2><span class="tag">v1.2</span></div>
           <p class="hint">실제 수목·사람·가구 3D GLB를 직접 업로드하세요. 독립형 GLB 최대 6종, 각 20MB, 합계 60MB, 모델당 삼각형 25만 개 이내입니다. 자동 에셋 다운로드는 제공하지 않습니다.</p>
           <label class="file-button secondary" for="library-asset-file"><span>+ GLB 에셋 불러오기</span><small>glTF 2.0 GLB · 텍스처 포함 권장</small></label>
@@ -374,7 +390,7 @@
         <label for="sun-strength">직사광량 <output id="sun-strength-value">2.0</output></label>
         <input id="sun-strength" type="range" min="0" max="5" step=".1" value="2">
         <label for="ambient">환경광 <output id="ambient-value">1.3</output></label>
-        <input id="ambient" type="range" min="0" max="4" step=".1" value="1.3">
+        <input id="ambient" type="range" min="0" max="4" step=".1" value=".7">
         <label for="exposure">노출 <output id="exposure-value">1.0</output></label>
         <input id="exposure" type="range" min=".4" max="2.2" step=".05" value="1">
         <label class="toggle"><input id="shadows" type="checkbox" checked> 실제 그림자 켜기</label>
@@ -649,6 +665,23 @@
     </aside>
   </main>
 </div>
+<script>
+(function(){
+  if(new URLSearchParams(location.search).get("panels")==="open"){
+    document.documentElement.classList.add("studio-advanced-mode");
+  }
+  // Compact, independently collapsible inspector panels without replacing their controls.
+  for(const section of document.querySelectorAll(".sidepanel.right > section.section")){
+    const heading=section.querySelector("h2");
+    if(!heading)continue;
+    const fold=document.createElement("details");
+    fold.className="inspector-fold";
+    if(new URLSearchParams(location.search).get("panels")==="open" || section.id==="site-visibility-studio" || section.classList.contains("layer-manager"))fold.open=true;
+    const label=document.createElement("summary");label.textContent=heading.textContent.trim();
+    section.before(fold);fold.append(label,section);
+  }
+})();
+</script>
 <script type="module" src="./studio.js"></script>
 </body>
 </html>

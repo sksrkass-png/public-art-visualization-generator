@@ -5,7 +5,7 @@ import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 // Procedural planting is intentionally schematic rather than a claim of true
 // botanical/photogrammetry accuracy. All extras are independent editables.
 export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "tree-autumn",
-  "person-standing", "park-bench", "round-planter", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
+  "person-standing", "person-man", "person-woman", "shrub-flower", "park-bench", "round-planter", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
 
 function mesh(geometry, color, roughness = .85, metalness = 0) {
   const o = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, roughness, metalness }));
@@ -90,6 +90,26 @@ function shrub(root) {
   });
   detailFoliage(root,centers,20,23);
 }
+function flowerShrub(root){
+  shrub(root);
+  for(let i=0;i<13;i++){
+    const t=i*2.39996,rad=.35+(i%4)*.12;
+    const bloom=mesh(new THREE.SphereGeometry(.075+(i%3)*.012,10,8),
+      [0xe6b6c9,0xf4d4dc,0xe8cc94,0xe3a3b8][i%4]);
+    bloom.position.set(Math.cos(t)*rad,.9+(i%5)*.065,Math.sin(t)*rad);
+    root.add(bloom);
+  }
+}
+function personScaled(root,height,color){
+  standingPerson(root);
+  const children=[...root.children];
+  const holder=new THREE.Group();root.add(holder);
+  for(const item of children)holder.add(item);
+  holder.scale.setScalar(height/1.73);
+  for(const child of holder.children)
+    if(child.isMesh && child.material.color.getHex()===0x44576a)
+      child.material.color.setHex(color);
+}
 function autumnTree(root){
   treeRound(root);
   let i=0;
@@ -140,9 +160,21 @@ function roundPlanter(root){
 }
 export const PLINTH_MATERIALS=Object.freeze({
   concrete:{color:0xb1b4b3,roughness:.9,metalness:0},
+  white:{color:0xeeeeeb,roughness:.78,metalness:0},
+  black:{color:0x1f2227,roughness:.45,metalness:.12},
   stone:{color:0x999991,roughness:.7,metalness:0},
   metal:{color:0x8c9499,roughness:.3,metalness:.85}
 });
+export function applyPlinthShape(root,shape){
+  if(root?.userData?.extraKind!=="plinth"||!["box","round"].includes(shape))
+    throw Error("유효하지 않은 좌대 형태입니다.");
+  const old=root.children.find(child=>child.isMesh);
+  if(!old)return;
+  old.geometry.dispose();
+  old.geometry=shape==="round"
+    ?new THREE.CylinderGeometry(.5,.5,1,48):new THREE.BoxGeometry(1,1,1);
+  root.userData.plinthShape=shape;
+}
 export function applyPlinthFinish(root,finish) {
   if(root?.userData?.extraKind!=="plinth"||!Object.hasOwn(PLINTH_MATERIALS,finish))
     throw Error("유효한 기단 마감이 아닙니다.");
@@ -160,21 +192,36 @@ function lightIcon(root, kind) {
   icon.renderOrder=1000;
   root.add(icon);
 }
-function lightFixture(root,kind) {
-  const light = kind==="point-light" ?
-    new THREE.PointLight(0xfff4dd,4,0,2):
-    new THREE.SpotLight(0xfff4dd,10,20,Math.PI/5,.35,2);
+function lightFixture(root,kind,appearanceVersion=2) {
+  // v3 point-light is an upward architectural uplight. Existing v1–v2 project
+  // lights reopen with the original behavior to protect approved scenes.
+  const uplight=kind==="point-light"&&appearanceVersion>=3;
+  const light=uplight?new THREE.SpotLight(0xfff1cc,16,12,Math.PI/7,.55,1.5):
+    kind==="point-light"?new THREE.PointLight(0xfff4dd,4,0,2):
+      new THREE.SpotLight(0xfff4dd,10,20,Math.PI/5,.35,2);
   light.name=kind;
   light.castShadow=true;
   light.shadow.mapSize.set(512,512);
-  root.add(light);
-  if(kind==="spot-light"){
+  if(uplight){
+    light.position.y=.17;
+    const target=new THREE.Object3D();
+    target.position.y=5;root.add(target);light.target=target;
+    const beam=new THREE.Mesh(new THREE.ConeGeometry(1.35,4.8,28,1,true),
+      new THREE.MeshBasicMaterial({color:0xffecca,transparent:true,opacity:.075,
+        depthWrite:false,side:THREE.DoubleSide}));
+    beam.rotation.z=Math.PI;
+    beam.position.y=2.5;
+    beam.name="Visible architectural uplight beam (visual preview)";
+    root.add(beam);
+    const body=mesh(new THREE.CylinderGeometry(.17,.2,.14,20),0x4c4e50,.38,.75);
+    body.position.y=.07;root.add(body);
+  } else if(kind==="spot-light"){
     const target=new THREE.Object3D();
     target.position.set(0,-5,0);
     target.name="Spot target";
-    root.add(target);
-    light.target=target;
+    root.add(target);light.target=target;
   }
+  root.add(light);
   lightIcon(root,kind);
   return light;
 }
@@ -186,12 +233,15 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   root.userData.appearanceVersion=appearanceVersion;
   if(kind==="custom-glb")root.userData.assetId=assetId;
   root.name=({ "tree-round":"활엽수", "tree-cone":"침엽수", "shrub":"덤불",
-    "tree-autumn":"가을 활엽수", "person-standing":"보행자", "park-bench":"공원 벤치",
+    "tree-autumn":"가을 활엽수", "person-standing":"보행자","person-man":"남성 175cm","person-woman":"여성 160cm","shrub-flower":"꽃 덤불", "park-bench":"공원 벤치",
     "round-planter":"화분", "custom-glb":"사용자 GLB", "artwork-copy":"작품 복제",
     "point-light":"포인트 조명","spot-light":"스폿 조명","plinth":"기단" })[kind]+" #"+id;
   if(kind==="tree-round")(appearanceVersion === 1 ? legacyTreeRound : treeRound)(root);
   else if(kind==="tree-cone")(appearanceVersion === 1 ? legacyTreeCone : treeCone)(root);
   else if(kind==="shrub")(appearanceVersion === 1 ? legacyShrub : shrub)(root);
+  else if(kind==="shrub-flower")flowerShrub(root);
+  else if(kind==="person-man")personScaled(root,1.75,0x394956);
+  else if(kind==="person-woman")personScaled(root,1.6,0xb4847c);
   else if(kind==="tree-autumn")autumnTree(root);
   else if(kind==="person-standing")standingPerson(root);
   else if(kind==="park-bench")parkBench(root);
@@ -202,6 +252,7 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
     shape.position.y=.5;
     shape.name="Plinth solid (dimensions via root scale)";
     root.add(shape);
+    root.userData.plinthShape="box";
     applyPlinthFinish(root,"concrete");
   }
   else if(kind==="artwork-copy"){
@@ -219,7 +270,7 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
     root.add(instantiateLibraryAsset(source));
     root.name=source.file.name.replace(/\.glb$/i,"")+" #"+id;
   }
-  else lightFixture(root,kind);
+  else lightFixture(root,kind,appearanceVersion);
   return root;
 }
 export function extraLight(root) {
@@ -237,7 +288,7 @@ export function serializeExtras(container) {
       hidden:root.userData.layerHidden === true,
       selectionLocked:root.userData.layerLocked === true,
       ...(root.userData.groupId?{groupId:root.userData.groupId}:{}),
-      ...(root.userData.extraKind==="plinth"?{finish:root.userData.plinthFinish||"concrete",followArtwork:root.userData.followArtwork===true}:{}),
+      ...(root.userData.extraKind==="plinth"?{finish:root.userData.plinthFinish||"concrete",shape:root.userData.plinthShape||"box",followArtwork:root.userData.followArtwork===true}:{}),
       transform:{
         p:root.position.toArray(),
         r:root.rotation.toArray().slice(0,3),
@@ -252,8 +303,9 @@ export function validateExtras(extras) {
   const ids=new Set();
   for(const x of extras) {
     if(!x||!EXTRA_TYPES.includes(x.kind)||!Number.isInteger(x.id)||x.id<1||ids.has(x.id))return false;
-    if(x.appearanceVersion !== undefined && ![1,2].includes(x.appearanceVersion))return false;
+    if(x.appearanceVersion !== undefined && ![1,2,3].includes(x.appearanceVersion))return false;
     if(x.kind==="custom-glb" && !/^lib[1-9]\d{0,4}$/.test(x.assetId||""))return false;
+    if(x.kind==="plinth" && x.shape!==undefined && !["box","round"].includes(x.shape))return false;
     if(x.kind==="plinth" && x.finish!==undefined && !Object.hasOwn(PLINTH_MATERIALS,x.finish))return false;
     if(x.followArtwork!==undefined && (x.kind!=="plinth" || typeof x.followArtwork!=="boolean"))return false;
     if(x.hidden !== undefined && typeof x.hidden !== "boolean")return false;
@@ -282,6 +334,7 @@ export function restoreExtras(container,entries,library=null,artRoot=null) {
     root.rotation.set(...x.transform.r);
     root.scale.fromArray(x.transform.s);
     if(x.kind==="plinth"){
+      applyPlinthShape(root,x.shape||"box");
       applyPlinthFinish(root,x.finish||"concrete");
       root.userData.followArtwork=x.followArtwork===true;
     }
