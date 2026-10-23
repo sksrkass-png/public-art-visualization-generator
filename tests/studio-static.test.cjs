@@ -212,5 +212,22 @@ assert.match(compareModule,/masterFingerprint/,"comparison report must bind sour
 assert.match(compareModule,/\.textContent=/,"safe text-only rendering is required");
 assert.doesNotMatch(compareModule,/innerHTML|eval\(|fetch\(/,"review info must not be interpreted as HTML or uploaded");
 assert.match(css,/#revision-diff-panel/,"v1.6 comparison visual hierarchy missing");
+// v1.7 spatial notes are DOM-only, never inserted into WebGL exports.
+for(const id of ["spatial-review-panel","spatial-pin-overlay","spatial-author","spatial-comment",
+ "spatial-place","spatial-cancel","spatial-summary","spatial-pin-list",
+ "spatial-resolve","spatial-reopen","spatial-export","spatial-status"])
+ assert.ok(unique.has(id),"v1.7 review pin control missing: "+id);
+for(const marker of ["initSpatialReview","spatialBridge?.handleCanvasClick","spatialBridge?.drawOverlay()",
+  "spatialReview:spatialBridge?.getState()","spatialBridge.setState(data.spatialReview)",
+  "validSpatialReview(data.spatialReview)"])
+ assert.ok(js.includes(marker),"v1.7 editor persistence/pin guard missing: "+marker);
+const spatial=fs.readFileSync(path.join(base,"studio/spatial-review.js"),"utf8");
+const spatialData=fs.readFileSync(path.join(base,"studio/spatial-review-data.js"),"utf8");
+assert.match(spatial,/masterFingerprint/);
+assert.match(spatial,/raycaster.intersectObjects/);
+assert.match(spatial,/point.project\(camera\)/);
+assert.doesNotMatch(spatial,/innerHTML|\beval\(|fetch\(/,"user comments must be rendered as text only");
+assert.match(spatialData,/MAX_SPATIAL_PINS = 80/);
+assert.match(css,/#spatial-review-panel/);
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");
