@@ -1302,6 +1302,50 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.locator("#export-json").click();
     const historic=JSON.parse(fs.readFileSync(await (await historicalReviewEvent).path(),"utf8"));
     assert.equal(historic.spatialReview.pins.length,1,"earlier revision notes remain archived");
+    // v2.0: camera styling and visual scene framing do not modify imported geometry.
+    await page.locator("#visual-guide").selectOption("thirds");
+    assert.equal(await page.locator("#visual-composition-overlay").isVisible(),true);
+    assert.match(await page.locator("#visual-composition-overlay").getAttribute("class"),/visual-guide-thirds/);
+    await page.locator("#visual-tone").selectOption("neutral");
+    await page.locator("#visual-sky").selectOption("warm");
+    await page.locator("#visual-shadows").selectOption("high");
+    await page.locator("[data-visual-lens='50']").click();
+    assert.match(await page.locator("#camera-focal-value").textContent(),/50 mm/);
+    await page.locator("#render-aspect").selectOption("landscape16x9");
+    await page.locator("#render-resolution").selectOption("2");
+    await page.locator("#visual-quality-check").click();
+    assert.match(await page.locator("#visual-quality-status").textContent(),/GPU/);
+    assert.match(await page.locator("#visual-quality-status").textContent(),/16:9/);
+    await page.locator("[data-frame='sculpture']").click();
+    const shotA=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const beforeFrame=JSON.parse(fs.readFileSync(await (await shotA).path(),"utf8"));
+    const from=beforeFrame.camera.position,to=beforeFrame.camera.target;
+    const distanceA=Math.hypot(...from.map((v,i)=>v-to[i]));
+    await page.locator("[data-frame='nearby']").click();
+    const shotB=page.waitForEvent("download",{timeout:20000});
+    await page.locator("#export-json").click();
+    const afterFrame=JSON.parse(fs.readFileSync(await (await shotB).path(),"utf8"));
+    const distanceB=Math.hypot(...afterFrame.camera.position.map((v,i)=>v-afterFrame.camera.target[i]));
+    assert.ok(distanceB>distanceA,"nearby scene framing includes more context");
+    assert.deepEqual(afterFrame.artwork.transform,beforeFrame.artwork.transform,
+      "framing must leave approved artwork XYZ and scale unchanged");
+    assert.deepEqual(afterFrame.masterSnapshots,beforeFrame.masterSnapshots,
+      "view helpers cannot modify previously approved MASTER metadata");
+    assert.deepEqual(afterFrame.render.visual,
+      {toneCurve:"neutral",sky:"warm",shadowProfile:"high",guide:"thirds"});
+    // Verify the 16:9 PNG output excludes DOM-only composition lines.
+    const pngEvent=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#shot-export").click();
+    const pngBuffer=fs.readFileSync(await (await pngEvent).path());
+    assert.equal(pngBuffer.subarray(1,4).toString("ascii"),"PNG");
+    const pngWidth=pngBuffer.readUInt32BE(16),pngHeight=pngBuffer.readUInt32BE(20);
+    assert.ok(Math.abs(pngWidth/pngHeight-16/9)<.005,
+      "actual exported PNG pixel dimensions must conform to 16:9");
+    assert.equal(await page.locator("#visual-composition-overlay").isVisible(),true,
+      "composition guide must remain available in viewport after PNG export");
+    await page.locator("#visual-guide").selectOption("none");
+    assert.equal(await page.locator("#visual-composition-overlay").isVisible(),false);
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
