@@ -273,5 +273,20 @@ assert.match(vp,/mesh\.material=old\.material/,"original materials must be resto
 assert.match(vp,/mesh\.visible=old\.visible/,"visibility must be restored");
 assert.match(vp,/renderer\.localClippingEnabled/);
 assert.doesNotMatch(vp,/geometry\.dispose\(/,"source geometry must remain unchanged");
+// v2.2.1 creator workflow is not a paperwork feature.
+for(const id of ["quick-save","quick-load","quick-delete","quick-reload","quick-project-select",
+  "multi-art-files","multi-art-list","multi-art-status","plinth-shape","site-inspector-fold",
+  "site-plan-fold","asset-library-fold","measurement-overlay","measure-mid-label",
+  "collapse-panels","expand-panels"])
+ assert.ok(unique.has(id),"v2.2.1 workbench control missing: "+id);
+for(const marker of ["makeFullProjectZip","quickSaveProject","quickLoadProject",
+  "addMultipleArtworks","drawDistanceOverlay","applyPlinthShape",
+  "transform.detach()","gizmoRequested"])
+ assert.ok(js.includes(marker),"v2.2.1 editor workflow not connected: "+marker);
+const creative=fs.readFileSync(path.join(base,"studio/extras.js"),"utf8");
+assert.match(creative,/flowerShrub/);assert.match(creative,/scaledPerson/);
+assert.match(creative,/Up-light direction preview/);
+assert.match(creative,/CylinderGeometry\(\.5,\.5,1,48\)/);
+assert.match(fs.readFileSync(path.join(base,"studio/local-projects.js"),"utf8"),/indexedDB.open/);
 assert.match(css, /#viewport canvas/, "canvas must fill the viewport");
 console.log("PASS studio: module syntax, HTML wiring, 8 cameras, tools, locks, import/export contracts");

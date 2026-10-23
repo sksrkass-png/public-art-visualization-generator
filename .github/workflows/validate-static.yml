@@ -39,6 +39,7 @@ jobs:
           node --check studio/modeling-quality.js
           node --check studio/dimensioning.js
           node --check studio/site-viewport.js
+          node --check studio/local-projects.js
       - name: Run JSON import regression tests
         run: |
           node tests/json-import.test.cjs

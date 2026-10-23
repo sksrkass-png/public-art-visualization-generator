@@ -42,6 +42,10 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
         " errors "+JSON.stringify(errors)+" diagnostics "+JSON.stringify(diagnostics)+" / "+err.message);
     }
     await page.waitForFunction(() => document.querySelector("#art-filename")?.textContent.includes("Sample Artwork"), null, { timeout: 30000 });
+    // Preserve deep legacy regression coverage while optional creator UI folds
+    // default to closed for real users. Creator test below checks those defaults.
+    for(const id of ["site-inspector-fold","site-plan-fold","asset-library-fold"])
+      await page.locator("#"+id).evaluate(el=>{el.open=true;});
     assert.equal(await page.locator("#site-status").textContent(), "예시 공간");
     assert.equal(await page.locator("#export-master-pack").isDisabled(),true,
       "unapproved scene must not export MASTER batch images");
@@ -1479,6 +1483,71 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(restoredConfig.site.preset,"courtyard");
     assert.equal(restoredConfig.render.visual?.guide||"none","none");
     await sitePage.close();
+    // v2.2.1: the creative workbench saves original sources, not only JSON.
+    const creatorCtx=await browser.newContext({viewport:{width:1440,height:900},acceptDownloads:true});
+    const creator=await creatorCtx.newPage();
+    creator.on("pageerror",err=>errors.push(err.stack||err.message));
+    await creator.goto("http://127.0.0.1:8787/studio/",{waitUntil:"domcontentloaded",timeout:60000});
+    await creator.locator("#viewport canvas").waitFor({timeout:20000});
+    assert.equal(await creator.locator("#site-inspector-fold").evaluate(el=>el.open),false);
+    assert.equal(await creator.locator("#site-plan-fold").evaluate(el=>el.open),false);
+    assert.equal(await creator.locator("#asset-library-fold").evaluate(el=>el.open),false);
+    await creator.locator("#collapse-panels").click();
+    assert.equal(await creator.locator(".right .inspector-fold[open]").count(),0);
+    await creator.locator("#expand-panels").click();
+    assert.ok(await creator.locator(".right .inspector-fold[open]").count()>10);
+    await creator.locator("#plinth-shape").selectOption("round");
+    await creator.locator("#plinth-finish").selectOption("black");
+    await creator.locator("#plinth-create").click();
+    assert.match(await creator.locator("#plinth-status").textContent(),/기단 #1/);
+    const creatorModelFiles=["artwork-A.glb","artwork-B.glb","artwork-C.glb","artwork-D.glb"]
+      .map(name=>({name,mimeType:"model/gltf-binary",buffer:bytes}));
+    await creator.locator("#multi-art-files").setInputFiles(creatorModelFiles);
+    await creator.waitForFunction(()=>document.querySelector("#multi-art-status")?.textContent.includes("추가 작품 4 / 4"),
+      null,{timeout:60000});
+    assert.equal(await creator.locator(".multi-art-row").count(),4);
+    assert.equal(await creator.locator("#multi-art-files").isDisabled(),true);
+    await creator.locator(".multi-art-row button").nth(1).click();
+    assert.equal(await creator.locator(".multi-art-row").count(),3,"deleting artwork frees one of the four supplemental slots");
+    await creator.locator("#multi-art-files").setInputFiles({name:"artwork-E.glb",mimeType:"model/gltf-binary",buffer:bytes});
+    await creator.waitForFunction(()=>document.querySelector(".multi-art-row")!==null &&
+      document.querySelectorAll(".multi-art-row").length===4,{timeout:30000});
+    const detailsEvent=creator.waitForEvent("download",{timeout:25000});
+    await creator.locator("#export-json").click();
+    const creatorConfig=JSON.parse(fs.readFileSync(await (await detailsEvent).path(),"utf8"));
+    assert.equal(creatorConfig.extras.filter(x=>x.kind==="custom-glb").length,4);
+    assert.equal(creatorConfig.extras.find(x=>x.kind==="plinth").shape,"round");
+    assert.equal(creatorConfig.extras.find(x=>x.kind==="plinth").finish,"black");
+    await creator.locator("#project-name").fill("AXOO five-model test");
+    await creator.locator("#quick-save").click();
+    await creator.waitForFunction(()=>document.querySelector("#quick-project-select")?.value==="AXOO five-model test",
+      null,{timeout:45000});
+    await creator.reload({waitUntil:"domcontentloaded"});
+    await creator.locator("#viewport canvas").waitFor({timeout:20000});
+    await creator.waitForFunction(()=>document.querySelector("#quick-project-select")?.options.length>=2,{timeout:15000});
+    await creator.locator("#quick-project-select").selectOption("AXOO five-model test");
+    creator.once("dialog",dialog=>dialog.accept());
+    await creator.locator("#quick-load").click();
+    await creator.waitForFunction(()=>document.querySelector("#project-name")?.value==="AXOO five-model test" &&
+      document.querySelectorAll(".multi-art-row").length===4,null,{timeout:60000});
+    assert.equal(await creator.locator(".multi-art-row").count(),4);
+    assert.equal(await creator.locator("#plinth-create").isDisabled(),true,
+      "linked sculpture still has its one plinth after reload");
+    await creator.locator("#measure-site-start").click();
+    const creatorCanvas=await creator.locator("#viewport canvas").boundingBox();
+    await creator.mouse.click(creatorCanvas.x+creatorCanvas.width*.37,creatorCanvas.y+creatorCanvas.height*.74);
+    await creator.mouse.click(creatorCanvas.x+creatorCanvas.width*.61,creatorCanvas.y+creatorCanvas.height*.74);
+    await creator.waitForFunction(()=>document.querySelector("#measure-mid-label")?.textContent.includes("m"),
+      null,{timeout:10000});
+    assert.equal(await creator.locator("#measure-mid-label").isVisible(),true);
+    assert.equal(await creator.locator("#measure-visible-line").getAttribute("x2")!==null,true);
+    await creator.locator("#measure-site-clear").click();
+    assert.equal(await creator.locator("#measure-mid-label").isVisible(),false);
+    await creator.locator("#quick-project-select").selectOption("AXOO five-model test");
+    creator.once("dialog",dialog=>dialog.accept());
+    await creator.locator("#quick-delete").click();
+    await creator.waitForFunction(()=>document.querySelector("#quick-project-select")?.options.length===1,{timeout:10000});
+    await creatorCtx.close();
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {

@@ -30,10 +30,11 @@ import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precis
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
 import { decodeSiteBundle, inspectImportedSite, validSiteAlignment } from "./site-import.js";
-import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish } from "./extras.js";
+import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape } from "./extras.js";
 import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
   validPlacementReference,validatePlinthDimensions} from "./dimensioning.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
+import {putLocalProject,loadLocalProject,listLocalProjects,deleteLocalProject,validLocalProjectName} from "./local-projects.js";
 import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, importLayerState,
   enumerateSiteMeshes, invalidateSiteMeshIndex, applyLayerVisibility, normalizeSiteAnnotations, canEditObject,
   layerForObject } from "./layers.js";
@@ -146,6 +147,7 @@ let sourceSiteInspection = null;
 let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
 let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
+let gizmoRequested=false;
 const groupChecked=new Set();
 let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=null;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
@@ -282,6 +284,68 @@ function renderSiteLayerRows(entries) {
     ? matched.length+"개 중 80개 표시 · 검색어를 입력하면 원하는 메시를 찾을 수 있습니다."
     : (matched.length ? matched.length+"개 목록 · 분류 후 위 레이어 표시를 조절하세요." : "일치하는 메시 없음");
 }
+// Up to five independent sculptural models in the working scene:
+// primary artwork + four distinct supplemental source-embedded GLBs.
+function extraArtworkModels(){
+  return extrasRoot.children.filter(x=>x.userData.extraKind==="custom-glb"&&x.userData.assetCategory==="artwork");
+}
+function refreshMultiArtworkUI(){
+  const chosen=extraArtworkModels(),list=$("multi-art-list");
+  list.replaceChildren();
+  for(const root of chosen){
+    const row=document.createElement("div");row.className="multi-art-row";
+    const label=document.createElement("span");label.textContent=root.name;
+    const select=document.createElement("button");select.type="button";select.textContent="선택";
+    select.addEventListener("click",()=>selectRoot(root));
+    const del=document.createElement("button");del.type="button";del.textContent="삭제";
+    del.disabled=approvedMaster||!canEditObject(root,artRoot,layerState,approvedMaster);
+    del.addEventListener("click",()=>{selectRoot(root);deleteSelectedExtra();});
+    row.append(label,select,del);list.append(row);
+  }
+  $("multi-art-files").disabled=approvedMaster||chosen.length>=4||extrasRoot.children.length>=120;
+  $("multi-art-status").textContent="추가 작품 "+chosen.length+" / 4 · 전체 작품 "+(chosen.length+1)+
+    " / 5 · GLB 개별 20MB, 에셋 합계 60MB 제한 · 삭제 시 슬롯 복구";
+}
+async function addMultipleArtworks(files){
+  if(!files.length||approvedMaster)return;
+  if(!canEditObject(artRoot,artRoot,layerState,approvedMaster))
+    return notify("작품 레이어 잠금을 해제하세요.");
+  if(files.length+extraArtworkModels().length>4)
+    return notify("한 프로젝트에서 기본 작품 포함 최대 5개까지 불러올 수 있습니다.");
+  for(const file of files){
+    try{
+      if(approvedMaster)break;
+      if(extrasRoot.children.length>=120)throw Error("장면 오브제 최대 수를 초과했습니다.");
+      if(assetLibrary.size>=MAX_LIBRARY_ASSETS){
+        const inUse=new Set(extrasRoot.children.filter(x=>x.userData.extraKind==="custom-glb")
+          .map(x=>x.userData.assetId));
+        let purged=false;
+        for(const id of assetLibrary.keys())if(!inUse.has(id)){
+          assetLibrary.delete(id);purged=true;
+        }
+        if(purged)clearUndo(); // old deleted-GLB snapshots would now be un-restorable
+      }
+      if(assetLibrary.size>=MAX_LIBRARY_ASSETS)throw Error("기존 GLB 에셋 저장 공간이 가득 찼습니다.");
+      const total=[...assetLibrary.values()].reduce((n,a)=>n+a.file.size,0);
+      if(total+file.size>MAX_LIBRARY_BYTES)throw Error("GLB 에셋 파일 합계 60MB 한도를 초과했습니다.");
+      const id="lib"+nextLibraryId;
+      const asset=await parseLibraryGLB(file,id,"artwork");
+      if(approvedMaster)throw Error("MASTER 승인 중에는 추가 모델을 설치할 수 없습니다.");
+      const before=editSnapshot();
+      ++nextLibraryId;
+      assetLibrary.set(id,asset);
+      const number=extraArtworkModels().length+1;
+      const root=makeExtra("custom-glb",nextExtraId++,2,id,assetLibrary,artRoot);
+      const artBox=artworkWorldBox();
+      root.position.set(artBox.max.x+1+number*2,0,artRoot.position.z);
+      extrasRoot.add(root);
+      snapRootToSurface(root,siteRoot,{allowFallback:!siteSourceFile,offset:0});
+      selectRoot(root);refreshLayers({redrawSite:false});
+      updateExtrasStatus();commit(before);
+    }catch(error){$("multi-art-status").textContent="작품 추가 실패: "+error.message;notify(error.message);break;}
+  }
+  refreshAssetLibraryUI();refreshMultiArtworkUI();
+}
 function refreshAssetLibraryUI(){
   const chosen=$("library-asset-select").value;
   const select=$("library-asset-select");
@@ -304,6 +368,7 @@ function refreshAssetLibraryUI(){
     extrasRoot.children.length>=120;
   $("library-asset-file").disabled=approvedMaster || assetLibrary.size>=MAX_LIBRARY_ASSETS;
   $("library-asset-category").disabled=approvedMaster;
+  refreshMultiArtworkUI();
 }
 async function importLibraryGLB(file){
   if(!file || approvedMaster)return;
@@ -455,6 +520,42 @@ function showPairMeasurement(){
       (m.boxOverlap?" · 박스 겹침 (예비 간섭)":"");
   }catch(error){$("measure-objects-status").textContent="객체 측정 불가: "+error.message;}
 }
+function drawDistanceOverlay(){
+  const svg=$("measurement-overlay"),label=$("measure-mid-label");
+  const points=measuredPoints;
+  if(!points.length){svg.hidden=true;label.hidden=true;return;}
+  camera.updateMatrixWorld();
+  const projection=points.map(p=>{
+    const v=new THREE.Vector3(...p);
+    const view=v.clone().project(camera);
+    const direction=v.clone().sub(camera.position);
+    const look=camera.getWorldDirection(new THREE.Vector3());
+    const valid=direction.dot(look)>0 && Number.isFinite(view.x)&&Number.isFinite(view.y) &&
+      Math.abs(view.x)<=1 && Math.abs(view.y)<=1 && view.z<=1;
+    return {x:(view.x+1)*50,y:(1-view.y)*50,valid};
+  });
+  if(projection.some(p=>!p.valid)){svg.hidden=true;label.hidden=true;return;}
+  svg.hidden=false;
+  $("measure-visible-a").setAttribute("cx",projection[0].x);
+  $("measure-visible-a").setAttribute("cy",projection[0].y);
+  if(projection.length===2){
+    $("measure-visible-b").setAttribute("cx",projection[1].x);
+    $("measure-visible-b").setAttribute("cy",projection[1].y);
+    $("measure-visible-b").style.display="";
+    $("measure-visible-line").setAttribute("x1",projection[0].x);
+    $("measure-visible-line").setAttribute("y1",projection[0].y);
+    $("measure-visible-line").setAttribute("x2",projection[1].x);
+    $("measure-visible-line").setAttribute("y2",projection[1].y);
+    $("measure-visible-line").style.display="";
+    label.hidden=false;
+    label.style.left=((projection[0].x+projection[1].x)/2)+"%";
+    label.style.top=((projection[0].y+projection[1].y)/2)+"%";
+    label.textContent=new THREE.Vector3(...points[0]).distanceTo(new THREE.Vector3(...points[1])).toFixed(3)+" m";
+  }else{
+    $("measure-visible-b").style.display="none";
+    $("measure-visible-line").style.display="none";label.hidden=true;
+  }
+}
 function addMeasuredPoint(point){
   if(measuredPoints.length>=2)measuredPoints=[];
   measuredPoints.push(point.toArray());
@@ -542,7 +643,7 @@ function refreshLayers({redrawSite = false} = {}) {
   renderExtraLayerRows();
   refreshPrecisionUI();
   if(!selectedCanEdit()) transform.detach();
-  else if(!transform.dragging && transform.object!==selectedRoot) transform.attach(selectedRoot);
+  else if(gizmoRequested && !transform.dragging && transform.object!==selectedRoot) transform.attach(selectedRoot);
   controls.forEach(input=>{input.disabled=!selectedCanEdit();});
   $("delete-selected").disabled=!selectedCanEdit() || selectedRoot===artRoot;
   $("ground-selected").disabled=!selectedCanEdit();
@@ -1191,6 +1292,7 @@ function refreshPlinthControls(){
     if(document.activeElement!==$("plinth-depth"))$("plinth-depth").value=selected.scale.z.toFixed(3);
     if(document.activeElement!==$("plinth-height"))$("plinth-height").value=selected.scale.y.toFixed(3);
     if(document.activeElement!==$("plinth-finish"))$("plinth-finish").value=selected.userData.plinthFinish||"concrete";
+    $("plinth-shape").value=selected.userData.plinthShape||"box";
   }
 }
 function plinthInputs(){
@@ -1221,7 +1323,7 @@ function createPlinth(){
     const bounds=artworkWorldBox();
     const center=bounds.getCenter(new THREE.Vector3());
     const before=editSnapshot();
-    const root=makeExtra("plinth",nextExtraId++,2);
+    const root=makeExtra("plinth",nextExtraId++,2,null,null,null,$("plinth-shape").value);
     root.scale.set(w,h,d);
     root.position.set(center.x,bounds.min.y,center.z);
     applyPlinthFinish(root,finish);
@@ -1244,6 +1346,7 @@ function updateSelectedPlinth(){
     const before=editSnapshot();
     selectedRoot.scale.set(w,h,d);
     applyPlinthFinish(selectedRoot,finish);
+    applyPlinthShape(selectedRoot,$("plinth-shape").value);
     commit(before);updateInspector(true);
     $("plinth-status").textContent="선택 기단의 W/D/H와 마감 수정 완료 · 작품은 움직이지 않았습니다.";
   }catch(error){$("plinth-status").textContent=error.message;notify(error.message);}
@@ -1473,7 +1576,7 @@ function syncLock() {
     activePlanOperation++;
     transform.detach();
   }
-  else if (selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
+  else if (selectedRoot && selectedCanEdit() && gizmoRequested) transform.attach(selectedRoot);
   ["library-place","library-asset-file","library-asset-category",
     "site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
@@ -1486,7 +1589,7 @@ function syncLock() {
   controls.forEach(el => el.disabled = approvedMaster);
   ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale",
     "dimension-width","dimension-depth","dimension-height","dimension-mode","dimension-distortion","dimension-apply",
-    "plinth-width","plinth-depth","plinth-height","plinth-finish","plinth-create","plinth-update","plinth-align",
+    "plinth-width","plinth-depth","plinth-height","plinth-finish","plinth-shape","plinth-create","plinth-update","plinth-align",
     "anchor-mode","anchor-x","anchor-y","anchor-z","anchor-pick","anchor-apply"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   $("master-lock").classList.toggle("locked", approvedMaster);
@@ -1632,6 +1735,7 @@ function updateExtrasStatus() {
 }
 function selectRoot(object) {
   selectedRoot = object || artRoot;
+  gizmoRequested=true;
   if (selectedCanEdit()) transform.attach(selectedRoot);
   else transform.detach();
   updateInspector(true);
@@ -1663,7 +1767,7 @@ function createPlacedExtra(kind, position) {
   if(kind==="custom-glb" && !assetLibrary.has(assetId))return notify("에셋을 선택하세요.");
   const root = makeExtra(kind, nextExtraId++,2,assetId,assetLibrary,artRoot);
   root.position.copy(position);
-  if (kind.includes("light")) root.position.y += 3;
+  if (kind.includes("light") && kind!=="point-light") root.position.y += 3;
   extrasRoot.add(root);
   if (!kind.includes("light")) {
     snapRootToSurface(root, siteRoot, { allowFallback: !siteSourceFile,
@@ -1732,7 +1836,7 @@ function placeSelectedOnSite(hit) {
     selectedRoot.position.x = hit.point.x;
     selectedRoot.position.z = hit.point.z;
     if (selectedRoot !== artRoot && extraLight(selectedRoot)) {
-    selectedRoot.position.y = hit.point.y + 3 + toFinite($("ground-offset").value, 0, -20, 50);
+    selectedRoot.position.y = hit.point.y + (selectedRoot.userData.extraKind==="point-light"?0:3) + toFinite($("ground-offset").value, 0, -20, 50);
     } else {
       const box = new THREE.Box3().setFromObject(selectedRoot);
       selectedRoot.position.y += hit.point.y + toFinite($("ground-offset").value, 0, -20, 50) - box.min.y;
@@ -1800,7 +1904,7 @@ function handleSelection(event) {
     const root=obj.parent===extrasRoot ? obj : artRoot;
     return canEditObject(root,artRoot,layerState,false);
   });
-  if (!first) return;
+  if (!first){gizmoRequested=false;transform.detach();return;}
   let candidate = first.object;
   while (candidate.parent && candidate.parent !== extrasRoot && candidate.parent !== artRoot) candidate = candidate.parent;
   if (candidate.parent === extrasRoot) selectRoot(candidate);
@@ -2159,35 +2263,77 @@ const PROJECT_ARCHIVE_SCHEMA = "axoo-public-art-portable-v1";
 const MAX_ZIP_BYTES = 200 * 1024 * 1024;
 const MAX_MODEL_BYTES = 80 * 1024 * 1024;
 const MAX_MAP_BYTES = 20 * 1024 * 1024;
-async function exportProjectArchive() {
-  try {
-    const zip = new JSZip();
-    const data = sceneConfig();
-    data.archiveSchema = PROJECT_ARCHIVE_SCHEMA;
-    // The source asset names are preserved in JSON. Fixed ZIP keys eliminate
-    // path traversal and prevent the archive from assuming a user's directory.
-    zip.file("project.json", JSON.stringify(data, null, 2));
-    if (siteSourceFile) zip.file("assets/site", siteSourceFile);
-    if (artSourceFile) zip.file("assets/artwork", artSourceFile);
-    if (planSourceFile) zip.file("assets/plan", planSourceFile);
-    if (hdrSourceFile) zip.file("assets/environment", hdrSourceFile);
-    for(const asset of assetLibrary.values())zip.file("assets/library/"+asset.id+".glb",asset.file);
-    $("save-status").textContent = "SHA-256 원본 검증 정보 생성 중…";
-    const integrity=await makeIntegrityManifest(zip);
-    zip.file("integrity.json",JSON.stringify(integrity,null,2));
-    $("save-status").textContent = "검증 가능한 프로젝트 패키지 저장 중…";
-    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
-    if(blob.size>MAX_ZIP_BYTES)
-      throw Error("ZIP 200MB 복원 한도를 초과했습니다. 현장·작품·에셋 파일을 경량화하세요.");
-    download(safeFileName() + "-project.zip", blob);
-    notify("프로젝트 ZIP 저장 완료 · 원본과 SHA-256 손상 검증 정보 포함");
-  } catch (err) {
-    console.error(err);
-    notify("프로젝트 저장 실패: " + (err.message || "메모리 용량 확인 필요"));
-  } finally {
-    $("save-status").textContent = "브라우저에서 로컬 처리";
-  }
+async function makeFullProjectZip(){
+  const zip = new JSZip();
+  const data = sceneConfig();
+  data.archiveSchema = PROJECT_ARCHIVE_SCHEMA;
+  // The source asset names are preserved in JSON. Fixed ZIP keys eliminate
+  // path traversal and prevent the archive from assuming a user's directory.
+  zip.file("project.json", JSON.stringify(data, null, 2));
+  if (siteSourceFile) zip.file("assets/site", siteSourceFile);
+  if (artSourceFile) zip.file("assets/artwork", artSourceFile);
+  if (planSourceFile) zip.file("assets/plan", planSourceFile);
+  if (hdrSourceFile) zip.file("assets/environment", hdrSourceFile);
+  for(const asset of assetLibrary.values())zip.file("assets/library/"+asset.id+".glb",asset.file);
+  $("save-status").textContent = "SHA-256 원본 검증 정보 생성 중…";
+  const integrity=await makeIntegrityManifest(zip);
+  zip.file("integrity.json",JSON.stringify(integrity,null,2));
+  $("save-status").textContent = "검증 가능한 프로젝트 패키지 저장 중…";
+  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
+  if(blob.size>MAX_ZIP_BYTES)
+    throw Error("ZIP 200MB 복원 한도를 초과했습니다. 현장·작품·에셋 파일을 경량화하세요.");
+
+  return blob;
 }
+async function exportProjectArchive(){
+  try{
+    const blob=await makeFullProjectZip();
+    download(safeFileName()+"-project.zip",blob);
+    notify("프로젝트 ZIP 저장 완료 · 원본과 SHA-256 손상 검증 정보 포함");
+  }catch(err){
+    console.error(err);
+    notify("프로젝트 저장 실패: "+(err.message||"용량 및 원본 파일 확인"));
+  }finally{$("save-status").textContent="브라우저에서 로컬 처리";}
+}
+async function refreshLocalProjectChoices(preferred=""){
+  const select=$("quick-project-select"),items=await listLocalProjects();
+  select.replaceChildren(new Option("저장된 프로젝트 선택",""));
+  for(const row of items)
+    select.add(new Option(row.name+" · "+new Date(row.savedAt).toLocaleString("ko-KR"),row.name));
+  if(preferred&&items.some(x=>x.name===preferred))select.value=preferred;
+  $("quick-save-status").textContent=items.length+"개 프로젝트 이 브라우저에 저장 · 다른 기기에서는 접근 불가 · 영구 백업은 ZIP 권장";
+}
+async function quickSaveProject(){
+  const name=$("project-name").value.trim();
+  if(!validLocalProjectName(name))return notify("프로젝트 이름을 입력하세요.");
+  $("quick-save").disabled=true;
+  try{
+    const blob=await makeFullProjectZip();
+    await putLocalProject(name,blob);
+    await refreshLocalProjectChoices(name);
+    notify("프로젝트 '"+name+"' 브라우저에 저장 완료 · ZIP 백업도 권장합니다.");
+  }catch(error){$("quick-save-status").textContent="저장 실패: "+error.message;notify(error.message);}
+  finally{$("quick-save").disabled=false;$("save-status").textContent="브라우저에서 로컬 처리";}
+}
+async function quickLoadProject(){
+  const name=$("quick-project-select").value;
+  if(!name)return notify("저장 목록에서 프로젝트를 선택하세요.");
+  if(approvedMaster)return notify("MASTER LOCK을 먼저 해제한 후 다른 프로젝트를 불러오세요.");
+  if(!window.confirm("현재 프로젝트를 교체하고 '"+name+"' 저장본을 열까요? 저장되지 않은 변경사항은 사라집니다."))return;
+  try{
+    const zip=await loadLocalProject(name);
+    await importProjectArchive(zip);
+    await refreshLocalProjectChoices(name);
+  }catch(error){$("quick-save-status").textContent="불러오기 실패: "+error.message;notify(error.message);}
+}
+async function quickDeleteProject(){
+  const name=$("quick-project-select").value;
+  if(!name)return notify("삭제할 저장본을 선택하세요.");
+  if(!window.confirm("이 브라우저에 저장된 '"+name+"' 프로젝트를 삭제하시겠습니까?"))return;
+  try{await deleteLocalProject(name);await refreshLocalProjectChoices();notify("브라우저 저장본 삭제 완료");}
+  catch(error){$("quick-save-status").textContent="삭제 실패: "+error.message;}
+}
+
 function checkedArchiveEntry(zip, name, limit, required) {
   const entry = zip.file(name);
   if (!entry) {
@@ -2690,6 +2836,12 @@ $("site-preset").addEventListener("change", e => {
   activeProjectOperation++;
   buildSite(e.target.value); notify("예시 현장 프리셋을 적용했습니다.");
 });
+$("collapse-panels").addEventListener("click",()=>{
+  document.querySelectorAll(".right .inspector-fold").forEach(d=>d.open=false);
+});
+$("expand-panels").addEventListener("click",()=>{
+  document.querySelectorAll(".right .inspector-fold").forEach(d=>d.open=true);
+});
 $("site-view-apply").addEventListener("click",applySitePreview);
 $("site-view-reset").addEventListener("click",resetSitePreviewUI);
 $("site-navigation-performance").addEventListener("change",setupNavigationPerformance);
@@ -2775,9 +2927,9 @@ $("render-aspect").addEventListener("change",updateRenderSizeLabel);
 $("render-resolution").addEventListener("change",updateRenderSizeLabel);
 $("light-preset").addEventListener("change", e => {
   const presets = {
-    clear: {az:45, el:45, sun:2, ambient:1.3, exposure:1},
-    cloudy: {az:50,el:58,sun:.65,ambient:2,exposure:1.1},
-    golden: {az:65,el:17,sun:2.25,ambient:.95,exposure:1.0},
+    clear: {az:45, el:45, sun:2.6, ambient:.8, exposure:1},
+    cloudy: {az:50,el:58,sun:.9,ambient:1.25,exposure:1.05},
+    golden: {az:65,el:17,sun:2.6,ambient:.65,exposure:1.0},
     night: {az:90,el:8,sun:0,ambient:.35,exposure:.85}
   };
   const p = presets[e.target.value];
@@ -2787,6 +2939,11 @@ $("light-preset").addEventListener("change", e => {
   updateLight();
 });
 document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener("click", () => setPlacement(el.dataset.addExtra)));
+$("multi-art-files").addEventListener("change",e=>{
+  const files=Array.from(e.target.files||[]);
+  e.target.value="";
+  addMultipleArtworks(files);
+});
 $("library-asset-file").addEventListener("change",e=>{
   importLibraryGLB(e.target.files[0]);e.target.value="";
 });
@@ -2815,6 +2972,7 @@ $("measure-site-clear").addEventListener("click",()=>{
   measuredPoints=[];
   if(placementMode==="measure-point"){placementMode=null;$("placement-hint").hidden=true;}
   $("measure-site-status").textContent="측정점 초기화됨";
+  drawDistanceOverlay();
 });
 $("measure-objects").addEventListener("click",showPairMeasurement);
 $("precision-collision").addEventListener("click",checkInterferences);
@@ -2842,6 +3000,7 @@ $("sample-art").addEventListener("click", () => {
   activeProjectOperation++;
   setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 }); changeView("main");
 });
+$("plinth-shape").addEventListener("change",()=>{});
 $("dimension-apply").addEventListener("click",applyArtworkDimensions);
 $("plinth-create").addEventListener("click",createPlinth);
 $("plinth-update").addEventListener("click",updateSelectedPlinth);
@@ -2963,6 +3122,10 @@ spatialBridge=initSpatialReview({
   })
 });
 $("export-glb").addEventListener("click", exportGLB);
+$("quick-save").addEventListener("click",quickSaveProject);
+$("quick-reload").addEventListener("click",()=>refreshLocalProjectChoices().catch(e=>notify(e.message)));
+$("quick-load").addEventListener("click",quickLoadProject);
+$("quick-delete").addEventListener("click",quickDeleteProject);
 $("export-project").addEventListener("click", exportProjectArchive);
 $("import-project").addEventListener("change", e => {
   importProjectArchive(e.target.files[0]);
@@ -3063,12 +3226,15 @@ function animate() {
   requestAnimationFrame(animate);
   orbit.update();
   renderer.render(scene, camera);
+  drawDistanceOverlay();
   spatialBridge?.drawOverlay();
 }
 buildSite("plaza");
 setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 });
 updateGround();
+refreshLocalProjectChoices().catch(error=>{$("quick-save-status").textContent="브라우저 저장 기능 사용 불가: "+error.message;});
 syncLock();
+gizmoRequested=false;transform.detach();
 snapSetting();
 updateLight();
 applyEnvironment();

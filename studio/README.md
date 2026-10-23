@@ -1,6 +1,19 @@
-# AXOO Public Art 3D Studio — v2.2
+# AXOO Public Art 3D Studio — v2.2.1
 
 Static browser-based public-art modeling editor. v1.5 review exchange is local and file-based; it is not real-time cloud collaboration.
+
+## v2.2.1 — Creator-first interface refresh (user feedback)
+
+This patch actively reduces scrolling and clutter so attention stays on the public-art model and site. **Reports, permit forms and proposals are not the development focus.**
+
+- **Named browser-local projects:** Enter a project name and press **현재 프로젝트 저장**. This creates the same source-complete, checksum-verified ZIP as the export operation but stores it in the current browser's IndexedDB. Save slots are capped at 6; the list supports load and delete. **This is not a server backup or cross-device sync:** Clearing browser data, private-mode expiry or storage eviction may remove it. Continue using **전체 프로젝트 ZIP 저장** for permanent, portable backup. Imported ZIP projects restore source meshes and elements together.
+- **Compact editor:** The right inspector gains independently collapsible sections and **모두 접기 / 모두 펼치기**. Excessive sidebar margins and clipped double-button rows have been reduced. Optional legacy site-preflight diagnostics, image plan alignment, and generic GLB library UI are tucked behind advanced foldouts, while retaining compatibility with old project ZIPs and asset data.
+- **Five artwork models:** One primary GLB/GLTF/OBJ/STL artwork plus up to four **additional independent embedded-GLB** artworks can be loaded into the scene, selected, moved, scaled, deleted, and archived. Deleting an extra artwork frees one of four *visible* supplemental slots. Supplemental GLBs must contain their own resources and observe existing asset limits (20 MB each, combined 60 MB, 250k triangles per source); a deleted, no-longer-used cached source may be freed when new files need memory. Browser local save / project ZIP includes all currently registered model source files.
+- **Plinth variety:** Adds **사각형 / 원형** independently modelled, adjustable plinth geometries, and **화이트 / 메탈 / 블랙** finishes, retaining older concrete/stone material compatibility. Shape/finish are saved in project ZIP and approved MASTER.
+- **More natural scene context:** Procedural flowering shrubs, male-scale 1.75 m / female-scale 1.60 m mannequin objects, and floor-anchored up-lights with editor-only translucent light direction previews. Existing legacy person / light objects remain supported when loading prior saved scenes. The discontinued *new spotlight placement button* does not delete an existing stored spotlight.
+- **3D measurement annotation:** Two ray-picked site points project to the active viewport as **point — dotted line with middle distance label — point**; overlay tracks orbital camera and clears on demand, without altering imported geometry.
+- **Direct gizmo selection and sunlight:** Transform axes are hidden on initial opening and displayed on direct sculpture/object selection. Sun-to-fill preset values are tuned to preserve clearer ground contact shadows, with ambient brightness user-adjustable. Imported sites must still have valid shadow-receiving geometry.
+- **Scope limits:** This is non-photogrammetric browser WebGL modelling. Independent supplemental slots use GLB, not the entire primary artwork format set. No automatic cloud sync, no destructive geometry reconstruction or alteration of source artist artwork.
 
 ## v2.2 — Large site navigation / local focus / reversible scene clipping
 
