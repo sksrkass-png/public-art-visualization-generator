@@ -122,7 +122,8 @@ export function compareMasterRevisions(before,after) {
   for(const id of [...new Set([...leftLibrary.keys(),...rightLibrary.keys()])].sort())
     add("sources","context","에셋 라이브러리 "+id,leftLibrary.get(id),rightLibrary.get(id));
   // File identity and stored annotations can be compared, NOT actual site mesh geometry.
-  fields("site","critical","현장 단위·원점",before.siteSetup,after.siteSetup);
+  const siteSetupComparable=before.siteSetup!==undefined && after.siteSetup!==undefined;
+  if(siteSetupComparable)fields("site","critical","현장 단위·원점",before.siteSetup,after.siteSetup);
   fields("site","context","현장/레이어",before.layers,after.layers);
   fields("site","context","배치도 정렬",before.planAlignment,after.planAlignment);
   fields("visual","visual","카메라",before.camera,after.camera);
@@ -138,6 +139,7 @@ export function compareMasterRevisions(before,after) {
     unchanged:total===0,
     truncated:total>changes.length,
     changes,
+    unverified:siteSetupComparable?[]:["비교 대상 중 하나는 v1.6 이전 MASTER여서 현장 단위·원점 속성을 정확히 비교할 수 없습니다."],
     limitations:[
       "Snapshot metadata comparison only: original mesh vertices, textures, source binary checksums, hidden native geometry and physical safety are not independently compared.",
       "Model-file names do not establish binary-file equality. The approved MASTER and full project ZIP must be reviewed separately.",
