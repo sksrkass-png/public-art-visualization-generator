@@ -237,7 +237,7 @@ export function serializeExtras(container) {
       hidden:root.userData.layerHidden === true,
       selectionLocked:root.userData.layerLocked === true,
       ...(root.userData.groupId?{groupId:root.userData.groupId}:{}),
-      ...(root.userData.extraKind==="plinth"?{finish:root.userData.plinthFinish||"concrete"}:{}),
+      ...(root.userData.extraKind==="plinth"?{finish:root.userData.plinthFinish||"concrete",followArtwork:root.userData.followArtwork===true}:{}),
       transform:{
         p:root.position.toArray(),
         r:root.rotation.toArray().slice(0,3),
@@ -255,6 +255,7 @@ export function validateExtras(extras) {
     if(x.appearanceVersion !== undefined && ![1,2].includes(x.appearanceVersion))return false;
     if(x.kind==="custom-glb" && !/^lib[1-9]\d{0,4}$/.test(x.assetId||""))return false;
     if(x.kind==="plinth" && x.finish!==undefined && !Object.hasOwn(PLINTH_MATERIALS,x.finish))return false;
+    if(x.followArtwork!==undefined && (x.kind!=="plinth" || typeof x.followArtwork!=="boolean"))return false;
     if(x.hidden !== undefined && typeof x.hidden !== "boolean")return false;
     if(x.selectionLocked !== undefined && typeof x.selectionLocked !== "boolean")return false;
     if(x.groupId!==undefined && (!Number.isInteger(x.groupId)||x.groupId<1||x.groupId>120))return false;
@@ -279,7 +280,10 @@ export function restoreExtras(container,entries,library=null,artRoot=null) {
     root.position.fromArray(x.transform.p);
     root.rotation.set(...x.transform.r);
     root.scale.fromArray(x.transform.s);
-    if(x.kind==="plinth")applyPlinthFinish(root,x.finish||"concrete");
+    if(x.kind==="plinth"){
+      applyPlinthFinish(root,x.finish||"concrete");
+      root.userData.followArtwork=x.followArtwork===true;
+    }
     const light=extraLight(root);
     if(light){
       if(x.power!==undefined)light.intensity=x.power;
