@@ -41,6 +41,7 @@ import {createSiteViewportController,normalizeSiteViewSettings} from "./site-vie
 import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js";
 import {isCanvasClick,navigationSpeeds,CLICK_TOLERANCE_PX} from "./navigation-ux.js";
 import {CAMERA_SLOTS,validCameraBookmarks,bookmarkCamera,savedCameraCount} from "./camera-bookmarks.js";
+import {sceneFootprint,productionReport,verifyPngCapture,assertRendererAvailable} from "./production-qa.js";
 import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity} from "./render-looks.js";
 import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel} from "./context-catalog.js";
 import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
@@ -177,7 +178,7 @@ let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=
 const visualVariants={};
 const cameraBookmarks={};
 let masterPreviewReturn=null;
-let lastInstallationCheck=null;
+let lastInstallationCheck=null,lastProductionAudit=null;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
 let proposalBridge = null, collaborationBridge = null, revisionBridge = null, spatialBridge = null;
 const assetLibrary=new Map();
@@ -1124,6 +1125,45 @@ function sceneFrame(mode){
     {sculpture:"작품 중심",nearby:"작품 + 근거리 환경",site:"전체 현장"}[mode]+
     " · 카메라 거리 "+allowed.toFixed(1)+"m"+
     (settings.limited?" · 초대형 OBJ 프레이밍 안전 상한 적용":"");
+}
+// v3.0 — independent model/report inspection; no modifications to source,
+ // editable user groups, master approval or render configuration.
+function currentProductionAudit(){
+  const master=masterSnapshots[masterSnapshots.length-1];
+  const size=targetSize(viewport.clientWidth,viewport.clientHeight,
+    "landscape16x9",Number($("batch-quality").value),
+    renderer.capabilities.maxTextureSize,14000000);
+  const site=sceneFootprint(siteRoot),artwork=sceneFootprint(artRoot),
+    extras=sceneFootprint(extrasRoot);
+  return productionReport({
+    project:$("project-name").value,
+    siteModel:!!siteSourceFile,artworkModel:!!artSourceFile,
+    masterApproved:approvedMaster,
+    masterMatches:!!master&&masterConsistency(master,baselineForMaster()).ok,
+    site,artwork,extras,
+    output:size,gpuContextLost:!!renderer.getContext()?.isContextLost?.()
+  });
+}
+function runProductionAudit(){
+  const report=currentProductionAudit();
+  lastProductionAudit=report;
+  const state={blocked:"출력 전 확인 필수",review:"실제 원본·성능 추가 확인",
+    candidate:"사내 시안 기술 점검 통과"}[report.state];
+  $("production-audit-summary").textContent=[
+    state,
+    ...report.blockers.map(s=>"⚠ "+s),
+    ...report.warnings.map(s=>"• "+s),
+    "주의: 사내 렌더 작업 점검이며 법적·구조 안전 인증이 아닙니다."
+  ].join("\n");
+  $("production-audit-metrics").textContent=
+    "현장 "+report.metrics.site.meshes+"개 메시 / "+
+      report.metrics.site.triangles.toLocaleString()+" tris · 작품 "+
+      report.metrics.artwork.meshes+"개 메시 · 전체 "+
+      report.metrics.totalTriangles.toLocaleString()+" tris · "+
+      "MASTER 8컷 PNG "+report.metrics.output.width+" × "+
+      report.metrics.output.height+"px";
+  $("production-audit-export").disabled=false;
+  return report;
 }
 function checkVisualQuality(){
   const size=targetSize(viewport.clientWidth,viewport.clientHeight,
@@ -3575,6 +3615,13 @@ $("focus-selected-quick").addEventListener("click",focusCurrentSelection);
 $("focus-site-quick").addEventListener("click",focusImportedSite);
 $("focus").addEventListener("click", fitCamera);
 $("project-quick-save").addEventListener("click",()=>$("export-project").click());
+$("production-audit-run").addEventListener("click",runProductionAudit);
+$("production-audit-export").addEventListener("click",()=>{
+  const report=runProductionAudit();
+  download(safeFileName()+"-v3-production-audit.json",
+    new Blob([JSON.stringify({...report,generatedAt:new Date().toISOString()},null,2)],
+      {type:"application/json"}));
+});
 $("installation-check").addEventListener("click",()=>{
   try{assessInstallation();}catch(e){$("installation-check-status").textContent=e.message;}
 });
