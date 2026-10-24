@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.7 CONTEXT ASSETS</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.8 ARCHVIZ RENDER</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -441,7 +441,14 @@
         </div>
       </section>
       <section class="section">
-        <div class="section-title"><h2>라이팅 / 조명</h2><span class="tag">v1.9</span></div>
+        <div class="section-title"><h2>라이팅 / 조명</h2><span class="tag">v2.8</span></div>
+        <h3>ARCHVIZ · 원클릭 주광 룩</h3>
+        <div class="render-look-buttons" role="group" aria-label="심의용 렌더 조명 프리셋">
+          <button type="button" data-render-look="architectural">☀️ 따뜻한 건축 주광</button>
+          <button type="button" data-render-look="soft">☁️ 부드러운 흐린 날</button>
+          <button type="button" data-render-look="detail">💎 조형물 입체감</button>
+        </div>
+        <p id="render-look-status" class="hint" aria-live="polite">조명·배경·반사·그림자만 변경하는 시각화 프리셋입니다. 작품의 형태·색·재질은 유지합니다.</p>
         <label for="light-preset">자연광 프리셋</label>
         <select id="light-preset"><option value="custom">사용자 설정</option><option value="clear" selected>맑은 낮</option><option value="cloudy">흐린 낮</option><option value="golden">늦은 오후</option><option value="night">야간 조명</option></select>
         <label for="sun-azimuth">태양 방향 <output id="sun-azimuth-value">45°</output></label>
@@ -456,12 +463,12 @@
         <input id="exposure" type="range" min=".4" max="2.2" step=".05" value="1">
         <label class="toggle"><input id="shadows" type="checkbox" checked> 실제 그림자 켜기</label>
         <label for="visual-shadows">그림자 맵 해상도</label>
-        <select id="visual-shadows"><option value="balanced">균형 · 2048px</option><option value="high">고품질 · 최대 4096px</option></select>
+        <select id="visual-shadows"><option value="balanced">균형 · 2048px</option><option value="high">정밀 · 최대 4096px</option><option value="soft">부드러운 그림자 · 2048px</option></select>
         <label for="visual-tone">톤 매핑</label>
         <select id="visual-tone"><option value="aces">ACES · 부드러운 하이라이트</option><option value="neutral">Neutral · 자연스러운 채도</option></select>
         <label for="visual-sky">배경 하늘색</label>
         <select id="visual-sky"><option value="cool">연한 하늘 회색</option><option value="warm">따뜻한 주광</option><option value="white">뉴트럴 화이트</option></select>
-        <p class="hint">조명·배경·카메라 설정만 변경하며 원본 건축과 조형물 메시·PBR 재질은 자동 수정하지 않습니다.</p>
+        <p class="hint">작품 실제 경계에 맞춰 그림자 프러스텀을 자동 조정하고, 은은한 반사광으로 음영을 살립니다. 원본 건축·조형물 메시·재질·크기는 수정하지 않습니다. MASTER LOCK을 해제해야 프리셋을 변경할 수 있습니다.</p>
       </section>
       <section class="section" id="render-look">
         <h2>환경광 / HDRI</h2>
