@@ -1747,6 +1747,55 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(await contextPage.locator("#extra-fit-height").isDisabled(),true,
       "approved MASTER blocks decorative rescaling");
     await contextPage.close();
+
+    // v2.8: change lighting/sky/shadow only, compare actual PNGs and prove
+    // the source site, artwork and extras remain byte-identical in saved JSON.
+    const renderPage=await browser.newPage({viewport:{width:1300,height:820},acceptDownloads:true});
+    renderPage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await renderPage.goto("http://127.0.0.1:8787/studio/?panels=open",
+      {waitUntil:"domcontentloaded",timeout:60000});
+    await renderPage.locator("#viewport canvas").waitFor({timeout:30000});
+    const renderBaseline=renderPage.waitForEvent("download",{timeout:30000});
+    await renderPage.locator("#export-json").click();
+    const beforeLook=JSON.parse(fs.readFileSync(await (await renderBaseline).path(),"utf8"));
+    await renderPage.locator('[data-render-look="architectural"]').click();
+    assert.equal(await renderPage.locator("#visual-shadows").inputValue(),"high");
+    assert.equal(await renderPage.locator("#visual-sky").inputValue(),"warm");
+    assert.match(await renderPage.locator("#render-look-status").textContent(),/따뜻한 건축 주광/);
+    const architecturalShot=renderPage.waitForEvent("download",{timeout:40000});
+    await renderPage.locator("#shot-export").click();
+    const warmPng=fs.readFileSync(await (await architecturalShot).path());
+    assert.ok(warmPng.length>1000);
+    await renderPage.locator('[data-render-look="soft"]').click();
+    assert.equal(await renderPage.locator("#visual-shadows").inputValue(),"soft");
+    assert.equal(await renderPage.locator("#env-mode").inputValue(),"overcast");
+    const softShot=renderPage.waitForEvent("download",{timeout:40000});
+    await renderPage.locator("#shot-export").click();
+    const softPng=fs.readFileSync(await (await softShot).path());
+    assert.ok(softPng.length>1000 && !softPng.equals(warmPng),
+      "daylight presets must produce visibly different WebGL PNG renders");
+    const savedLook=renderPage.waitForEvent("download",{timeout:20000});
+    await renderPage.locator("#export-json").click();
+    const afterLook=JSON.parse(fs.readFileSync(await (await savedLook).path(),"utf8"));
+    assert.deepEqual(afterLook.artwork,beforeLook.artwork,
+      "daylight looks may not change original artwork source or transforms");
+    assert.deepEqual(afterLook.site,beforeLook.site,
+      "daylight looks may not change imported site data");
+    assert.deepEqual(afterLook.extras,beforeLook.extras,
+      "daylight looks may not place or alter context assets");
+    assert.equal(afterLook.render.visual.shadowProfile,"soft",
+      "new profile survives JSON project saving");
+    await renderPage.locator("#import-json").setInputFiles({
+      name:"v2.8-render-look.json",mimeType:"application/json",
+      buffer:Buffer.from(JSON.stringify(afterLook))
+    });
+    assert.equal(await renderPage.locator("#visual-shadows").inputValue(),"soft",
+      "soft shadow profile must survive JSON reload");
+    await renderPage.locator("#master-lock").click();
+    await renderPage.locator('[data-render-look="detail"]').click();
+    assert.equal(await renderPage.locator("#visual-shadows").inputValue(),"soft",
+      "approved MASTER prevents changing the approved render look preset");
+    await renderPage.close();
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
