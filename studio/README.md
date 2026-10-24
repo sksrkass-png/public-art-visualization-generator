@@ -1,4 +1,14 @@
-# AXOO Public Art 3D Studio — v2.5
+# AXOO Public Art 3D Studio — v2.6
+
+## v2.6 — modeling navigation & precise viewport selection
+
+- Starting with v2.5 as the baseline, the right-mouse panning speed receives an independent acceleration (1.65× slider baseline) while rotation and scroll zoom remain separately calibrated. A bounded boost helps panning when looking closely at a vast, imported OBJ scene. `navigation-ux.js` contains the independent pure calculations.
+- A left-pointer press and release counts as an object/empty-space selection click only if its travel stays within 5px and it has the same pointer identity. Drags (orbit/pan), right-mouse moves, and transform-axis gestures do not trigger accidental selection/deselection. Click objects to show yellow bounds + XYZ; click empty background or site to clear.
+- Changing an imported site's source units or up-axis reframes the camera to the updated *viewer-space* bounds. The imported source mesh data, placed artwork, and MASTER-approved geometry are never rescaled by the navigation helper.
+- Default speed 3.4× for new sessions, while previously saved project `navSpeed` values still restore unchanged. Existing camera shortcuts `F` for selection and `Shift+F` for the site remain.
+- `node tests/studio-navigation-ux.test.cjs` checks jitter-versus-drag discrimination, right-button exclusion, pan acceleration/caps and large-OBJ camera-distance adaptation. CI also runs the existing v2.2.1 camera fit, static and browser suites.
+
+
 
 Static browser-based public-art modeling editor. v1.5 review exchange is local and file-based; it is not real-time cloud collaboration.
 
