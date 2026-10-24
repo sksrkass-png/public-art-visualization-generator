@@ -2791,8 +2791,8 @@ function refreshMasterPreviewUI(){
   const available=masterBatchReady();
   $("master-preview-apply").disabled=!available;
   $("master-render-preflight").disabled=!available;
+  if(!available)masterPreviewReturn=null;
   $("master-preview-return").disabled=!masterPreviewReturn;
-  if(!available&&masterPreviewReturn)masterPreviewReturn=null;
   if(!available)$("master-preview-status").textContent=
     "MASTER 승인 후 8개 시점을 하나씩 검토할 수 있습니다.";
 }
@@ -2803,7 +2803,9 @@ function previewMasterCamera(){
   if(!consistency.ok)return notify("승인 장면과 현재 장면이 일치하지 않아 미리보기를 중단했습니다.");
   const bounds=new THREE.Box3().setFromObject(artRoot);
   if(bounds.isEmpty())return notify("작품 모델이 없어 시점을 만들 수 없습니다.");
-  const previews=createStandardCameras(approved.camera,bounds);
+  const approvedCamera={...approved.camera,
+    fov:Number.isFinite(approved.camera.fov)?approved.camera.fov:camera.fov};
+  const previews=createStandardCameras(approvedCamera,bounds);
   const selected=previews.find(view=>view.key===$("master-preview-view").value);
   if(!selected)return;
   if(!masterPreviewReturn)masterPreviewReturn={
