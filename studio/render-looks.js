@@ -1,5 +1,7 @@
 // v2.8 — render-only lighting recipes. No mesh/source/master edits.
 // WebGL PBR lighting, not path-traced or generative photorealism.
+export const NIGHT_SKY_COLOR=0x11192c;   // deep midnight blue, for browser render only
+export const NIGHT_KEY_COLOR=0xb6d0ff;   // cool moonlit directional illumination
 export const ARCHVIZ_LOOKS=Object.freeze({
   architectural:Object.freeze({
     label:"따뜻한 건축 주광",lightPreset:"clear",azimuth:48,elevation:43,
@@ -18,6 +20,12 @@ export const ARCHVIZ_LOOKS=Object.freeze({
     sun:2.8,ambient:.8,exposure:1.0,
     shadowProfile:"high",toneCurve:"neutral",sky:"cool",
     environmentMode:"bright",environmentIntensity:1.05
+  }),
+  night:Object.freeze({
+    label:"달빛이 비치는 야간",lightPreset:"night",azimuth:125,elevation:28,
+    sun:1.1,ambient:.48,exposure:1.1,
+    shadowProfile:"soft",toneCurve:"aces",sky:"cool",
+    environmentMode:"neutral",environmentIntensity:.55
   })
 });
 export const SHADOW_CONFIGS=Object.freeze({
