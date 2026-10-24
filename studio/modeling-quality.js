@@ -4,7 +4,7 @@ export const FRAME_MODES=Object.freeze(["sculpture","nearby","site"]);
 export const CAMERA_LENSES=Object.freeze([24,35,50,70]);
 export const TONE_CURVES=Object.freeze(["aces","neutral"]);
 export const SKY_BACKGROUNDS=Object.freeze(["cool","warm","white"]);
-export const SHADOW_PROFILES=Object.freeze(["balanced","high"]);
+export const SHADOW_PROFILES=Object.freeze(["balanced","high","soft"]);
 export const COMPOSITION_GUIDES=Object.freeze(["none","thirds","center","safe"]);
 export function validVisualSettings(v) {
   return !!v && typeof v==="object" &&
