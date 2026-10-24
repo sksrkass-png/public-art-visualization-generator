@@ -1885,6 +1885,11 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     const initialDl=productionPage.waitForEvent("download",{timeout:20000});
     await productionPage.locator("#export-json").click();
     const initialJSON=JSON.parse(fs.readFileSync(await (await initialDl).path(),"utf8"));
+    // A temporary ghost preview creates cloned materials with new UUIDs.
+    // PNG capture must restore it without falsely treating clones as source edits.
+    await productionPage.locator("#site-view-mode").selectOption("ghost");
+    await productionPage.locator("#site-view-apply").click();
+    assert.equal(await productionPage.locator("#site-view-mode").inputValue(),"ghost");
     const singleDl=productionPage.waitForEvent("download",{timeout:40000});
     await productionPage.locator("#shot-export").click();
     const single=fs.readFileSync(await (await singleDl).path());
