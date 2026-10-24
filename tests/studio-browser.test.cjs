@@ -1681,6 +1681,72 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       "approved MASTER must prevent option scene replacement");
     await recoveredPage.close();
     await visualPage.close();
+
+    // v2.7: optional context geometry, searchable palette, continuous placement,
+    // real-height calibration and portable source-preserving project restoration.
+    const contextPage=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
+    contextPage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await contextPage.goto("http://127.0.0.1:8787/studio/?panels=open",
+      {waitUntil:"domcontentloaded",timeout:60000});
+    const contextCanvas=contextPage.locator("#viewport canvas");
+    await contextCanvas.waitFor({timeout:30000});
+    await contextPage.waitForFunction(()=>document.querySelector("#context-search-count")?.textContent.includes("14 / 14"));
+    assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').isVisible(),true);
+    await contextPage.locator("#context-category").selectOption("street");
+    await contextPage.locator("#context-search").fill("승용차");
+    assert.equal(await contextPage.locator('[data-add-extra="grass-patch"]').isVisible(),false);
+    assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').isVisible(),true);
+    assert.match(await contextPage.locator("#context-search-count").textContent(),/1 \/ 14/);
+    await contextPage.locator('[data-view="aerial"]').click();
+    const cb=await contextCanvas.boundingBox();
+    assert.ok(cb);
+    const placeAt=async(x,y)=>contextPage.mouse.click(cb.x+cb.width*x,cb.y+cb.height*y);
+    await contextPage.locator("#placement-repeat").check();
+    await contextPage.locator('[data-add-extra="car-sedan"]').click();
+    await placeAt(.65,.82);
+    await contextPage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===1,
+      null,{timeout:15000});
+    await placeAt(.71,.82);
+    await contextPage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===2,
+      null,{timeout:15000});
+    await contextPage.keyboard.press("Escape");
+    await contextPage.locator("#placement-repeat").uncheck();
+    await contextPage.locator("#context-search").fill("");
+    await contextPage.locator("#context-category").selectOption("planting");
+    for(const [kind,x] of [["grass-patch",.53],["tree-birch",.59]]){
+      await contextPage.locator('[data-add-extra="'+kind+'"]').click();
+      await placeAt(x,.8);
+    }
+    await contextPage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===4,
+      null,{timeout:15000});
+    await contextPage.locator("#context-category").selectOption("street");
+    await contextPage.locator('[data-add-extra="bollard"]').click();
+    await placeAt(.62,.77);
+    await contextPage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===5,
+      null,{timeout:15000});
+    assert.equal(await contextPage.locator("#extra-fit-height").isEnabled(),true);
+    assert.match(await contextPage.locator("#extra-height-note").textContent(),/현재 3D 크기/);
+    await contextPage.locator("#extra-target-height").fill("1.4");
+    await contextPage.locator("#extra-fit-height").click();
+    assert.match(await contextPage.locator("#extra-height-note").textContent(),/1\.40/);
+    const contextDl=contextPage.waitForEvent("download",{timeout:30000});
+    await contextPage.locator("#export-json").click();
+    const contextPath=await (await contextDl).path();
+    const contextProject=JSON.parse(fs.readFileSync(contextPath,"utf8"));
+    assert.deepEqual(contextProject.extras.map(e=>e.kind),
+      ["car-sedan","car-sedan","grass-patch","tree-birch","bollard"]);
+    assert.ok(contextProject.extras[4].transform.s[0]>1.1,
+      "real-height scaling changes only chosen decorative object's transform");
+    await contextPage.locator("#site-preset").selectOption("empty");
+    await contextPage.locator("#import-json").setInputFiles(contextPath);
+    await contextPage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===5,
+      null,{timeout:20000});
+    await contextPage.locator("#extra-list button").last().click();
+    assert.match(await contextPage.locator("#extra-height-note").textContent(),/1\.40/);
+    await contextPage.locator("#master-lock").click();
+    assert.equal(await contextPage.locator("#extra-fit-height").isDisabled(),true,
+      "approved MASTER blocks decorative rescaling");
+    await contextPage.close();
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
