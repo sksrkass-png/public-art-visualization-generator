@@ -234,7 +234,7 @@ for(const id of ["visual-shadows","visual-tone","visual-sky","visual-guide",
   "visual-frame-status","visual-composition-overlay","visual-quality-check","visual-quality-status"])
  assert.ok(unique.has(id),"v2.0 modeling quality control missing: "+id);
 for(const m of ["sceneFrame(","applyVisualLook(","applyVisualGuide(","checkVisualQuality(",
- "currentVisualSettings(","sun.position.copy(sun.target.position)"])
+ "currentVisualSettings(","sun.position.copy(focus)"])
  assert.ok(js.includes(m),"v2.0 camera or sunlight behavior missing: "+m);
 assert.ok(html.includes('data-frame="nearby"'),"artist & context framing option");
 assert.ok(html.includes('data-visual-lens="50"'),"50mm lens option");
