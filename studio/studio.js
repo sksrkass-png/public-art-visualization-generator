@@ -40,6 +40,7 @@ import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, imp
 import {createSiteViewportController,normalizeSiteViewSettings} from "./site-viewport.js";
 import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js";
 import {isCanvasClick,navigationSpeeds,CLICK_TOLERANCE_PX} from "./navigation-ux.js";
+import {CAMERA_SLOTS,validCameraBookmarks,bookmarkCamera,savedCameraCount} from "./camera-bookmarks.js";
 import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity} from "./render-looks.js";
 import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel} from "./context-catalog.js";
 import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
@@ -174,6 +175,8 @@ let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
 const groupChecked=new Set();
 let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=null;
 const visualVariants={};
+const cameraBookmarks={};
+let masterPreviewReturn=null;
 let lastInstallationCheck=null;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
 let proposalBridge = null, collaborationBridge = null, revisionBridge = null, spatialBridge = null;
@@ -2398,6 +2401,7 @@ function sceneConfig() {
     extras: serializeExtras(extrasRoot),
     layers:structuredClone(layerState),
     visualVariants:structuredClone(visualVariants),
+    cameraBookmarks:structuredClone(cameraBookmarks),
     navSpeed: +$("nav-speed").value,
     lightPreset: $("light-preset").value,
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked },
@@ -2431,6 +2435,7 @@ function validateProjectConfig(data) {
       (data.layers !== undefined && !validateLayerState(data.layers)) ||
       (data.render !== undefined && !validRenderConfig(data.render)) ||
       (data.visualVariants !== undefined && !validStoredVisualVariants(data.visualVariants)) ||
+       (data.cameraBookmarks !== undefined && !validCameraBookmarks(data.cameraBookmarks)) ||
       (data.placementReference !== undefined && !validPlacementReference(data.placementReference)) ||
       (data.site.unit !== undefined && !Object.hasOwn(SITE_UNIT_TO_M,data.site.unit)) ||
       (data.site.up !== undefined && !["y","z"].includes(data.site.up)) ||
@@ -2556,6 +2561,10 @@ function importSceneConfig(data) {
   if(spatialBridge)spatialBridge.setState(data.spatialReview);
   for(const slot of VISUAL_SLOTS)delete visualVariants[slot];
   Object.assign(visualVariants,structuredClone(data.visualVariants||{}));
+  for(const slot of CAMERA_SLOTS)delete cameraBookmarks[slot];
+  Object.assign(cameraBookmarks,structuredClone(data.cameraBookmarks||{}));
+  masterPreviewReturn=null;
+  refreshCameraBookmarks();
   syncLock();
   refreshVisualSlots();
   clearUndo();
@@ -2737,12 +2746,113 @@ async function importProjectArchive(file) {
   }
 }
 
+// v2.9 camera-only bookmarks. They are independent from A/B/C scene variants.
+function currentCameraPose(){
+  return {position:camera.position.toArray(),target:orbit.target.toArray(),fov:camera.fov};
+}
+function setCameraOnly(pose){
+  camera.position.fromArray(pose.position);
+  orbit.target.fromArray(pose.target);
+  camera.fov=pose.fov;
+  const distance=camera.position.distanceTo(orbit.target);
+  orbit.maxDistance=Math.max(800,distance*3);
+  camera.near=Math.max(.02,Math.min(.5,distance/10000));
+  camera.far=Math.max(3000,distance*8);
+  camera.updateProjectionMatrix();
+  orbit.update();
+  $("camera-focal").value=String(Math.round(camera.getFocalLength()));
+  $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
+  updateNavigationSpeed();
+}
+function refreshCameraBookmarks(){
+  $("camera-bookmarks-status").textContent="시점 "+savedCameraCount(cameraBookmarks)+"/3 저장됨"+
+    (approvedMaster?" · 승인 중에도 카메라만 조정 가능":"");
+  document.querySelectorAll("[data-camera-load]").forEach(button=>{
+    button.disabled=!cameraBookmarks[button.dataset.cameraLoad];
+  });
+}
+function saveCameraBookmark(slot){
+  try{
+    const result=bookmarkCamera(cameraBookmarks,slot,currentCameraPose());
+    Object.assign(cameraBookmarks,result);
+    refreshCameraBookmarks();
+    notify("카메라 "+slot+"번 시점 저장 · 프로젝트 JSON/ZIP에도 포함됩니다.");
+  }catch(error){notify(error.message);}
+}
+function loadCameraBookmark(slot){
+  const pose=cameraBookmarks[slot];
+  if(!pose)return notify("카메라 "+slot+"번에 저장된 시점이 없습니다.");
+  masterPreviewReturn=null;
+  setCameraOnly(pose);
+  refreshMasterPreviewUI();
+  notify("카메라 "+slot+"번 시점 복원 · 작품·현장·MASTER 변경 없음");
+}
+function refreshMasterPreviewUI(){
+  const available=masterBatchReady();
+  $("master-preview-apply").disabled=!available;
+  $("master-render-preflight").disabled=!available;
+  if(!available)masterPreviewReturn=null;
+  $("master-preview-return").disabled=!masterPreviewReturn;
+  if(!available)$("master-preview-status").textContent=
+    "MASTER 승인 후 8개 시점을 하나씩 검토할 수 있습니다.";
+}
+function previewMasterCamera(){
+  if(!masterBatchReady())return notify("MASTER VIEW 승인 후 미리볼 수 있습니다.");
+  const approved=masterSnapshots[masterSnapshots.length-1];
+  const consistency=masterConsistency(approved,baselineForMaster());
+  if(!consistency.ok)return notify("승인 장면과 현재 장면이 일치하지 않아 미리보기를 중단했습니다.");
+  const bounds=new THREE.Box3().setFromObject(artRoot);
+  if(bounds.isEmpty())return notify("작품 모델이 없어 시점을 만들 수 없습니다.");
+  const approvedCamera={...approved.camera,
+    fov:Number.isFinite(approved.camera.fov)?approved.camera.fov:camera.fov};
+  const previews=createStandardCameras(approvedCamera,bounds);
+  const selected=previews.find(view=>view.key===$("master-preview-view").value);
+  if(!selected)return;
+  if(!masterPreviewReturn)masterPreviewReturn={
+    pose:currentCameraPose(),near:camera.near,far:camera.far,maxDistance:orbit.maxDistance
+  };
+  setCameraOnly(selected);
+  $("master-preview-status").textContent="미리보기 "+selected.label+
+    " · 승인 작품·배치·재질 변경 없음";
+  refreshMasterPreviewUI();
+}
+function returnFromMasterPreview(){
+  const saved=masterPreviewReturn;
+  if(!saved)return;
+  setCameraOnly(saved.pose);
+  camera.near=saved.near;
+  camera.far=saved.far;
+  orbit.maxDistance=saved.maxDistance;
+  camera.updateProjectionMatrix();orbit.update();
+  masterPreviewReturn=null;
+  $("master-preview-status").textContent="미리보기 전 카메라로 복귀 · MASTER 변경 없음";
+  refreshMasterPreviewUI();
+}
+function preflightMasterRender(){
+  if(!masterBatchReady())return;
+  const master=masterSnapshots[masterSnapshots.length-1];
+  const consistency=masterConsistency(master,baselineForMaster());
+  const bounds=new THREE.Box3().setFromObject(artRoot);
+  const valid=!bounds.isEmpty()&&consistency.ok;
+  const render=targetSize(viewport.clientWidth,viewport.clientHeight,"landscape16x9",
+    Number($("batch-quality").value),renderer.capabilities.maxTextureSize,14000000);
+  $("master-render-preflight-status").textContent=[
+    (valid?"✓ MASTER 승인본 일치":"⚠ MASTER 승인본 불일치"),
+    "출력 예정 8장 · "+render.width+" × "+render.height+"px (16:9)",
+    siteSourceFile?"실제 현장 모델 확인됨":"예시 현장 — 실제 현장 파일 권장",
+    artSourceFile?"실제 작품 파일 확인됨":"샘플 작품 — 원본 작품 파일 권장",
+    render.limited?"GPU 제한으로 출력 크기 축소됨":"GPU 출력 크기 범위 내",
+    "WebGL 이미지이며 현장 실측·안전성은 별도 확인 필요",
+    ...consistency.issues
+  ].join(" · ");
+}
 function masterBatchReady() {
   return approvedMaster && masterSnapshots.length > 0;
 }
 function syncBatchAvailability(){
   $("export-master-pack").disabled = !masterBatchReady();
   if(!masterBatchReady())$("batch-status").textContent="먼저 MASTER VIEW를 승인하면 일괄 출력할 수 있습니다.";
+  refreshMasterPreviewUI();
 }
 function baselineForMaster(){
   return {
@@ -3436,9 +3546,23 @@ $("master-lock").addEventListener("click", () => {
   syncLock();
   renderMasterHistory();
   syncBatchAvailability();
+  masterPreviewReturn=null;
+  refreshMasterPreviewUI();
   notify(approvedMaster ? "MASTER VIEW 승인 · 작품, 현장, 카메라 기준 저장" : "MASTER LOCK 해제 · Revision " + revision);
 });
-$("restore-master-camera").addEventListener("click", () => restoreMasterCamera(masterSnapshots.length - 1));
+$("restore-master-camera").addEventListener("click", () => {
+  masterPreviewReturn=null;restoreMasterCamera(masterSnapshots.length - 1);refreshMasterPreviewUI();
+});
+document.querySelectorAll("[data-camera-save]").forEach(b=>
+  b.addEventListener("click",()=>saveCameraBookmark(b.dataset.cameraSave)));
+document.querySelectorAll("[data-camera-load]").forEach(b=>
+  b.addEventListener("click",()=>loadCameraBookmark(b.dataset.cameraLoad)));
+$("master-preview-apply").addEventListener("click",previewMasterCamera);
+$("master-preview-return").addEventListener("click",returnFromMasterPreview);
+$("master-render-preflight").addEventListener("click",preflightMasterRender);
+$("batch-quality").addEventListener("change",()=>{
+  if(masterBatchReady())preflightMasterRender();
+});
 $("undo").addEventListener("click", undo);
 $("redo").addEventListener("click", redo);
 ["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure", "shadows"]
@@ -3685,6 +3809,8 @@ applyEnvironment();
 restoreRenderConfig(null);
 fitCamera();
 updateNavigationSpeed();
+refreshCameraBookmarks();
+refreshMasterPreviewUI();
 refreshContextPalette();
 syncContextHeightUI();
 checkVisualQuality();

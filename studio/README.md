@@ -1,4 +1,14 @@
-# AXOO Public Art 3D Studio — v2.8
+# AXOO Public Art 3D Studio — v2.9
+
+## v2.9 — camera-only saved viewpoints & MASTER eight-shot review
+
+- **Three camera bookmarks** capture only the current world camera position, orbit target and vertical field of view. They are independent of A/B/C visual design alternatives, editable objects, scene locks and MASTER camera approval. Saved in new optional `cameraBookmarks` field in the existing project JSON and ZIP; older archives lacking that field import as three empty slots. Invalid/unsafe bookmarks are rejected before import.
+- **Non-destructive eight-shot preview** uses the same `createStandardCameras` algorithm as approved MASTER 8-view ZIP export, for all eight views including eye-level, aerial and rear. The preview is restricted to approved MASTER and a matching scene, keeps the original camera in temporary memory, and provides a single return button. It never resaves or modifies MASTER, artwork, imported site or textures.
+- **Preflight for eight-shot export** reports actual versus example source models, master approval/source consistency, GPU-constrained 16:9 dimensions and the difference between Three.js PBR imagery and verified site survey / structure checks. The existing batch exporter continues to compare in-memory scene signatures and refuses changed scenes before writing ZIP.
+- **Camera reloading/preview** adjusts clipping to keep remote, large-scale OBJ sites navigable; no artwork/object scale is changed. The approved camera embedded in MASTER remains the anchor for final eight-view output; personal camera favorites do not override it.
+- Tests include `node tests/studio-camera-bookmarks.test.cjs`, full static checks and Chromium end-to-end camera save/import, master preview, render preflight and exact camera-return tests.
+
+
 
 ## v2.8 — architectural WebGL/PBR render refinement
 

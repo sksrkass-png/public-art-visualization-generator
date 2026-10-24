@@ -353,3 +353,15 @@
 .render-look-buttons button:hover{border-color:#abb5af;background:#eaf0ec}
 .render-look-buttons button:focus-visible{outline:2px solid #7d9a87;outline-offset:2px}
 #render-look-status{line-height:1.55}
+
+/* v2.9 camera-only favorites and MASTER review controls */
+.camera-bookmarks{display:grid;gap:6px;margin:8px 0}
+.camera-bookmarks>div{display:grid;grid-template-columns:minmax(0,1fr) auto auto;
+  align-items:center;gap:8px;padding:7px 8px;border:1px solid #e0e2e0;border-radius:6px;background:#f8f9f8}
+.camera-bookmarks span{font-size:12px;font-weight:600}
+.camera-bookmarks button{padding:6px 9px;border-radius:4px;border:1px solid #cbd1ce;background:#fff;
+  color:#242b2b;cursor:pointer;font:inherit;font-size:11px}
+.camera-bookmarks button:disabled{opacity:.35;cursor:default}
+.master-preview-actions{display:flex;gap:6px;align-items:stretch;margin:8px 0}
+.master-preview-actions button{min-width:0;font-size:11px}
+#master-preview-view{width:100%}
