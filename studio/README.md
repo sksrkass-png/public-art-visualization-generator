@@ -1,4 +1,16 @@
-# AXOO Public Art 3D Studio — v2.6
+# AXOO Public Art 3D Studio — v2.7
+
+## v2.7 — source-safe planting, people, street furniture and vehicle assets
+
+- Introduces a searchable and category-filtered built-in catalog with 14 entries: existing planting, people, street objects and lights, plus **birch tree**, **1.8m grass patch**, **4.5m sedan** and **safety bollard**. Procedural forms are clearly schematic, not licensed photogrammetry. Grass uses a single lightweight, groundless blade mesh so it does not overwrite original paving or landscape.
+- **Continuous placement** is opt-in via checkbox. Click repeatedly on eligible site surfaces to place independent assets; Escape cancels. Placement continues to honor site surface picking and approved MASTER/layer locks.
+- **External GLB library** stays opt-in and local: a visible toggle opens the established GLB import panel even in compact mode. Includes new vehicle category, original source dimensions and triangle counts. Existing GLB ZIP manifest and size limits are preserved.
+- **Real-world height adjustment** acts on a selected editable context extra only, uniformly scaling its root group while keeping the original source mesh/tree and all other objects untouched. Valid targets 0.1–40 metres; invalid or locked adjustments are blocked. Existing XYZ inspector still shows W×H×D in metres.
+- New assets and proportional scales round-trip through the existing project JSON/ZIP. Preserves old extra types, appearance versions, existing source GLB files, camera snapshots and MASTER safety.
+- Static regression: `node tests/studio-context-catalog.test.cjs`. Chromium smoke covers searchable catalog, continuous placement, restored context transforms, real-height scale and MASTER lock.
+- Accurate final botanical / vehicle visuals require professionally prepared licensed GLB assets. Built-in geometry is a lightweight scale-planning reference, not an AI photorealistic engine.
+
+
 
 ## v2.6 — modeling navigation & precise viewport selection
 
