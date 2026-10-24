@@ -1,4 +1,14 @@
-# AXOO Public Art 3D Studio — v3.0
+# AXOO Public Art 3D Studio — v3.0.1
+
+## v3.0.1 — moonlit ARCHVIZ preset and clearly labeled control panels
+
+- Four one-click ARCHVIZ lighting presets: warm daylight, overcast daylight, sculptural definition, and **🌙 달빛이 비치는 야간**. Night mode uses a dark midnight-blue clear color, cooler low-level directional moonlight, reduced HDR environment and softer shadows. All lighting remains browser-only; **it does not insert streetlamps, building fixtures or modify original sculptural geometry/materials, buildings or landscaping.**
+- The same night color/lighting is reproduced in independent A/B/C staged previews. Night render intent (`lightPreset`) is explicitly saved with approved MASTER snapshots and restored when creating MASTER 8-view render packs and reverting to a saved MASTER camera. Older saved MASTER snapshots without the new optional field remain accepted.
+- Top-level inspector accordion headings and main scene/workflow panel titles now begin with distinct task-meaningful emoji (lighting 💡, layers 🗺️, camera 📷, MASTER 🎞️, material 🪨, site 🏙️, source ZIP 💾, etc.), while preserving all existing section names, DOM IDs, controls, keyboard bindings and data formats.
+- The selected one-click preset is visually emphasized and exposes a stateful `aria-pressed` attribute for accessibility; manual sunlight preset changes clear the indicator.
+- Automated tests cover recipe bounds, panel titles, real day-vs-night WebGL PNG differences, project JSON round-trip, approved MASTER lighting persistence and lock protection. Night mode is a stylized lighting simulation, not a physically calibrated nighttime light study.
+
+
 
 ## v3.0 — production stabilization and public-art review preparation
 
