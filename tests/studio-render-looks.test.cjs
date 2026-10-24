@@ -2,10 +2,10 @@ const fs=require("node:fs"),path=require("node:path"),vm=require("node:vm"),asse
 const src=fs.readFileSync(path.join(__dirname,"../studio/render-looks.js"),"utf8");
 const scope={Object,Number,Math,Array,Error};
 vm.runInNewContext(src.replace(/\bexport\s+/g,"")+
-  "\nthis.api={ARCHVIZ_LOOKS,SHADOW_CONFIGS,renderShadowSettings,fillLightIntensity};",scope);
-const {ARCHVIZ_LOOKS,SHADOW_CONFIGS,renderShadowSettings,fillLightIntensity}=scope.api;
-assert.equal(Object.keys(ARCHVIZ_LOOKS).length,3);
-assert.ok(["architectural","soft","detail"].every(key=>!!ARCHVIZ_LOOKS[key]));
+  "\nthis.api={ARCHVIZ_LOOKS,SHADOW_CONFIGS,renderShadowSettings,fillLightIntensity,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR};",scope);
+const {ARCHVIZ_LOOKS,SHADOW_CONFIGS,renderShadowSettings,fillLightIntensity,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR}=scope.api;
+assert.equal(Object.keys(ARCHVIZ_LOOKS).length,4);
+assert.ok(["architectural","soft","detail","night"].every(key=>!!ARCHVIZ_LOOKS[key]));
 for(const preset of Object.values(ARCHVIZ_LOOKS)){
   assert.ok(preset.elevation>=5 && preset.elevation<=85,"daytime sun elevation");
   assert.ok(preset.sun>=0 && preset.sun<=5,"render-only sun range");
@@ -33,6 +33,23 @@ const stage=fs.readFileSync(path.join(__dirname,"../studio/visual-option-render.
 for(const key of Object.keys(ARCHVIZ_LOOKS))assert.match(html,
   new RegExp('data-render-look="'+key+'"'));
 assert.match(html,/value="soft"/);
+assert.ok(html.includes('data-render-look="night"'));
+assert.ok(html.includes("🌗 ARCHVIZ · 원클릭 주·야간 룩"));
+assert.ok(html.includes("🧰 조작 패널"));
+assert.ok(html.includes("🎞️ MASTER 8-VIEW RENDER"));
+assert.ok(html.includes("🗺️ SCENE LAYERS / 레이어"));
+assert.equal(ARCHVIZ_LOOKS.night.lightPreset,"night");
+assert.ok(ARCHVIZ_LOOKS.night.sun>0 && ARCHVIZ_LOOKS.night.sun<ARCHVIZ_LOOKS.architectural.sun);
+assert.ok(ARCHVIZ_LOOKS.night.ambient<ARCHVIZ_LOOKS.architectural.ambient);
+assert.ok(ARCHVIZ_LOOKS.night.environmentIntensity<ARCHVIZ_LOOKS.architectural.environmentIntensity);
+assert.notEqual(NIGHT_SKY_COLOR,0xdce0e2);
+assert.notEqual(NIGHT_KEY_COLOR,0xfff7e6);
+assert.match(app,/saved.lightPreset/);
+assert.match(app,/master.lightPreset/);
+assert.match(app,/NIGHT_SKY_COLOR/);
+assert.match(app,/NIGHT_KEY_COLOR/);
+assert.match(stage,/NIGHT_SKY_COLOR/);
+assert.match(stage,/NIGHT_KEY_COLOR/);
 assert.match(app,/lastSunArtworkPosition/);
 assert.match(app,/renderShadowSettings\(/);
 assert.match(stage,/renderShadowSettings\(/);
