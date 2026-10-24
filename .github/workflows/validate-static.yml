@@ -44,6 +44,7 @@ jobs:
           node --check studio/context-catalog.js
           node --check studio/render-looks.js
           node --check studio/camera-bookmarks.js
+          node --check studio/production-qa.js
           node --check studio/visual-workflow.js
           node --check studio/visual-option-render.js
       - name: Run JSON import regression tests
@@ -62,4 +63,5 @@ jobs:
           node tests/studio-context-catalog.test.cjs
           node tests/studio-render-looks.test.cjs
           node tests/studio-camera-bookmarks.test.cjs
+          node tests/studio-production-qa.test.cjs
           node tests/studio-visual-workflow.test.cjs

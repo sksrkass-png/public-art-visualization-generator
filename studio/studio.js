@@ -41,6 +41,7 @@ import {createSiteViewportController,normalizeSiteViewSettings} from "./site-vie
 import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js";
 import {isCanvasClick,navigationSpeeds,CLICK_TOLERANCE_PX} from "./navigation-ux.js";
 import {CAMERA_SLOTS,validCameraBookmarks,bookmarkCamera,savedCameraCount} from "./camera-bookmarks.js";
+import {sceneFootprint,productionReport,verifyPngCapture,assertRendererAvailable} from "./production-qa.js";
 import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity} from "./render-looks.js";
 import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel} from "./context-catalog.js";
 import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
@@ -177,7 +178,7 @@ let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=
 const visualVariants={};
 const cameraBookmarks={};
 let masterPreviewReturn=null;
-let lastInstallationCheck=null;
+let lastInstallationCheck=null,lastProductionAudit=null;
 let layerState = defaultLayerState(), pendingSiteLayers = null, siteHighlight = null;
 let proposalBridge = null, collaborationBridge = null, revisionBridge = null, spatialBridge = null;
 const assetLibrary=new Map();
@@ -1124,6 +1125,45 @@ function sceneFrame(mode){
     {sculpture:"작품 중심",nearby:"작품 + 근거리 환경",site:"전체 현장"}[mode]+
     " · 카메라 거리 "+allowed.toFixed(1)+"m"+
     (settings.limited?" · 초대형 OBJ 프레이밍 안전 상한 적용":"");
+}
+// v3.0 — independent model/report inspection; no modifications to source,
+ // editable user groups, master approval or render configuration.
+function currentProductionAudit(){
+  const master=masterSnapshots[masterSnapshots.length-1];
+  const size=targetSize(viewport.clientWidth,viewport.clientHeight,
+    "landscape16x9",Number($("batch-quality").value),
+    renderer.capabilities.maxTextureSize,14000000);
+  const site=sceneFootprint(siteRoot),artwork=sceneFootprint(artRoot),
+    extras=sceneFootprint(extrasRoot);
+  return productionReport({
+    project:$("project-name").value,
+    siteModel:!!siteSourceFile,artworkModel:!!artSourceFile,
+    masterApproved:approvedMaster,
+    masterMatches:!!master&&masterConsistency(master,baselineForMaster()).ok,
+    site,artwork,extras,
+    output:size,gpuContextLost:!!renderer.getContext()?.isContextLost?.()
+  });
+}
+function runProductionAudit(){
+  const report=currentProductionAudit();
+  lastProductionAudit=report;
+  const state={blocked:"출력 전 확인 필수",review:"실제 원본·성능 추가 확인",
+    candidate:"사내 시안 기술 점검 통과"}[report.state];
+  $("production-audit-summary").textContent=[
+    state,
+    ...report.blockers.map(s=>"⚠ "+s),
+    ...report.warnings.map(s=>"• "+s),
+    "주의: 사내 렌더 작업 점검이며 법적·구조 안전 인증이 아닙니다."
+  ].join("\n");
+  $("production-audit-metrics").textContent=
+    "현장 "+report.metrics.site.meshes+"개 메시 / "+
+      report.metrics.site.triangles.toLocaleString()+" tris · 작품 "+
+      report.metrics.artwork.meshes+"개 메시 · 전체 "+
+      report.metrics.totalTriangles.toLocaleString()+" tris · "+
+      "MASTER 8컷 PNG "+report.metrics.output.width+" × "+
+      report.metrics.output.height+"px";
+  $("production-audit-export").disabled=false;
+  return report;
 }
 function checkVisualQuality(){
   const size=targetSize(viewport.clientWidth,viewport.clientHeight,
@@ -2940,6 +2980,7 @@ async function exportVisualOptions(){
   const images=[],zip=new JSZip();
   let failure=null;
   try{
+    assertRendererAvailable(renderer);
     renderer.setPixelRatio(1);
     renderer.setSize(size.width,size.height,false);
     for(const slot of slots){
@@ -2959,7 +3000,7 @@ async function exportVisualOptions(){
         stage.camera.updateProjectionMatrix();
         renderer.render(stage.scene,stage.camera);
         const png=renderer.domElement.toDataURL("image/png");
-        if(!png.startsWith("data:image/png;base64,"))throw Error(slot+"안 PNG 렌더링 오류");
+        verifyPngCapture(png,size.width,size.height);
         zip.file(slot+"-visual.png",png.split(",")[1],{base64:true});
         images.push([slot,png]);
       }finally{stage.release();}
@@ -3087,6 +3128,7 @@ async function exportMasterPack() {
   $("export-master-pack").disabled=true;
   $("batch-status").textContent="MASTER 8컷 렌더 준비 중…";
   try{
+    assertRendererAvailable(renderer);
     // Image capture is synchronous so the user's edit state cannot interleave.
     for(const [id,value] of Object.entries(master.lighting || {})){
       if(lights[id]!==undefined && Number.isFinite(value))$(id).value=String(value);
@@ -3123,7 +3165,7 @@ async function exportMasterPack() {
       camera.updateMatrixWorld(true);
       renderer.render(scene,camera);
       const data=renderer.domElement.toDataURL("image/png");
-      if(!data.startsWith("data:image/png;base64,"))throw Error("PNG 생성 실패: "+view.key);
+      verifyPngCapture(data,size.width,size.height);
       const file=view.key+".png";
       zip.file(file,data.split(",")[1],{base64:true});
       files.push([file,data]);
@@ -3208,7 +3250,12 @@ async function exportMasterPack() {
   }
 }
 function exportImage() {
+  // Suspension removes editor-only ghost/section materials. Compare source
+  // identities in that suspended state, not ephemeral preview clone UUIDs.
   const restoreSitePreview=siteViewport.suspend();
+  const sceneBefore=captureSceneIntegrity({
+    artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState
+  });
   const w=Math.max(1,Math.round(viewport.clientWidth));
   const h=Math.max(1,Math.round(viewport.clientHeight));
   const originalRatio=renderer.getPixelRatio();
@@ -3218,8 +3265,14 @@ function exportImage() {
   const originalSun=sunGuide.visible;
   const originalHighlight=siteHighlight?.visible;
   const originalSelection=selectionOutline.visible;
+  const editorIcons=[];
+  extrasRoot.traverse(obj=>{
+    if(obj.userData.editorOnly)editorIcons.push([obj,obj.visible]);
+  });
+  let png=null,size=null,captureFailure=null,sceneAfter=null;
   try {
-    const size=targetSize(w,h,$("render-aspect").value,
+    assertRendererAvailable(renderer);
+    size=targetSize(w,h,$("render-aspect").value,
       Number($("render-resolution").value),renderer.capabilities.maxTextureSize);
     renderer.setPixelRatio(1);
     renderer.setSize(size.width,size.height,false);
@@ -3231,31 +3284,42 @@ function exportImage() {
     if(siteHighlight)siteHighlight.visible=false;
     setEditorGizmosVisible(extrasRoot,false);
     selectionOutline.visible=false;
+    assertRendererAvailable(renderer);
     renderer.render(scene,camera);
-    const png=renderer.domElement.toDataURL("image/png");
-    if(!png.startsWith("data:image/png;base64,"))throw Error("PNG 데이터를 만들지 못했습니다.");
-    const link=document.createElement("a");
-    link.href=png;
-    link.download=safeFileName()+"-"+size.width+"x"+size.height+".png";
-    document.body.appendChild(link);link.click();link.remove();
-    notify("작품·현장 변형 없이 "+size.width+" × "+size.height+" PNG를 저장했습니다."+
-      (size.limited?" (GPU 한도에 맞춰 축소)":""));
+    png=renderer.domElement.toDataURL("image/png");
+    verifyPngCapture(png,size.width,size.height);
   }catch(error){
+    captureFailure=error;
     console.error(error);
-    notify("고해상도 렌더 실패: "+(error.message||"GPU 메모리/출력 설정 확인"));
   }finally{
     grid.visible=originalGrid;
     transform.getHelper().visible=originalHelper;
     sunGuide.visible=originalSun;
     if(siteHighlight)siteHighlight.visible=originalHighlight;
     selectionOutline.visible=originalSelection;
-    setEditorGizmosVisible(extrasRoot,true);
+    // Do not turn on formerly hidden light markers/layer editor objects.
+    for(const [node,wasVisible] of editorIcons)node.visible=wasVisible;
     camera.aspect=originalAspect;
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(originalRatio);
     renderer.setSize(w,h,false);
-    restoreSitePreview();
+    try{
+      sceneAfter=captureSceneIntegrity({
+        artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState
+      });
+    }finally{restoreSitePreview();}
   }
+  if(captureFailure){
+    return notify("고해상도 렌더 실패: "+(captureFailure.message||"GPU 메모리/출력 설정 확인"));
+  }
+  if(sceneBefore!==sceneAfter)
+    return notify("PNG 출력 차단: 조형물·현장·선택 상태 복원 검증에 실패했습니다.");
+  const link=document.createElement("a");
+  link.href=png;
+  link.download=safeFileName()+"-"+size.width+"x"+size.height+".png";
+  document.body.appendChild(link);link.click();link.remove();
+  notify("원본 작품·현장 보존 검증 통과 · "+size.width+" × "+size.height+
+    " PNG 저장 완료"+(size.limited?" (GPU 한도에 맞춰 축소)":""));
 }
 async function exportGLB() {
   const restoreSitePreview=siteViewport.suspend();
@@ -3575,6 +3639,13 @@ $("focus-selected-quick").addEventListener("click",focusCurrentSelection);
 $("focus-site-quick").addEventListener("click",focusImportedSite);
 $("focus").addEventListener("click", fitCamera);
 $("project-quick-save").addEventListener("click",()=>$("export-project").click());
+$("production-audit-run").addEventListener("click",runProductionAudit);
+$("production-audit-export").addEventListener("click",()=>{
+  const report=runProductionAudit();
+  download(safeFileName()+"-v3-production-audit.json",
+    new Blob([JSON.stringify({...report,generatedAt:new Date().toISOString()},null,2)],
+      {type:"application/json"}));
+});
 $("installation-check").addEventListener("click",()=>{
   try{assessInstallation();}catch(e){$("installation-check-status").textContent=e.message;}
 });

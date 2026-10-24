@@ -365,3 +365,11 @@
 .master-preview-actions{display:flex;gap:6px;align-items:stretch;margin:8px 0}
 .master-preview-actions button{min-width:0;font-size:11px}
 #master-preview-view{width:100%}
+
+/* v3.0: compact, opt-in field-project diagnostics. */
+.production-audit{margin:12px 0;border:1px solid #d8dfd8;border-radius:7px;background:#f7f9f6;padding:10px}
+.production-audit>summary{font-size:12px;font-weight:700;cursor:pointer;list-style-position:inside}
+.production-audit[open]>summary{margin-bottom:8px}
+#production-audit-summary{white-space:pre-line;line-height:1.6}
+#production-audit-metrics{font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.production-audit button{margin:7px 0}

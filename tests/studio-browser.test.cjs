@@ -1861,6 +1861,54 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.deepEqual(afterPreview.artwork,beforePreview.artwork);
     assert.deepEqual(afterPreview.masterSnapshots,beforePreview.masterSnapshots);
     await cameraPage.close();
+
+    // v3.0 production audits are read-only, and a single PNG export must
+    // preserve the exact source scene, approved master and camera pose.
+    const productionPage=await browser.newPage({viewport:{width:1320,height:840},acceptDownloads:true});
+    productionPage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await productionPage.goto("http://127.0.0.1:8787/studio/?panels=open",
+      {waitUntil:"domcontentloaded",timeout:60000});
+    await productionPage.locator("#viewport canvas").waitFor({timeout:30000});
+    await productionPage.locator("#production-audit").evaluate(el=>el.open=true);
+    await productionPage.locator("#production-audit-run").click();
+    assert.match(await productionPage.locator("#production-audit-summary").textContent(),/MASTER VIEW 미승인/);
+    assert.match(await productionPage.locator("#production-audit-summary").textContent(),/실제 현장/);
+    assert.match(await productionPage.locator("#production-audit-metrics").textContent(),/MASTER 8컷 PNG/);
+    const reportDl=productionPage.waitForEvent("download",{timeout:20000});
+    await productionPage.locator("#production-audit-export").click();
+    const reportJSON=JSON.parse(fs.readFileSync(await (await reportDl).path(),"utf8"));
+    assert.equal(reportJSON.schema,"axoo-production-audit-v3");
+    assert.equal(reportJSON.state,"blocked");
+    assert.ok(reportJSON.metrics.totalMeshes>0);
+    assert.ok(reportJSON.metrics.totalTriangles>0);
+    assert.ok(reportJSON.generatedAt);
+    const initialDl=productionPage.waitForEvent("download",{timeout:20000});
+    await productionPage.locator("#export-json").click();
+    const initialJSON=JSON.parse(fs.readFileSync(await (await initialDl).path(),"utf8"));
+    // A temporary ghost preview creates cloned materials with new UUIDs.
+    // PNG capture must restore it without falsely treating clones as source edits.
+    await productionPage.locator("#site-view-mode").selectOption("ghost");
+    await productionPage.locator("#site-view-apply").click();
+    assert.equal(await productionPage.locator("#site-view-mode").inputValue(),"ghost");
+    const singleDl=productionPage.waitForEvent("download",{timeout:40000});
+    await productionPage.locator("#shot-export").click();
+    const single=fs.readFileSync(await (await singleDl).path());
+    assert.equal(single.toString("ascii",1,4),"PNG");
+    assert.ok(single.readUInt32BE(16)>0&&single.readUInt32BE(20)>0);
+    const resultDl=productionPage.waitForEvent("download",{timeout:20000});
+    await productionPage.locator("#export-json").click();
+    const afterPNG=JSON.parse(fs.readFileSync(await (await resultDl).path(),"utf8"));
+    assert.deepEqual(afterPNG.artwork,initialJSON.artwork);
+    assert.deepEqual(afterPNG.site,initialJSON.site);
+    assert.deepEqual(afterPNG.extras,initialJSON.extras);
+    assert.deepEqual(afterPNG.camera,initialJSON.camera);
+    assert.deepEqual(afterPNG.render,initialJSON.render);
+    await productionPage.locator("#master-lock").click();
+    await productionPage.locator("#production-audit-run").click();
+    const approvedStatus=await productionPage.locator("#production-audit-summary").textContent();
+    assert.doesNotMatch(approvedStatus,/MASTER VIEW 미승인/);
+    assert.match(approvedStatus,/실제 현장/,"sample site should not be represented as real");
+    await productionPage.close();
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
