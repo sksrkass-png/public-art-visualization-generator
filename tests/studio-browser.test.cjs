@@ -1553,23 +1553,24 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(Buffer.compare(selectedRender,clearRender),0,
       "editor-only yellow box must never change official exported PNG bytes");
     await focusPage.locator("#select-artwork").click();
-    // v2.6: right-button panning must not clear the selected artwork.
+    // v2.6: 2px pointer jitter must count as a click on the verified empty
+    // corner *before* the camera is panned (the artwork may move onscreen).
     const uxCanvas=await focusPage.locator("#viewport canvas").boundingBox();
     assert.ok(uxCanvas);
+    await focusPage.mouse.move(uxCanvas.x+16,uxCanvas.y+16);
+    await focusPage.mouse.down({button:"left"});
+    await focusPage.mouse.move(uxCanvas.x+18,uxCanvas.y+18);
+    await focusPage.mouse.up({button:"left"});
+    assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"no",
+      "small pointer jitter in verified empty space clears the selection");
+    await focusPage.locator("#select-artwork").click();
+    // Right-button panning must preserve the active selection.
     await focusPage.mouse.move(uxCanvas.x+32,uxCanvas.y+32);
     await focusPage.mouse.down({button:"right"});
     await focusPage.mouse.move(uxCanvas.x+115,uxCanvas.y+52,{steps:5});
     await focusPage.mouse.up({button:"right"});
     assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"yes",
       "right mouse navigation preserves the selection/gizmo");
-    // 3-4px left-click jitter is a click, not a drag; it clears selection on site/sky.
-    await focusPage.mouse.move(uxCanvas.x+24,uxCanvas.y+24);
-    await focusPage.mouse.down({button:"left"});
-    await focusPage.mouse.move(uxCanvas.x+27,uxCanvas.y+28);
-    await focusPage.mouse.up({button:"left"});
-    assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"no",
-      "a five-pixel pointer jitter still counts as an empty-scene click");
-    await focusPage.locator("#select-artwork").click();
     await focusPage.keyboard.press("Escape");
     assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"no");
     const objBuffer=Buffer.from([
