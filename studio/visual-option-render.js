@@ -3,6 +3,7 @@ import {restoreExtras,setEditorGizmosVisible} from "./extras.js";
 import {applyLayerVisibility} from "./layers.js";
 import {makeMaterial} from "./rendering.js";
 import {cameraFocusSettings} from "./camera-focus.js";
+import {renderShadowSettings,fillLightIntensity} from "./render-looks.js";
 
 // v2.5: stage different visual options in a separate THREE.Scene. The user
 // scene's object identities, original geometry, materials and MASTER are untouched.
@@ -53,18 +54,32 @@ export function createVisualOptionStage({
     option.lightPreset==="golden"?0xffc489:0xfff7e6,
     option.lighting["sun-strength"]??2.4);
   sun.castShadow=!!option.shadows;
-  // Compare mode caps temporary shadow maps to protect limited WebGL devices.
-  sun.shadow.mapSize.set(2048,2048);
-  const center=new THREE.Box3().setFromObject(artCopy).getCenter(new THREE.Vector3());
-  const diameter=new THREE.Box3().setFromObject(artCopy).getSize(new THREE.Vector3()).length();
-  const reach=Math.min(110,Math.max(8,diameter*2.1+7));
-  Object.assign(sun.shadow.camera,{left:-reach,right:reach,top:reach,bottom:-reach,
-    near:.5,far:Math.max(180,reach*3)});
+  // Keep A/B/C options consistent with v2.8 live shadow profiles.
+  // Bound temporary maps to avoid multiplying transient GPU memory use.
+  const artBounds=new THREE.Box3().setFromObject(artCopy);
+  const center=artBounds.getCenter(new THREE.Vector3());
+  const dims=artBounds.getSize(new THREE.Vector3());
+  const diameter=dims.length();
+  const shadow=renderShadowSettings({width:dims.x,height:dims.y,depth:dims.z,
+    profile:option.render?.visual?.shadowProfile||"balanced",maxTextureSize:3072});
+  sun.shadow.mapSize.set(shadow.resolution,shadow.resolution);
+  Object.assign(sun.shadow.camera,{
+    left:-shadow.reach,right:shadow.reach,top:shadow.reach,bottom:-shadow.reach,
+    near:shadow.near,far:shadow.far
+  });
+  sun.shadow.bias=shadow.bias;
+  sun.shadow.normalBias=shadow.normalBias;
+  sun.shadow.radius=shadow.radius;
   sun.shadow.camera.updateProjectionMatrix();
-  sun.position.copy(center).add(new THREE.Vector3(
-    65*Math.cos(el)*Math.sin(az),65*Math.sin(el),65*Math.cos(el)*Math.cos(az)));
+  const direction=new THREE.Vector3(
+    Math.cos(el)*Math.sin(az),Math.sin(el),Math.cos(el)*Math.cos(az));
+  sun.position.copy(center).addScaledVector(direction,65);
   sun.target.position.copy(center);
-  staged.add(sun,sun.target,ambient);
+  const fillLight=new THREE.DirectionalLight(0xc0d5ee,fillLightIntensity(ambient.intensity));
+  fillLight.position.copy(center).addScaledVector(direction,-45).add(new THREE.Vector3(0,25,0));
+  fillLight.target.position.copy(center);
+  fillLight.castShadow=false;
+  staged.add(sun,sun.target,ambient,fillLight,fillLight.target);
   staged.traverse(obj=>{if(obj.isMesh){obj.castShadow=true;obj.receiveShadow=true;}});
   const shot=option.camera;
   const outputCamera=new THREE.PerspectiveCamera(shot.fov,16/9,.05,3000);
