@@ -345,3 +345,11 @@
 .asset-size-tools .inline{display:flex;gap:6px;align-items:stretch}
 .asset-size-tools input{flex:1;min-width:0}
 .asset-size-tools button{flex:0 0 auto;white-space:nowrap}
+
+/* v2.8 non-destructive architectural rendering looks */
+.render-look-buttons{display:grid;grid-template-columns:1fr;gap:6px;margin:8px 0 10px}
+.render-look-buttons button{border:1px solid #dadcdb;background:#f7f8f7;color:#262b2f;
+  font:inherit;font-size:12px;text-align:left;padding:10px 12px;border-radius:6px;cursor:pointer}
+.render-look-buttons button:hover{border-color:#abb5af;background:#eaf0ec}
+.render-look-buttons button:focus-visible{outline:2px solid #7d9a87;outline-offset:2px}
+#render-look-status{line-height:1.55}
