@@ -1909,6 +1909,65 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.doesNotMatch(approvedStatus,/MASTER VIEW 미승인/);
     assert.match(approvedStatus,/실제 현장/,"sample site should not be represented as real");
     await productionPage.close();
+
+    // v3.0.1 night mode + accessible control-panel grouping.
+    const nightPage=await browser.newPage({viewport:{width:1260,height:820},acceptDownloads:true});
+    nightPage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await nightPage.goto("http://127.0.0.1:8787/studio/?panels=open",
+      {waitUntil:"domcontentloaded",timeout:60000});
+    await nightPage.locator("#viewport canvas").waitFor({timeout:30000});
+    assert.equal(await nightPage.locator('[data-render-look]').count(),4);
+    const panelLabels=await nightPage.locator(".inspector-fold > summary").allTextContents();
+    assert.ok(panelLabels.some(t=>t.startsWith("💡 라이팅 / 조명")));
+    assert.ok(panelLabels.some(t=>t.startsWith("🗺️ SCENE LAYERS")));
+    assert.ok(panelLabels.some(t=>t.startsWith("🎞️ MASTER 8-VIEW")));
+    const dayShot=nightPage.waitForEvent("download",{timeout:40000});
+    await nightPage.locator("#shot-export").click();
+    const daylightPng=fs.readFileSync(await (await dayShot).path());
+    const modelDl=nightPage.waitForEvent("download",{timeout:20000});
+    await nightPage.locator("#export-json").click();
+    const daytime=JSON.parse(fs.readFileSync(await (await modelDl).path(),"utf8"));
+    await nightPage.locator('[data-render-look="night"]').click();
+    assert.equal(await nightPage.locator("#light-preset").inputValue(),"night");
+    assert.equal(await nightPage.locator("#visual-shadows").inputValue(),"soft");
+    assert.equal(await nightPage.locator("#env-mode").inputValue(),"neutral");
+    assert.equal(await nightPage.locator("#sun-azimuth").inputValue(),"125");
+    assert.equal(await nightPage.locator('[data-render-look="night"]').getAttribute("aria-pressed"),"true");
+    assert.match(await nightPage.locator("#render-look-status").textContent(),/야간/);
+    const nightShot=nightPage.waitForEvent("download",{timeout:40000});
+    await nightPage.locator("#shot-export").click();
+    const nighttimePng=fs.readFileSync(await (await nightShot).path());
+    assert.ok(nighttimePng.length>1000&&!nighttimePng.equals(daylightPng),
+      "moonlight recipe must generate distinct actual nighttime PNG");
+    const nightConfigDl=nightPage.waitForEvent("download",{timeout:20000});
+    await nightPage.locator("#export-json").click();
+    const nighttime=JSON.parse(fs.readFileSync(await (await nightConfigDl).path(),"utf8"));
+    assert.deepEqual(nighttime.artwork,daytime.artwork);
+    assert.deepEqual(nighttime.site,daytime.site);
+    assert.deepEqual(nighttime.extras,daytime.extras);
+    assert.equal(nighttime.lightPreset,"night");
+    await nightPage.locator("#import-json").setInputFiles({
+      name:"night-studio-config.json",mimeType:"application/json",
+      buffer:Buffer.from(JSON.stringify(nighttime))
+    });
+    await nightPage.waitForFunction(()=>document.querySelector("#light-preset")?.value==="night");
+    await nightPage.locator("#master-lock").click();
+    const nightApprovedDl=nightPage.waitForEvent("download",{timeout:20000});
+    await nightPage.locator("#export-json").click();
+    const nightMaster=JSON.parse(fs.readFileSync(await (await nightApprovedDl).path(),"utf8"));
+    assert.equal(nightMaster.artwork.locked,true);
+    assert.equal(nightMaster.masterSnapshots.at(-1).lightPreset,"night",
+      "approved MASTER must retain night lighting profile for 8-view batch rendering");
+    await nightPage.locator('[data-render-look="architectural"]').click();
+    assert.equal(await nightPage.locator("#light-preset").inputValue(),"night",
+      "MASTER LOCK prevents switching back to a day look");
+    // Restore must use approved nighttime key even if an external UI control
+    // temporarily changed, without changing any approved artwork or source.
+    await nightPage.locator("#light-preset").evaluate(el=>{el.value="clear";});
+    await nightPage.locator("#restore-master-camera").click();
+    assert.equal(await nightPage.locator("#light-preset").inputValue(),"night");
+    await nightPage.close();
+
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
