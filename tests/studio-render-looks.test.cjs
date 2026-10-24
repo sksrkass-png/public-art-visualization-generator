@@ -37,6 +37,6 @@ assert.match(app,/lastSunArtworkPosition/);
 assert.match(app,/renderShadowSettings\(/);
 assert.match(stage,/renderShadowSettings\(/);
 assert.match(stage,/fillLightIntensity\(/);
-assert.doesNotMatch(app,/artRoot\.traverse\([\s\S]*?addScaledVector\(direction,65\)/,
-  "look presets must not change source meshes");
+assert.doesNotMatch(src,/artRoot\.|siteRoot\.|\.geometry\s*=/,
+  "render-only helper must never mutate source geometry");
 console.log("PASS v2.8 daylight recipe validity, bounded shadow maps and renderer-only context");
