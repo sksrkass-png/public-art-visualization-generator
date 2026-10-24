@@ -3,7 +3,7 @@ import {restoreExtras,setEditorGizmosVisible} from "./extras.js";
 import {applyLayerVisibility} from "./layers.js";
 import {makeMaterial} from "./rendering.js";
 import {cameraFocusSettings} from "./camera-focus.js";
-import {renderShadowSettings,fillLightIntensity} from "./render-looks.js";
+import {renderShadowSettings,fillLightIntensity,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR} from "./render-looks.js";
 
 // v2.5: stage different visual options in a separate THREE.Scene. The user
 // scene's object identities, original geometry, materials and MASTER are untouched.
@@ -20,7 +20,7 @@ export function createVisualOptionStage({
     (option.render?.environmentMode==="bright"?1.35:option.render?.environmentMode==="overcast"?.65:1);
   const sky={cool:0xdce0e2,warm:0xe7e0d4,white:0xf4f4f2};
   const kind=option.render?.visual?.sky||"cool";
-  staged.background=new THREE.Color(option.lightPreset==="night"?0x171f33:(sky[kind]||sky.cool));
+  staged.background=new THREE.Color(option.lightPreset==="night"?NIGHT_SKY_COLOR:(sky[kind]||sky.cool));
   const siteCopy=siteRoot.clone(true);
   const artCopy=artRoot.clone(true);
   artCopy.position.fromArray(option.scene.artwork.p);
@@ -51,7 +51,8 @@ export function createVisualOptionStage({
   const az=THREE.MathUtils.degToRad(option.lighting["sun-azimuth"]??45),
     el=THREE.MathUtils.degToRad(option.lighting["sun-elevation"]??45);
   const sun=new THREE.DirectionalLight(
-    option.lightPreset==="golden"?0xffc489:0xfff7e6,
+    option.lightPreset==="night"?NIGHT_KEY_COLOR:
+      option.lightPreset==="golden"?0xffc489:0xfff7e6,
     option.lighting["sun-strength"]??2.4);
   sun.castShadow=!!option.shadows;
   // Keep A/B/C options consistent with v2.8 live shadow profiles.
