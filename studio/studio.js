@@ -3248,6 +3248,9 @@ async function exportMasterPack() {
   }
 }
 function exportImage() {
+  const sceneBefore=captureSceneIntegrity({
+    artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState
+  });
   const restoreSitePreview=siteViewport.suspend();
   const w=Math.max(1,Math.round(viewport.clientWidth));
   const h=Math.max(1,Math.round(viewport.clientHeight));
@@ -3258,8 +3261,14 @@ function exportImage() {
   const originalSun=sunGuide.visible;
   const originalHighlight=siteHighlight?.visible;
   const originalSelection=selectionOutline.visible;
+  const editorIcons=[];
+  extrasRoot.traverse(obj=>{
+    if(obj.userData.editorOnly)editorIcons.push([obj,obj.visible]);
+  });
+  let png=null,size=null,captureFailure=null;
   try {
-    const size=targetSize(w,h,$("render-aspect").value,
+    assertRendererAvailable(renderer);
+    size=targetSize(w,h,$("render-aspect").value,
       Number($("render-resolution").value),renderer.capabilities.maxTextureSize);
     renderer.setPixelRatio(1);
     renderer.setSize(size.width,size.height,false);
@@ -3271,31 +3280,41 @@ function exportImage() {
     if(siteHighlight)siteHighlight.visible=false;
     setEditorGizmosVisible(extrasRoot,false);
     selectionOutline.visible=false;
+    assertRendererAvailable(renderer);
     renderer.render(scene,camera);
-    const png=renderer.domElement.toDataURL("image/png");
-    if(!png.startsWith("data:image/png;base64,"))throw Error("PNG 데이터를 만들지 못했습니다.");
-    const link=document.createElement("a");
-    link.href=png;
-    link.download=safeFileName()+"-"+size.width+"x"+size.height+".png";
-    document.body.appendChild(link);link.click();link.remove();
-    notify("작품·현장 변형 없이 "+size.width+" × "+size.height+" PNG를 저장했습니다."+
-      (size.limited?" (GPU 한도에 맞춰 축소)":""));
+    png=renderer.domElement.toDataURL("image/png");
+    verifyPngCapture(png,size.width,size.height);
   }catch(error){
+    captureFailure=error;
     console.error(error);
-    notify("고해상도 렌더 실패: "+(error.message||"GPU 메모리/출력 설정 확인"));
   }finally{
     grid.visible=originalGrid;
     transform.getHelper().visible=originalHelper;
     sunGuide.visible=originalSun;
     if(siteHighlight)siteHighlight.visible=originalHighlight;
     selectionOutline.visible=originalSelection;
-    setEditorGizmosVisible(extrasRoot,true);
+    // Do not turn on formerly hidden light markers/layer editor objects.
+    for(const [node,wasVisible] of editorIcons)node.visible=wasVisible;
     camera.aspect=originalAspect;
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(originalRatio);
     renderer.setSize(w,h,false);
     restoreSitePreview();
   }
+  if(captureFailure){
+    return notify("고해상도 렌더 실패: "+(captureFailure.message||"GPU 메모리/출력 설정 확인"));
+  }
+  const sceneAfter=captureSceneIntegrity({
+    artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState
+  });
+  if(sceneBefore!==sceneAfter)
+    return notify("PNG 출력 차단: 조형물·현장·선택 상태 복원 검증에 실패했습니다.");
+  const link=document.createElement("a");
+  link.href=png;
+  link.download=safeFileName()+"-"+size.width+"x"+size.height+".png";
+  document.body.appendChild(link);link.click();link.remove();
+  notify("원본 작품·현장 보존 검증 통과 · "+size.width+" × "+size.height+
+    " PNG 저장 완료"+(size.limited?" (GPU 한도에 맞춰 축소)":""));
 }
 async function exportGLB() {
   const restoreSitePreview=siteViewport.suspend();
