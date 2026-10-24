@@ -1960,6 +1960,9 @@ function setPlacement(kind) {
   const group=groupForPlacement(kind);
   if (approvedMaster || group.locked || !group.visible) return notify("잠긴 레이어나 숨겨진 레이어에는 오브제를 추가할 수 없습니다.");
   placementMode = kind;
+  // Placement receives the next left click even if the cursor overlaps the old XYZ gizmo.
+  // Detach display-only controls; selected source meshes remain unchanged.
+  transform.detach();
   $("placement-hint").hidden = false;
   $("placement-hint").textContent = kind.includes("light")
     ? "현장 바닥을 클릭하여 조명 위치 지정 · 배치 후 이동(G)으로 높이 조절 · Esc 취소"
@@ -3500,7 +3503,7 @@ transform.addEventListener("objectChange", () => {
 });
 renderer.domElement.addEventListener("pointerdown",e=>{
   pointerDown={x:e.clientX,y:e.clientY,button:e.button,pointerId:e.pointerId};
-  pointerStartedOnGizmo=!!transform.axis;
+  pointerStartedOnGizmo=!!transform.axis&&!placementMode;
   mouseMoved=false;
 });
 renderer.domElement.addEventListener("pointermove",e=>{
@@ -3525,13 +3528,15 @@ renderer.domElement.addEventListener("pointercancel",()=>{
 window.addEventListener("keydown", e => {
   if (e.target instanceof HTMLElement && e.target.closest("input,textarea,select,[contenteditable]")) return;
   if (e.key === "Escape" && spatialBridge?.cancel()) { e.preventDefault(); return; }
+  if (e.key === "Escape" && placementMode) {
+    placementMode = null; $("placement-hint").hidden = true;
+    if(gizmoRequested&&selectedCanEdit())transform.attach(selectedRoot);
+    e.preventDefault();return;
+  }
   if (e.key === "Escape" && gizmoRequested) {clearCanvasSelection();e.preventDefault();return;}
   if (e.key.toLowerCase()==="f"&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
     if(e.shiftKey)focusImportedSite();else focusCurrentSelection();
     e.preventDefault();return;
-  }
-  if (e.key === "Escape" && placementMode) {
-    placementMode = null; $("placement-hint").hidden = true; return;
   }
   if ((e.key === "Delete" || e.key === "Backspace") && !approvedMaster) {
     deleteSelectedExtra(); return;
