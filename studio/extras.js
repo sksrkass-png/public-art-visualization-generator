@@ -5,7 +5,8 @@ import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 // Procedural planting is intentionally schematic rather than a claim of true
 // botanical/photogrammetry accuracy. All extras are independent editables.
 export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "tree-autumn",
-  "person-standing", "person-man", "person-woman", "shrub-flower", "park-bench", "round-planter", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
+  "person-standing", "person-man", "person-woman", "shrub-flower", "park-bench", "round-planter",
+  "tree-birch", "grass-patch", "car-sedan", "bollard", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
 
 function mesh(geometry, color, roughness = .85, metalness = 0) {
   const o = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, roughness, metalness }));
@@ -100,6 +101,78 @@ function flowerShrub(root){
     root.add(bloom);
   }
 }
+
+// v2.7 optional real-scale context geometry. These are lightweight illustrative
+// proxies, not photogrammetry or replacement of the imported site's landscaping.
+function birchTree(root){
+  const trunk=mesh(new THREE.CylinderGeometry(.115,.19,5.1,12),0xe8e4d8,.9);
+  trunk.position.y=2.55;root.add(trunk);
+  for(let i=0;i<9;i++){
+    const band=mesh(new THREE.CylinderGeometry(.122-i*.003,.123-i*.003,.045,12),0x414a43);
+    band.position.y=.65+i*.45;root.add(band);
+  }
+  const crowns=[[0,5.1,0,.86],[-.65,4.55,.18,.68],[.55,4.8,-.2,.73],[0,5.9,0,.63]];
+  for(const [x,y,z,r] of crowns){
+    const branch=mesh(new THREE.IcosahedronGeometry(r,2),0x8cae72,.96);
+    branch.position.set(x,y,z);branch.scale.set(1,1.24,1);root.add(branch);
+  }
+}
+function grassPatch(root){
+  // One non-indexed mesh for ~60 blades: small renderer draw-call footprint.
+  // No opaque lawn plane: existing pathways and imported ground stay visible.
+  const vertices=[];
+  for(let i=0;i<60;i++){
+    const x=((i*37)%59)/59*1.8-.9,z=((i*23)%61)/61*1.8-.9;
+    const angle=i*2.39996,dx=Math.cos(angle),dz=Math.sin(angle);
+    const height=.12+(i%7)*.028, w=.025+(i%4)*.006;
+    const px=x+dx*height*.16,pz=z+dz*height*.16;
+    vertices.push(x-dz*w,0,z+dx*w,x+dz*w,0,z-dx*w,px,height,pz);
+  }
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute("position",new THREE.Float32BufferAttribute(vertices,3));
+  geometry.computeVertexNormals();
+  const grass=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({
+    color:0x749a5e,roughness:1,side:THREE.DoubleSide
+  }));
+  grass.name="Grass blades — no ground-surface replacement";
+  grass.receiveShadow=true;
+  grass.castShadow=false;
+  root.add(grass);
+}
+function carSedan(root){
+  // Approx. 1.8m W x 4.5m L x 1.55m H; Z is forward.
+  const body=mesh(new THREE.BoxGeometry(1.78,.55,4.45),0x9da8b0,.37,.46);
+  body.position.y=.66;root.add(body);
+  const bonnet=mesh(new THREE.BoxGeometry(1.72,.13,1.35),0x929ca4,.34,.53);
+  bonnet.position.set(0,.98,1.37);root.add(bonnet);
+  const cabin=mesh(new THREE.BoxGeometry(1.57,.48,2.20),0x303f48,.28,.28);
+  cabin.position.set(0,1.18,-.16);root.add(cabin);
+  const roof=mesh(new THREE.BoxGeometry(1.47,.1,1.78),0x9da8b0,.38,.46);
+  roof.position.set(0,1.47,-.16);root.add(roof);
+  for(const x of [-.92,.92]){
+    for(const z of [-1.32,1.33]){
+      const wheel=mesh(new THREE.CylinderGeometry(.33,.33,.16,24),0x252729,.97,.1);
+      wheel.rotation.z=Math.PI/2;wheel.position.set(x,.33,z);root.add(wheel);
+      const hub=mesh(new THREE.CylinderGeometry(.15,.15,.17,20),0xb9c2c6,.45,.72);
+      hub.rotation.z=Math.PI/2;hub.position.set(x,.33,z);root.add(hub);
+    }
+  }
+  for(const z of [-2.245,2.245]){
+    for(const x of [-.62,.62]){
+      const lamp=mesh(new THREE.BoxGeometry(.32,.13,.035),z>0?0xf6e9c7:0xb74743,.25);
+      lamp.position.set(x,.7,z);root.add(lamp);
+    }
+  }
+}
+function safetyBollard(root){
+  const post=mesh(new THREE.CylinderGeometry(.075,.092,.84,20),0x545c62,.54,.55);
+  post.position.y=.42;root.add(post);
+  const cap=mesh(new THREE.CylinderGeometry(.09,.09,.06,20),0x282d32,.38,.6);
+  cap.position.y=.85;root.add(cap);
+  const reflective=mesh(new THREE.CylinderGeometry(.078,.078,.07,20),0xe3ddd0,.32,.08);
+  reflective.position.y=.65;root.add(reflective);
+}
+
 function personScaled(root,height,color){
   standingPerson(root);
   const children=[...root.children];
@@ -234,7 +307,9 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   if(kind==="custom-glb")root.userData.assetId=assetId;
   root.name=({ "tree-round":"활엽수", "tree-cone":"침엽수", "shrub":"덤불",
     "tree-autumn":"가을 활엽수", "person-standing":"보행자","person-man":"남성 175cm","person-woman":"여성 160cm","shrub-flower":"꽃 덤불", "park-bench":"공원 벤치",
-    "round-planter":"화분", "custom-glb":"사용자 GLB", "artwork-copy":"작품 복제",
+    "round-planter":"화분", "tree-birch":"자작나무", "grass-patch":"잔디 패치",
+    "car-sedan":"승용차", "bollard":"안전 볼라드",
+    "custom-glb":"사용자 GLB", "artwork-copy":"작품 복제",
     "point-light":"포인트 조명","spot-light":"스폿 조명","plinth":"기단" })[kind]+" #"+id;
   if(kind==="tree-round")(appearanceVersion === 1 ? legacyTreeRound : treeRound)(root);
   else if(kind==="tree-cone")(appearanceVersion === 1 ? legacyTreeCone : treeCone)(root);
@@ -246,6 +321,10 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   else if(kind==="person-standing")standingPerson(root);
   else if(kind==="park-bench")parkBench(root);
   else if(kind==="round-planter")roundPlanter(root);
+  else if(kind==="tree-birch")birchTree(root);
+  else if(kind==="grass-patch")grassPatch(root);
+  else if(kind==="car-sedan")carSedan(root);
+  else if(kind==="bollard")safetyBollard(root);
   else if(kind==="plinth"){
     // Unit pedestal with bottom at local y=0; root scale is width / height / depth (m).
     const shape=mesh(new THREE.BoxGeometry(1,1,1),0xb1b4b3);

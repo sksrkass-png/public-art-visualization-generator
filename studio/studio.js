@@ -40,6 +40,7 @@ import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, imp
 import {createSiteViewportController,normalizeSiteViewSettings} from "./site-viewport.js";
 import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js";
 import {isCanvasClick,navigationSpeeds,CLICK_TOLERANCE_PX} from "./navigation-ux.js";
+import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel} from "./context-catalog.js";
 import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
   visualReadiness,visualPackageManifest} from "./visual-workflow.js";
 import {createVisualOptionStage} from "./visual-option-render.js";
@@ -301,6 +302,54 @@ function renderSiteLayerRows(entries) {
     ? matched.length+"개 중 80개 표시 · 검색어를 입력하면 원하는 메시를 찾을 수 있습니다."
     : (matched.length ? matched.length+"개 목록 · 분류 후 위 레이어 표시를 조절하세요." : "일치하는 메시 없음");
 }
+function refreshContextPalette(){
+  const matched=new Set(filterContextCatalog($("context-search").value,$("context-category").value).map(a=>a.kind));
+  document.querySelectorAll("[data-add-extra]").forEach(button=>{
+    button.hidden=!matched.has(button.dataset.addExtra);
+  });
+  $("context-search-count").textContent=matched.size+" / "+CONTEXT_CATALOG.length+
+    "개 기본 에셋 · 장면에 추가한 모델은 필터로 숨겨지지 않습니다.";
+}
+function syncContextHeightUI(){
+  const root=selectedRoot;
+  const eligible=root?.parent===extrasRoot &&
+    !["point-light","spot-light","plinth","artwork-copy"].includes(root.userData.extraKind);
+  const box=eligible?new THREE.Box3().setFromObject(root):null;
+  const height=box&&!box.isEmpty()?box.getSize(new THREE.Vector3()).y:0;
+  const enabled=eligible&&Number.isFinite(height)&&height>.00001&&selectedCanEdit();
+  $("extra-target-height").disabled=!enabled;
+  $("extra-fit-height").disabled=!enabled;
+  if(!enabled){
+    $("extra-target-height").value="";
+    $("extra-height-note").textContent=approvedMaster?"MASTER LOCK · 주변 에셋 크기 변경 불가":
+      "수목·인물·가구·차량을 선택하면 실측 높이를 조정할 수 있습니다.";
+    return;
+  }
+  if(document.activeElement!==$("extra-target-height"))
+    $("extra-target-height").value=height.toFixed(2);
+  const size=box.getSize(new THREE.Vector3());
+  $("extra-height-note").textContent="현재 3D 크기 "+dimensionsLabel(size.toArray())+
+    " · 원본 메시 유지 · 균일 배율만 적용";
+}
+function applyContextHeight(){
+  if(!selectedCanEdit()||selectedRoot.parent!==extrasRoot)return;
+  const root=selectedRoot;
+  if(["point-light","spot-light","plinth","artwork-copy"].includes(root.userData.extraKind))return;
+  const current=new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3()).y;
+  try{
+    const factor=uniformHeightScale(current,Number($("extra-target-height").value),root.scale.toArray());
+    if(Math.abs(factor-1)<.00001)return syncContextHeightUI();
+    const before=editSnapshot();
+    root.scale.multiplyScalar(factor);
+    if($("auto-ground").checked)snapRootToSurface(root,siteRoot,{
+      allowFallback:!siteSourceFile,offset:toFinite($("ground-offset").value,0,-20,50)
+    });
+    commit(before);
+    updateInspector(true);
+    refreshSelectionOutline();
+    notify("주변 에셋 높이 적용 · 원본 모델과 MASTER 작품은 변경하지 않았습니다.");
+  }catch(error){notify("에셋 높이 적용 실패: "+error.message);}
+}
 function refreshAssetLibraryUI(){
   const chosen=$("library-asset-select").value;
   const select=$("library-asset-select");
@@ -317,6 +366,10 @@ function refreshAssetLibraryUI(){
     "개 / 약 "+perf.visibleTriangles.toLocaleString()+" 삼각형"+
     (perf.visibleTriangles>500000?" · 저사양 GPU 주의":"");
   const chosenSource=assetLibrary.get(select.value);
+  $("library-size-note").textContent=chosenSource
+    ?"원본 3D 크기 "+dimensionsLabel(chosenSource.stats.size)+
+      " · "+chosenSource.stats.triangles.toLocaleString()+" 삼각형 · 파일 단위가 실제 m인지 확인하세요."
+    :"등록된 GLB를 선택하면 원본 크기·폴리곤 수가 표시됩니다.";
   const chosenLayer=chosenSource?.category==="artwork"?layerState.groups.artwork:layerState.groups.planting;
   $("library-place").disabled=approvedMaster || !assetLibrary.size ||
     !chosenLayer.visible || chosenLayer.locked ||
@@ -1704,7 +1757,7 @@ function syncLock() {
     transform.detach();
   }
   else if (gizmoRequested && selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
-  ["library-place","library-asset-file","library-asset-category",
+  ["library-place","library-asset-file","library-asset-category","extra-target-height","extra-fit-height",
     "site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
     "plan-pick-center", "plan-visible", "map-file", "map-width", "plan-x", "plan-z",
@@ -1713,6 +1766,7 @@ function syncLock() {
   document.querySelectorAll("[data-add-extra]").forEach(btn => { btn.disabled = approvedMaster; });
   ["art-material","art-material-color","apply-material","reset-material"].forEach(id=>{$(id).disabled=approvedMaster;});
   updateExtrasStatus();
+  syncContextHeightUI();
   refreshVisualSlots();
   controls.forEach(el => el.disabled = approvedMaster);
   ["apply-height", "art-height", "site-preset", "site-file", "art-file", "sample-art", "floor-map", "map-file", "map-width", "uniform-scale",
@@ -1747,6 +1801,7 @@ function updateInspector(force = false) {
   const bounds = new THREE.Box3().setFromObject(selectedRoot);
   const d = bounds.getSize(new THREE.Vector3());
   $("dimensions").textContent = [d.x, d.y, d.z].map(v => v.toFixed(2)).join(" × ") + " m (W×H×D)";
+  syncContextHeightUI();
   updateArtworkDimensionReadout();
   refreshPlinthControls();
   $("coords").textContent = ["X", "Y", "Z"].map((k, i) => k + " " + state.p[i].toFixed(2)).join(" · ");
@@ -1965,8 +2020,9 @@ function setPlacement(kind) {
   transform.detach();
   $("placement-hint").hidden = false;
   $("placement-hint").textContent = kind.includes("light")
-    ? "현장 바닥을 클릭하여 조명 위치 지정 · 배치 후 이동(G)으로 높이 조절 · Esc 취소"
-    : "현장 바닥을 클릭해 식재 배치 · 위치(G)·크기(S) 조절 · Esc 취소";
+    ? "현장 클릭으로 조명 배치 · Esc 취소"
+    : "현장 바닥 클릭으로 "+(kind==="car-sedan"?"차량":kind==="grass-patch"?"잔디":"오브제")+" 배치 · Esc 취소";
+  if($("placement-repeat").checked)$("placement-hint").textContent+=" · 연속 배치 중";
   notify("현장 위치를 클릭하여 추가하세요.");
 }
 function createPlacedExtra(kind, position) {
@@ -2092,7 +2148,9 @@ function handleSelection(event) {
     const hit = pickPlacement(event);
     if (!hit) { notify("해당 지점에서 위쪽 표면을 찾을 수 없습니다. 현장 메시와 각도를 확인하세요."); return; }
     const kind = placementMode;
-    if(kind!=="measure-point"){
+    const repeating=$("placement-repeat").checked &&
+      (kind==="custom-glb"||CONTEXT_CATALOG.some(entry=>entry.kind===kind));
+    if(kind!=="measure-point"&&!repeating){
       placementMode=null;
       $("placement-hint").hidden=true;
     }
@@ -3235,6 +3293,21 @@ $("light-preset").addEventListener("change", e => {
   updateLight();
 });
 document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener("click", () => setPlacement(el.dataset.addExtra)));
+$("context-search").addEventListener("input",refreshContextPalette);
+$("context-category").addEventListener("change",refreshContextPalette);
+$("placement-repeat").addEventListener("change",()=>{
+  if(placementMode)$("placement-hint").textContent=
+    "현장 클릭 배치 · Esc 종료"+($("placement-repeat").checked?" · 연속 배치 중":"");
+});
+$("library-toggle").addEventListener("click",()=>{
+  const expanded=$("library-toggle").getAttribute("aria-expanded")==="true";
+  $("library-toggle").setAttribute("aria-expanded",String(!expanded));
+  $("library-toggle").textContent=!expanded?"📂 내 GLB 에셋 라이브러리 닫기":"📂 내 GLB 에셋 라이브러리 열기";
+  document.documentElement.classList.toggle("studio-library-open",!expanded);
+  $("asset-library-panel").hidden=expanded;
+  if(!expanded)refreshAssetLibraryUI();
+});
+$("extra-fit-height").addEventListener("click",applyContextHeight);
 $("library-asset-file").addEventListener("change",e=>{
   importLibraryGLB(e.target.files[0]);e.target.value="";
 });
@@ -3570,6 +3643,8 @@ applyEnvironment();
 restoreRenderConfig(null);
 fitCamera();
 updateNavigationSpeed();
+refreshContextPalette();
+syncContextHeightUI();
 checkVisualQuality();
 resize();
 animate();

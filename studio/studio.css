@@ -333,3 +333,15 @@
 .visual-option-grid button:hover:not(:disabled){background:#222;color:#fff}
 #visual-option-status,#visual-preflight-status,#visual-options-export-status,
 #installation-check-status{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}
+
+/* v2.7 optional source-safe context library controls. */
+.asset-palette button[hidden]{display:none!important}
+#context-search{width:100%;min-width:0}
+#context-category{width:100%}
+#context-search-count{margin:4px 0 8px}
+#library-toggle{margin:8px 0;width:100%}
+.studio-library-open #asset-library-panel{display:block!important}
+.asset-size-tools{padding:10px 0;border-top:1px solid #e3e4e2;margin-top:10px}
+.asset-size-tools .inline{display:flex;gap:6px;align-items:stretch}
+.asset-size-tools input{flex:1;min-width:0}
+.asset-size-tools button{flex:0 0 auto;white-space:nowrap}
