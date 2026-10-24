@@ -3250,10 +3250,12 @@ async function exportMasterPack() {
   }
 }
 function exportImage() {
+  // Suspension removes editor-only ghost/section materials. Compare source
+  // identities in that suspended state, not ephemeral preview clone UUIDs.
+  const restoreSitePreview=siteViewport.suspend();
   const sceneBefore=captureSceneIntegrity({
     artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState
   });
-  const restoreSitePreview=siteViewport.suspend();
   const w=Math.max(1,Math.round(viewport.clientWidth));
   const h=Math.max(1,Math.round(viewport.clientHeight));
   const originalRatio=renderer.getPixelRatio();
@@ -3267,7 +3269,7 @@ function exportImage() {
   extrasRoot.traverse(obj=>{
     if(obj.userData.editorOnly)editorIcons.push([obj,obj.visible]);
   });
-  let png=null,size=null,captureFailure=null;
+  let png=null,size=null,captureFailure=null,sceneAfter=null;
   try {
     assertRendererAvailable(renderer);
     size=targetSize(w,h,$("render-aspect").value,
@@ -3301,14 +3303,15 @@ function exportImage() {
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(originalRatio);
     renderer.setSize(w,h,false);
-    restoreSitePreview();
+    try{
+      sceneAfter=captureSceneIntegrity({
+        artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState
+      });
+    }finally{restoreSitePreview();}
   }
   if(captureFailure){
     return notify("고해상도 렌더 실패: "+(captureFailure.message||"GPU 메모리/출력 설정 확인"));
   }
-  const sceneAfter=captureSceneIntegrity({
-    artRoot,siteRoot,extrasRoot,artworkMaterialState,layerState
-  });
   if(sceneBefore!==sceneAfter)
     return notify("PNG 출력 차단: 조형물·현장·선택 상태 복원 검증에 실패했습니다.");
   const link=document.createElement("a");
