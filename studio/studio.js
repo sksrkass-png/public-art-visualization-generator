@@ -1136,6 +1136,7 @@ function checkVisualQuality(){
     "출력 "+size.width+"×"+size.height+"px · "+name,
     "작품 크기 "+[dimensions.x,dimensions.z,dimensions.y].map(n=>n.toFixed(2)).join("×")+"m (W×D×H, 뷰어 값)",
     "렌더 방식: WebGL PBR · GPU 최대 텍스처 "+renderer.capabilities.maxTextureSize+"px",
+    "v2.8 그림자: "+$("visual-shadows").value+" · 작품 경계 중심 자동 조정 · 환경 반사 "+$("env-mode").value,
     "모델은 시안용이며 현장 실측 검증·물리 기반 경로 추적·AI 실사화는 수행하지 않습니다.",
     ...flags.map(x=>"• "+x)
   ].join("\n");
@@ -3293,6 +3294,27 @@ $("camera-focal").addEventListener("input",e=>{
 });
 $("render-aspect").addEventListener("change",updateRenderSizeLabel);
 $("render-resolution").addEventListener("change",updateRenderSizeLabel);
+document.querySelectorAll("[data-render-look]").forEach(button=>
+  button.addEventListener("click",()=>{
+    if(approvedMaster)return notify("승인된 MASTER에서는 조명 룩을 변경할 수 없습니다. 잠금을 해제해 주세요.");
+    const look=ARCHVIZ_LOOKS[button.dataset.renderLook];
+    if(!look)return;
+    $("light-preset").value=look.lightPreset;
+    const values={
+      "sun-azimuth":look.azimuth,"sun-elevation":look.elevation,
+      "sun-strength":look.sun,ambient:look.ambient,exposure:look.exposure
+    };
+    for(const [id,value] of Object.entries(values))$(id).value=String(value);
+    $("visual-shadows").value=look.shadowProfile;
+    $("visual-tone").value=look.toneCurve;
+    $("visual-sky").value=look.sky;
+    $("env-mode").value=look.environmentMode;
+    $("env-strength").value=String(look.environmentIntensity);
+    updateLight();applyEnvironment();checkVisualQuality();
+    $("render-look-status").textContent=look.label+
+      " · 조명·반사·하늘·그림자만 변경 · 작품/건물 원본 불변";
+    notify("렌더 룩 적용: "+look.label);
+  }));
 $("light-preset").addEventListener("change", e => {
   const presets = {
     clear: {az:45, el:45, sun:2.4, ambient:.65, exposure:1},
