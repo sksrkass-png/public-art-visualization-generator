@@ -39,6 +39,7 @@ import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, imp
   layerForObject } from "./layers.js";
 import {createSiteViewportController,normalizeSiteViewSettings} from "./site-viewport.js";
 import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js";
+import {isCanvasClick,navigationSpeeds,CLICK_TOLERANCE_PX} from "./navigation-ux.js";
 import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
   visualReadiness,visualPackageManifest} from "./visual-workflow.js";
 import {createVisualOptionStage} from "./visual-option-render.js";
@@ -75,9 +76,11 @@ orbit.minDistance = .25;
 orbit.maxDistance = 800;
 orbit.target.set(0, 1.5, 0);
 orbit.screenSpacePanning = true;
-orbit.rotateSpeed = 1.7;
-orbit.panSpeed = 2.6;
-orbit.zoomSpeed = 1.5;
+const initialNavigation = navigationSpeeds(3.4);
+orbit.rotateSpeed = initialNavigation.rotate;
+orbit.panSpeed = initialNavigation.pan;
+orbit.zoomSpeed = initialNavigation.zoom;
+let navigationSiteRadius = 0;
 const transform = new TransformControls(camera, renderer.domElement);
 scene.add(transform.getHelper());
 const grid = new THREE.GridHelper(120, 120, 0x9ba4ac, 0xc7cdd1);
@@ -151,6 +154,7 @@ scene.add(ambient);
 let artFileName = "Sample Artwork", siteFileName = "", planFileName = "";
 let approvedMaster = false, revision = 1, loadedPlanTexture = null;
 let lastDrag = null, mouseMoved = false, toastTimer = null;
+let pointerDown = null, pointerStartedOnGizmo = false;
 let undoStack = [], redoStack = [];
 let pendingArtwork = null;
 let activeSiteOperation = 0, activeArtOperation = 0, activePlanOperation = 0, activeProjectOperation = 0;
@@ -822,6 +826,7 @@ orbit.addEventListener("end",()=>{
   orbitDragging=false;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
 });
+orbit.addEventListener("change",updateNavigationSpeed);
 function setLayerGroupVisible(key, value) {
   if(approvedMaster || !LAYER_KEYS.includes(key))return;
   const before=editSnapshot();
@@ -877,6 +882,8 @@ function buildSite(preset) {
   clearGroup(siteRoot);
   siteFileName = "";
   siteSourceFile = null;
+  navigationSiteRadius = 0;
+  updateNavigationSpeed();
   resetSiteAnnotations();
   syncGroundAvailability();
   resetSitePreviewUI();
@@ -979,6 +986,7 @@ function applySiteUnits() {
   }
   if (siteSourceFile) showSiteGeometryStats(inspectSiteGeometry(siteRoot));
   updateSitePreflight();
+  refreshNavigationRadius();
 }
 function currentVisualSettings(){
   return normalizeVisualSettings({
@@ -1790,6 +1798,22 @@ function updateLight() {
     $(id + "-value").textContent = $(id).value + (id.startsWith("sun-") && id !== "sun-strength" ? "°" : "");
   });
 }
+function refreshNavigationRadius(){
+  const box=siteSourceFile?new THREE.Box3().setFromObject(siteRoot):null;
+  navigationSiteRadius=box&&!box.isEmpty()
+    ?box.getBoundingSphere(new THREE.Sphere()).radius:0;
+  updateNavigationSpeed();
+}
+function updateNavigationSpeed(){
+  const settings=navigationSpeeds(+$("nav-speed").value,{
+    siteRadius:navigationSiteRadius,
+    cameraDistance:camera.position.distanceTo(orbit.target)
+  });
+  orbit.panSpeed=settings.pan;
+  orbit.rotateSpeed=settings.rotate;
+  orbit.zoomSpeed=settings.zoom;
+  $("nav-speed-value").textContent=(+$("nav-speed").value).toFixed(1)+"×";
+}
 function fitCameraToBounds(bounds,label,{preserveDirection=true}={}){
   if(bounds.isEmpty())return false;
   const sphere=bounds.getBoundingSphere(new THREE.Sphere());
@@ -1810,6 +1834,7 @@ function fitCameraToBounds(bounds,label,{preserveDirection=true}={}){
   orbit.target.copy(sphere.center);
   camera.updateProjectionMatrix();
   orbit.update();
+  updateNavigationSpeed();
   $("camera-focus-status").textContent=label+" · 카메라 거리 "+
     config.distance.toFixed(1)+"m · 원본 모델 크기·좌표 변경 없음"+
     (config.limited?" · 매우 큰 모델이므로 표시 한계 확인":"");
@@ -3097,11 +3122,15 @@ $("site-preflight-export").addEventListener("click",exportSitePreflight);
 $("site-unit").addEventListener("change", () => {
   if (approvedMaster) return;
   applySiteUnits();
+  if(siteSourceFile)fitCameraToBounds(new THREE.Box3().setFromObject(siteRoot),
+    "현장 단위 변경 후 자동 맞춤");
   notify("현장 단위 보정 적용 · 실제 크기를 확인하세요.");
 });
 $("site-up").addEventListener("change", () => {
   if (approvedMaster) return;
   applySiteUnits();
+  if(siteSourceFile)fitCameraToBounds(new THREE.Box3().setFromObject(siteRoot),
+    "현장 높이축 변경 후 자동 맞춤");
   notify("현장 높이축 보정 적용");
 });
 $("site-preset").addEventListener("change", e => {
@@ -3141,13 +3170,7 @@ $("plan-pick-center").addEventListener("click", () => {
 $("floor-map").addEventListener("change", () => { if (!approvedMaster) updateGround(); });
 $("grid").addEventListener("change", e => { grid.visible = e.target.checked; });
 $("sun-helper").addEventListener("change", e => { sunGuide.visible = e.target.checked; });
-$("nav-speed").addEventListener("input", e => {
-  const speed = +e.target.value;
-  orbit.panSpeed = speed;
-  orbit.rotateSpeed = speed * .65;
-  orbit.zoomSpeed = Math.max(.5, speed * .62);
-  $("nav-speed-value").textContent = speed.toFixed(1) + "×";
-});
+$("nav-speed").addEventListener("input",updateNavigationSpeed);
 $("env-mode").addEventListener("change", () => {
   if($("env-mode").value==="hdr"&&!hdrTexture){
     $("env-mode").value="neutral";
@@ -3475,9 +3498,30 @@ transform.addEventListener("objectChange", () => {
   sun.target.updateMatrixWorld();
   refreshSelectionOutline();
 });
-renderer.domElement.addEventListener("pointerdown", () => { mouseMoved = false; });
-renderer.domElement.addEventListener("pointermove", e => { if (e.buttons) mouseMoved = true; });
-renderer.domElement.addEventListener("pointerup", handleSelection);
+renderer.domElement.addEventListener("pointerdown",e=>{
+  pointerDown={x:e.clientX,y:e.clientY,button:e.button,pointerId:e.pointerId};
+  pointerStartedOnGizmo=!!transform.axis;
+  mouseMoved=false;
+});
+renderer.domElement.addEventListener("pointermove",e=>{
+  if(e.buttons&&pointerDown&&!isCanvasClick(pointerDown,{
+    x:e.clientX,y:e.clientY,button:pointerDown.button,pointerId:e.pointerId
+  },CLICK_TOLERANCE_PX))mouseMoved=true;
+});
+renderer.domElement.addEventListener("pointerup",e=>{
+  const wasGizmo=pointerStartedOnGizmo;
+  const click=!mouseMoved&&!wasGizmo&&isCanvasClick(pointerDown,{
+    x:e.clientX,y:e.clientY,button:e.button,pointerId:e.pointerId
+  });
+  pointerDown=null;
+  pointerStartedOnGizmo=false;
+  if(!click){mouseMoved=true;return;}
+  mouseMoved=false;
+  handleSelection(e);
+});
+renderer.domElement.addEventListener("pointercancel",()=>{
+  pointerDown=null;pointerStartedOnGizmo=false;mouseMoved=true;
+});
 window.addEventListener("keydown", e => {
   if (e.target instanceof HTMLElement && e.target.closest("input,textarea,select,[contenteditable]")) return;
   if (e.key === "Escape" && spatialBridge?.cancel()) { e.preventDefault(); return; }
@@ -3520,6 +3564,7 @@ updateLight();
 applyEnvironment();
 restoreRenderConfig(null);
 fitCamera();
+updateNavigationSpeed();
 checkVisualQuality();
 resize();
 animate();
