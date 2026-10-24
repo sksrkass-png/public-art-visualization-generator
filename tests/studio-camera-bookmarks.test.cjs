@@ -25,7 +25,7 @@ const html=fs.readFileSync(path.join(__dirname,"../studio/index.html"),"utf8");
 assert.match(app,/cameraBookmarks:structuredClone\(cameraBookmarks\)/);
 assert.match(app,/validCameraBookmarks\(data.cameraBookmarks\)/);
 assert.match(app,/masterConsistency\(approved,baselineForMaster\(\)\)/);
-assert.match(app,/createStandardCameras\(approved.camera,bounds\)/);
+assert.match(app,/createStandardCameras\(approvedCamera,bounds\)/);
 for(const slot of CAMERA_SLOTS){
   assert.ok(html.includes('data-camera-save="'+slot+'"'));
   assert.ok(html.includes('data-camera-load="'+slot+'"'));
