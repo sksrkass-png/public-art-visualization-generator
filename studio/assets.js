@@ -8,7 +8,7 @@ export const MAX_LIBRARY_ASSETS=6;
 export const MAX_LIBRARY_ITEM_BYTES=20*1024*1024;
 export const MAX_LIBRARY_BYTES=60*1024*1024;
 export const MAX_LIBRARY_TRIANGLES=250000;
-export const ASSET_CATEGORIES=Object.freeze(["planting","person","furniture","artwork"]);
+export const ASSET_CATEGORIES=Object.freeze(["planting","person","furniture","vehicle","artwork"]);
 export function validLibraryManifest(list){
   if(!Array.isArray(list) || list.length>MAX_LIBRARY_ASSETS)return false;
   const seen=new Set();
