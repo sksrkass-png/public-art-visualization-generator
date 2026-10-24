@@ -373,3 +373,14 @@
 #production-audit-summary{white-space:pre-line;line-height:1.6}
 #production-audit-metrics{font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .production-audit button{margin:7px 0}
+
+/* v3.0.1 — selected ARCHVIZ look and scan-friendly labeled panel headings */
+.render-look-buttons button.is-active,
+.render-look-buttons button[aria-pressed="true"]{
+  border-color:#67947e;background:#e4eee6;color:#173c2a;font-weight:700
+}
+.render-look-buttons button[data-render-look="night"].is-active{
+  border-color:#7886b2;background:#e1e7f5;color:#1d2b54
+}
+.inspector-fold>summary{line-height:1.55;word-break:keep-all}
+.sidepanel h2,.sidepanel h3{word-break:keep-all}
