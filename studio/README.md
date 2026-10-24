@@ -1,4 +1,15 @@
-# AXOO Public Art 3D Studio — v2.7
+# AXOO Public Art 3D Studio — v2.8
+
+## v2.8 — architectural WebGL/PBR render refinement
+
+- Introduces three optional one-click lighting/environment looks for competition visuals: **warm architectural daylight**, **soft cloudy daylight**, and **sculpture definition**. These adjust the existing saved sun, ambient light, exposure, shadow profile, tone mapping, sky and environment intensity fields. They never overwrite source mesh/material color or artwork geometry.
+- Adds a subtle nonshadow-casting fill light that responds to ambient intensity to lift very dark surfaces, and calculates the direct-light focus from the **actual artwork world bounding-box center**. Imported objects with offset source origins are better lit without recentering or rescaling any artwork. Incremental drag tracking preserves linked-plinth positions.
+- Adds the `soft` shadow profile while preserving `balanced` / `high` and older project settings. The directional shadow camera frames the artwork neighborhood, caps its radius for huge imported OBJ sites, and clamps shadow-map dimensions by GPU maximum. Device texture memory remains bounded.
+- A/B/C side-by-side visual PNG rendering now uses matching shadow recipe and fill light on a separate temporary scene with a lower 3072px shadow texture cap, while preserving source meshes and originals.
+- MASTER 8-view, single high-resolution PNG and original image export continue to exclude editor helpers/selection. Approved MASTER blocks one-click look changes; approved 8-view output uses the saved lighting/render configuration. Actual WebGL shading is **not** AI photorealization, path tracing, or physically surveyed sunlight verification.
+- Tests: `node tests/studio-render-looks.test.cjs` and the Chromium browser smoke test cover GPU shadow limits, real PNG differences, unchanged artwork/site/scene JSON, render-profile round-trip and MASTER look locks.
+
+
 
 ## v2.7 — source-safe planting, people, street furniture and vehicle assets
 
