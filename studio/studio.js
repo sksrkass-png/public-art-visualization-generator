@@ -42,7 +42,7 @@ import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js
 import {isCanvasClick,navigationSpeeds,CLICK_TOLERANCE_PX} from "./navigation-ux.js";
 import {CAMERA_SLOTS,validCameraBookmarks,bookmarkCamera,savedCameraCount} from "./camera-bookmarks.js";
 import {sceneFootprint,productionReport,verifyPngCapture,assertRendererAvailable} from "./production-qa.js";
-import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity} from "./render-looks.js";
+import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR} from "./render-looks.js";
 import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel} from "./context-catalog.js";
 import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
   visualReadiness,visualPackageManifest} from "./visual-workflow.js";
@@ -1069,7 +1069,7 @@ function applyVisualLook(){
   renderer.toneMapping=settings.toneCurve==="neutral"?THREE.NeutralToneMapping:THREE.ACESFilmicToneMapping;
   const skyColors={cool:0xdce0e2,warm:0xe7e0d4,white:0xf4f4f2};
   const isNight=$("light-preset").value==="night";
-  scene.background.set(isNight?0x171f33:skyColors[settings.sky]);
+  scene.background.set(isNight?NIGHT_SKY_COLOR:skyColors[settings.sky]);
   const bounds=new THREE.Box3().setFromObject(artRoot);
   const size=bounds.getSize(new THREE.Vector3());
   const shadow=renderShadowSettings({
@@ -1712,6 +1712,7 @@ function masterSnapshot() {
     lighting: Object.fromEntries(["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure"]
       .map(id => [id, Number($(id).value)])),
     shadows: $("shadows").checked,
+    lightPreset:$("light-preset").value,
     extras: serializeExtras(extrasRoot),
     library:libraryManifest(assetLibrary),
     layers:structuredClone(layerState),
@@ -1728,6 +1729,8 @@ function validMasterSnapshot(entry) {
     validTransform(entry.artworkTransform) &&
     entry.camera && isTriple(entry.camera.position) && isTriple(entry.camera.target) &&
     entry.lighting && typeof entry.lighting === "object" &&
+    (entry.lightPreset===undefined ||
+      ["custom","clear","cloudy","golden","night"].includes(entry.lightPreset)) &&
     (entry.extras === undefined || validateExtras(entry.extras)) &&
     (entry.library === undefined || validLibraryManifest(entry.library)) &&
     (entry.layers === undefined || validateLayerState(entry.layers)) &&
@@ -1781,6 +1784,7 @@ function restoreMasterCamera(index) {
     }
   }
   $("shadows").checked = !!saved.shadows;
+  if(saved.lightPreset!==undefined)$("light-preset").value=saved.lightPreset;
   if(saved.render){
     $("render-aspect").value=saved.render.aspect;
     $("render-resolution").value=String(saved.render.multiplier);
@@ -1903,7 +1907,8 @@ function updateLight() {
   ambient.intensity = +$("ambient").value;
   fillLight.intensity=fillLightIntensity(ambient.intensity);
   renderer.toneMappingExposure = +$("exposure").value;
-  sun.color.set($("light-preset").value === "golden" ? 0xffc489 : 0xfff7e6);
+  sun.color.set($("light-preset").value==="night"?NIGHT_KEY_COLOR:
+    $("light-preset").value==="golden"?0xffc489:0xfff7e6);
   applyVisualLook();
   sun.castShadow = $("shadows").checked;
   renderer.shadowMap.enabled = $("shadows").checked;
@@ -3134,6 +3139,7 @@ async function exportMasterPack() {
       if(lights[id]!==undefined && Number.isFinite(value))$(id).value=String(value);
     }
     $("shadows").checked=!!master.shadows;
+    if(master.lightPreset!==undefined)$("light-preset").value=master.lightPreset;
     if(master.render){
       $("env-mode").value=master.render.environmentMode==="hdr" ? "hdr" :
         master.render.environmentMode;
@@ -3485,11 +3491,19 @@ document.querySelectorAll("[data-render-look]").forEach(button=>
     $("env-mode").value=look.environmentMode;
     $("env-strength").value=String(look.environmentIntensity);
     updateLight();applyEnvironment();checkVisualQuality();
+    document.querySelectorAll("[data-render-look]").forEach(b=>{
+      const selected=b.dataset.renderLook===button.dataset.renderLook;
+      b.classList.toggle("is-active",selected);
+      b.setAttribute("aria-pressed",String(selected));
+    });
     $("render-look-status").textContent=look.label+
       " · 조명·반사·하늘·그림자만 변경 · 작품/건물 원본 불변";
     notify("렌더 룩 적용: "+look.label);
   }));
 $("light-preset").addEventListener("change", e => {
+  document.querySelectorAll("[data-render-look]").forEach(b=>{
+    b.classList.remove("is-active");b.setAttribute("aria-pressed","false");
+  });
   const presets = {
     clear: {az:45, el:45, sun:2.4, ambient:.65, exposure:1},
     cloudy: {az:50,el:58,sun:.85,ambient:1.1,exposure:1.05},
