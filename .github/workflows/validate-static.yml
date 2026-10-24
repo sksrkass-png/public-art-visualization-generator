@@ -41,6 +41,7 @@ jobs:
           node --check studio/site-viewport.js
           node --check studio/camera-focus.js
           node --check studio/navigation-ux.js
+          node --check studio/context-catalog.js
           node --check studio/visual-workflow.js
           node --check studio/visual-option-render.js
       - name: Run JSON import regression tests
@@ -56,4 +57,5 @@ jobs:
           node tests/studio-site-viewport.test.cjs
           node tests/studio-camera-focus.test.cjs
           node tests/studio-navigation-ux.test.cjs
+          node tests/studio-context-catalog.test.cjs
           node tests/studio-visual-workflow.test.cjs
