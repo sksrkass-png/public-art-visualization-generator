@@ -1,0 +1,24 @@
+const fs=require("node:fs"),path=require("node:path"),vm=require("node:vm"),assert=require("node:assert/strict");
+const source=fs.readFileSync(path.join(__dirname,"../studio/navigation-ux.js"),"utf8");
+const ctx={Number,Math,Error};
+vm.runInNewContext(source.replace(/\bexport\s+/g,"")+
+  "\nthis.api={CLICK_TOLERANCE_PX,isCanvasClick,navigationSpeeds};",ctx);
+const {CLICK_TOLERANCE_PX,isCanvasClick,navigationSpeeds}=ctx.api;
+const p=(x,y,button=0,pointerId=7)=>({x,y,button,pointerId});
+assert.equal(CLICK_TOLERANCE_PX,5);
+assert.equal(isCanvasClick(p(10,10),p(13,14)),true,"5px jitter should select");
+assert.equal(isCanvasClick(p(10,10),p(16,10)),false,"drag should not select");
+assert.equal(isCanvasClick(p(10,10,2),p(10,10,2)),false,"right mouse is pan only");
+assert.equal(isCanvasClick(p(10,10),p(10,10,0,8)),false,"different pointer should be ignored");
+assert.equal(isCanvasClick(null,p(10,10)),false);
+const defaultSpeed=navigationSpeeds(3.4);
+const close=navigationSpeeds(3.4,{siteRadius:4000,cameraDistance:60});
+const far=navigationSpeeds(3.4,{siteRadius:4000,cameraDistance:9000});
+assert.ok(defaultSpeed.pan>defaultSpeed.rotate*2,"right-pan gets independent acceleration");
+assert.ok(close.pan>far.pan,"large OBJ close-ups pan faster");
+assert.ok(close.pan<=12,"large scene pan must be capped");
+assert.ok(close.rotate===far.rotate&&close.zoom===far.zoom,"camera boost applies only to pan");
+assert.ok(navigationSpeeds(Infinity).pan>0);
+assert.ok(navigationSpeeds(-200).pan>0);
+assert.ok(navigationSpeeds(200).pan<=12);
+console.log("PASS v2.6 click jitter, right-click pan, huge-scene adaptive navigation");

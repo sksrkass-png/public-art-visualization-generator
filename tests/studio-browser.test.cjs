@@ -1553,6 +1553,24 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(Buffer.compare(selectedRender,clearRender),0,
       "editor-only yellow box must never change official exported PNG bytes");
     await focusPage.locator("#select-artwork").click();
+    // v2.6: 2px pointer jitter must count as a click on the verified empty
+    // corner *before* the camera is panned (the artwork may move onscreen).
+    const uxCanvas=await focusPage.locator("#viewport canvas").boundingBox();
+    assert.ok(uxCanvas);
+    await focusPage.mouse.move(uxCanvas.x+16,uxCanvas.y+16);
+    await focusPage.mouse.down({button:"left"});
+    await focusPage.mouse.move(uxCanvas.x+18,uxCanvas.y+18);
+    await focusPage.mouse.up({button:"left"});
+    assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"no",
+      "small pointer jitter in verified empty space clears the selection");
+    await focusPage.locator("#select-artwork").click();
+    // Right-button panning must preserve the active selection.
+    await focusPage.mouse.move(uxCanvas.x+32,uxCanvas.y+32);
+    await focusPage.mouse.down({button:"right"});
+    await focusPage.mouse.move(uxCanvas.x+115,uxCanvas.y+52,{steps:5});
+    await focusPage.mouse.up({button:"right"});
+    assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"yes",
+      "right mouse navigation preserves the selection/gizmo");
     await focusPage.keyboard.press("Escape");
     assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"no");
     const objBuffer=Buffer.from([
@@ -1575,6 +1593,12 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.ok(distance>800,"large OBJ camera view distance must exceed former orbit limit");
     assert.ok(giant.camera.target[0]>10000 && giant.camera.target[2]>10000,
       "camera target should start at loaded OBJ site, not a distant empty origin");
+    await focusPage.locator("#site-unit").selectOption("cm");
+    assert.match(await focusPage.locator("#camera-focus-status").textContent(),
+      /현장 단위 변경 후 자동 맞춤/,"unit changes must update huge OBJ framing");
+    assert.match(await focusPage.locator("#site-dimensions").textContent(),/45\.00/,
+      "source 4.5km OBJ must render as 45m after cm correction");
+    await focusPage.locator("#site-unit").selectOption("m");
     await focusPage.locator("#focus-selected-quick").click();
     const artDl=focusPage.waitForEvent("download",{timeout:20000});
     await focusPage.locator("#export-json").click();
