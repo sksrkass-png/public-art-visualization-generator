@@ -2980,6 +2980,7 @@ async function exportVisualOptions(){
   const images=[],zip=new JSZip();
   let failure=null;
   try{
+    assertRendererAvailable(renderer);
     renderer.setPixelRatio(1);
     renderer.setSize(size.width,size.height,false);
     for(const slot of slots){
@@ -2999,7 +3000,7 @@ async function exportVisualOptions(){
         stage.camera.updateProjectionMatrix();
         renderer.render(stage.scene,stage.camera);
         const png=renderer.domElement.toDataURL("image/png");
-        if(!png.startsWith("data:image/png;base64,"))throw Error(slot+"안 PNG 렌더링 오류");
+        verifyPngCapture(png,size.width,size.height);
         zip.file(slot+"-visual.png",png.split(",")[1],{base64:true});
         images.push([slot,png]);
       }finally{stage.release();}
@@ -3127,6 +3128,7 @@ async function exportMasterPack() {
   $("export-master-pack").disabled=true;
   $("batch-status").textContent="MASTER 8컷 렌더 준비 중…";
   try{
+    assertRendererAvailable(renderer);
     // Image capture is synchronous so the user's edit state cannot interleave.
     for(const [id,value] of Object.entries(master.lighting || {})){
       if(lights[id]!==undefined && Number.isFinite(value))$(id).value=String(value);
@@ -3163,7 +3165,7 @@ async function exportMasterPack() {
       camera.updateMatrixWorld(true);
       renderer.render(scene,camera);
       const data=renderer.domElement.toDataURL("image/png");
-      if(!data.startsWith("data:image/png;base64,"))throw Error("PNG 생성 실패: "+view.key);
+      verifyPngCapture(data,size.width,size.height);
       const file=view.key+".png";
       zip.file(file,data.split(",")[1],{base64:true});
       files.push([file,data]);
