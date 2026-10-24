@@ -1796,6 +1796,71 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(await renderPage.locator("#visual-shadows").inputValue(),"soft",
       "approved MASTER prevents changing the approved render look preset");
     await renderPage.close();
+
+    // v2.9: camera-only bookmarks persist through JSON without touching
+    // sculpture, site or edit-mode MASTER, and 8-shot preview is reversible.
+    const cameraPage=await browser.newPage({viewport:{width:1350,height:850},acceptDownloads:true});
+    cameraPage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await cameraPage.goto("http://127.0.0.1:8787/studio/?panels=open",
+      {waitUntil:"domcontentloaded",timeout:60000});
+    await cameraPage.locator("#viewport canvas").waitFor({timeout:30000});
+    await cameraPage.locator('[data-camera-save="1"]').click();
+    assert.equal(await cameraPage.locator('[data-camera-load="1"]').isEnabled(),true);
+    const cameraStartDl=cameraPage.waitForEvent("download",{timeout:20000});
+    await cameraPage.locator("#export-json").click();
+    const cameraStart=JSON.parse(fs.readFileSync(await (await cameraStartDl).path(),"utf8"));
+    await cameraPage.locator('[data-view="rear"]').click();
+    await cameraPage.locator('[data-camera-save="2"]').click();
+    assert.match(await cameraPage.locator("#camera-bookmarks-status").textContent(),/2\/3/);
+    await cameraPage.locator('[data-camera-load="1"]').click();
+    const cameraRestoredDl=cameraPage.waitForEvent("download",{timeout:20000});
+    await cameraPage.locator("#export-json").click();
+    const cameraRestored=JSON.parse(fs.readFileSync(await (await cameraRestoredDl).path(),"utf8"));
+    assert.deepEqual(cameraRestored.camera,cameraStart.camera,
+      "bookmarks must restore the exact 3D position and orbit target");
+    assert.equal(Object.keys(cameraRestored.cameraBookmarks).length,2);
+    assert.deepEqual(cameraRestored.artwork,cameraStart.artwork,
+      "camera slots must not mutate source sculpture");
+    await cameraPage.locator("#import-json").setInputFiles({
+      name:"v2.9-bookmarks.json",mimeType:"application/json",
+      buffer:Buffer.from(JSON.stringify(cameraRestored))
+    });
+    await cameraPage.waitForFunction(()=>
+      document.querySelector("#camera-bookmarks-status")?.textContent.includes("2/3"),
+      null,{timeout:20000});
+    assert.equal(await cameraPage.locator('[data-camera-load="2"]').isEnabled(),true,
+      "second camera bookmark must survive project JSON import");
+    await cameraPage.locator("#master-lock").click();
+    assert.equal(await cameraPage.locator("#master-preview-apply").isEnabled(),true);
+    const cameraBeforePreviewDl=cameraPage.waitForEvent("download",{timeout:20000});
+    await cameraPage.locator("#export-json").click();
+    const beforePreview=JSON.parse(fs.readFileSync(await (await cameraBeforePreviewDl).path(),"utf8"));
+    await cameraPage.locator("#master-preview-view").selectOption("05-rear");
+    await cameraPage.locator("#master-preview-apply").click();
+    assert.match(await cameraPage.locator("#master-preview-status").textContent(),/Rear/);
+    assert.equal(await cameraPage.locator("#master-preview-return").isEnabled(),true);
+    const cameraDuringPreviewDl=cameraPage.waitForEvent("download",{timeout:20000});
+    await cameraPage.locator("#export-json").click();
+    const duringPreview=JSON.parse(fs.readFileSync(await (await cameraDuringPreviewDl).path(),"utf8"));
+    assert.notDeepEqual(duringPreview.camera,beforePreview.camera,
+      "review-only camera must move to approved rear viewpoint");
+    assert.deepEqual(duringPreview.artwork,beforePreview.artwork);
+    assert.deepEqual(duringPreview.site,beforePreview.site);
+    assert.deepEqual(duringPreview.extras,beforePreview.extras);
+    assert.deepEqual(duringPreview.masterSnapshots,beforePreview.masterSnapshots);
+    await cameraPage.locator("#master-render-preflight").click();
+    assert.match(await cameraPage.locator("#master-render-preflight-status").textContent(),/MASTER 승인본 일치/);
+    assert.match(await cameraPage.locator("#master-render-preflight-status").textContent(),/8장/);
+    await cameraPage.locator("#master-preview-return").click();
+    assert.equal(await cameraPage.locator("#master-preview-return").isDisabled(),true);
+    const cameraAfterPreviewDl=cameraPage.waitForEvent("download",{timeout:20000});
+    await cameraPage.locator("#export-json").click();
+    const afterPreview=JSON.parse(fs.readFileSync(await (await cameraAfterPreviewDl).path(),"utf8"));
+    assert.deepEqual(afterPreview.camera,beforePreview.camera,
+      "return from preview must recover exact prior camera pose");
+    assert.deepEqual(afterPreview.artwork,beforePreview.artwork);
+    assert.deepEqual(afterPreview.masterSnapshots,beforePreview.masterSnapshots);
+    await cameraPage.close();
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
