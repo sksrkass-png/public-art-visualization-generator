@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.8 ARCHVIZ RENDER</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.9 CAMERA WORKFLOW</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -543,6 +543,14 @@
         <label for="camera-focal">카메라 초점거리 <output id="camera-focal-value">38 mm</output></label>
         <input type="range" id="camera-focal" min="16" max="120" step="1" value="38">
         <p class="hint">렌즈 값은 카메라 화각만 변경하며 작품의 크기와 위치는 유지합니다.</p>
+        <div class="section-title"><h3>카메라 시점 저장</h3><span class="tag">v2.9</span></div>
+        <p class="hint">카메라 위치·방향·화각만 저장합니다. 모델 위치나 MASTER 승인값은 바뀌지 않습니다. 프로젝트 ZIP/JSON에 보존됩니다.</p>
+        <div class="camera-bookmarks" aria-label="3개 카메라 즐겨찾기">
+          <div><span>시점 1</span><button type="button" data-camera-save="1">저장</button><button type="button" data-camera-load="1" disabled>불러오기</button></div>
+          <div><span>시점 2</span><button type="button" data-camera-save="2">저장</button><button type="button" data-camera-load="2" disabled>불러오기</button></div>
+          <div><span>시점 3</span><button type="button" data-camera-save="3">저장</button><button type="button" data-camera-load="3" disabled>불러오기</button></div>
+        </div>
+        <p id="camera-bookmarks-status" class="hint" aria-live="polite">시점 0/3 저장됨</p>
         <label for="render-aspect">렌더 이미지 비율</label>
         <select id="render-aspect">
           <option value="viewport" selected>현재 화면 비율</option>
@@ -561,7 +569,7 @@
         <p class="hint">렌더 시 그리드·조작 기즈모·태양 위치·구도 가이드는 제외됩니다. GPU 한계를 넘는 설정은 자동 축소합니다. Blender Cycles나 이미지 생성 AI 실사화는 아닙니다.</p>
       </section>
       <section class="section" id="master-render-panel">
-        <div class="section-title"><h2>MASTER 8-VIEW RENDER</h2><span class="tag">v0.8</span></div>
+        <div class="section-title"><h2>MASTER 8-VIEW RENDER</h2><span class="tag">v2.9</span></div>
         <p class="hint">승인한 MASTER VIEW를 기준으로 8개 시점을 자동 생성합니다. 렌더 중 현장·작품·재질·레이어는 수정하지 않으며 원래 카메라로 복귀합니다.</p>
         <div class="batch-view-grid" aria-label="8개 표준 렌더 시점">
           <span>01 Main Perspective</span><span>02 Eye Level</span>
@@ -569,6 +577,24 @@
           <span>05 Rear</span><span>06 Aerial</span>
           <span>07 Long Shot</span><span>08 Close-up</span>
         </div>
+        <label for="master-preview-view">승인 MASTER 기준 시점 미리보기</label>
+        <select id="master-preview-view" aria-label="MASTER 미리보기 시점">
+          <option value="01-main">01 · Main Perspective</option>
+          <option value="02-eye">02 · Eye Level</option>
+          <option value="03-left">03 · Left 3/4</option>
+          <option value="04-right">04 · Right 3/4</option>
+          <option value="05-rear">05 · Rear</option>
+          <option value="06-aerial">06 · Aerial</option>
+          <option value="07-long">07 · Long Shot</option>
+          <option value="08-detail">08 · Close-up</option>
+        </select>
+        <div class="inline master-preview-actions">
+          <button id="master-preview-apply" class="outline full" type="button" disabled>선택한 8컷 시점 보기</button>
+          <button id="master-preview-return" class="outline full" type="button" disabled>촬영 전 화면 복귀</button>
+        </div>
+        <p id="master-preview-status" class="hint" aria-live="polite">MASTER 승인 후 8개 시점을 하나씩 검토할 수 있습니다.</p>
+        <button id="master-render-preflight" class="outline full" type="button" disabled>8컷 출력 준비 상태 점검</button>
+        <p id="master-render-preflight-status" class="hint" aria-live="polite">실제 작품·현장 여부, 승인 시안 일치 및 GPU 출력 크기를 확인합니다.</p>
         <label for="batch-quality">일괄 렌더 크기</label>
         <select id="batch-quality">
           <option value="1">표준 · 16:9 / 1배 (빠른 검토)</option>
