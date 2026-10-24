@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.5 VISUAL STUDIO</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 2.6 MODELING UX</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -474,8 +474,9 @@
       </section>
       <section class="section">
         <h2>카메라 / 시점</h2>
-        <label for="nav-speed">마우스 화면 이동·회전 속도 <output id="nav-speed-value">2.6×</output></label>
-        <input type="range" id="nav-speed" min=".5" max="5" step=".1" value="2.6">
+        <label for="nav-speed">마우스 탐색 속도 <output id="nav-speed-value">3.4×</output></label>
+        <input type="range" id="nav-speed" min=".5" max="5" step=".1" value="3.4">
+        <p class="hint">우클릭 이동은 회전보다 빠르게 설정됩니다. 큰 OBJ 현장에서는 카메라 거리에 따라 이동 감도를 자동 보정합니다. 왼쪽 클릭으로 선택, 빈 곳 클릭으로 해제합니다.</p>
         <div class="views">
           <button type="button" data-view="main">Main</button>
           <button type="button" data-view="eye">Eye</button>
