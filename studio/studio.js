@@ -40,6 +40,7 @@ import { LAYER_KEYS, SITE_CATEGORIES, defaultLayerState, validateLayerState, imp
 import {createSiteViewportController,normalizeSiteViewSettings} from "./site-viewport.js";
 import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js";
 import {isCanvasClick,navigationSpeeds,CLICK_TOLERANCE_PX} from "./navigation-ux.js";
+import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity} from "./render-looks.js";
 import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel} from "./context-catalog.js";
 import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
   visualReadiness,visualPackageManifest} from "./visual-workflow.js";
@@ -151,6 +152,12 @@ scene.add(sun);
 scene.add(sun.target);
 const ambient = new THREE.HemisphereLight(0xeaf4ff, 0x96989a, 1.3);
 scene.add(ambient);
+// Subtle cool bounce helps preserve detail in the unlit sculpture side.
+// Renderer-only light — no scene geometry/material edits.
+const fillLight=new THREE.DirectionalLight(0xc0d5ee,.13);
+fillLight.castShadow=false;
+scene.add(fillLight);
+const lastSunArtworkPosition=new THREE.Vector3();
 
 let artFileName = "Sample Artwork", siteFileName = "", planFileName = "";
 let approvedMaster = false, revision = 1, loadedPlanTexture = null;
@@ -1059,24 +1066,25 @@ function applyVisualLook(){
   const skyColors={cool:0xdce0e2,warm:0xe7e0d4,white:0xf4f4f2};
   const isNight=$("light-preset").value==="night";
   scene.background.set(isNight?0x171f33:skyColors[settings.sky]);
-  const mapSize=Math.min(renderer.capabilities.maxTextureSize,
-    settings.shadowProfile==="high"?4096:2048);
-  if(sun.shadow.mapSize.x!==mapSize){
-    sun.shadow.mapSize.set(mapSize,mapSize);
+  const bounds=new THREE.Box3().setFromObject(artRoot);
+  const size=bounds.getSize(new THREE.Vector3());
+  const shadow=renderShadowSettings({
+    width:size.x,height:size.y,depth:size.z,profile:settings.shadowProfile,
+    maxTextureSize:renderer.capabilities.maxTextureSize
+  });
+  if(sun.shadow.mapSize.x!==shadow.resolution){
+    sun.shadow.mapSize.set(shadow.resolution,shadow.resolution);
     if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
   }
-  // Keep a tight shadow camera around the ARTWORK, not the entire imported city.
-  // This increases sculpture contact/detail resolution without touching site geometry.
-  const size=new THREE.Box3().setFromObject(artRoot).getSize(new THREE.Vector3());
-  const reach=Math.min(110,Math.max(8,Math.max(size.x,size.y,size.z)*2.1+7));
+  // World-scale, artwork-focused shadow frustum (never encompass an entire city OBJ).
   const shadowCam=sun.shadow.camera;
-  shadowCam.left=-reach;shadowCam.right=reach;
-  shadowCam.top=reach;shadowCam.bottom=-reach;
-  shadowCam.near=.5;shadowCam.far=Math.max(180,reach*3);
+  shadowCam.left=-shadow.reach;shadowCam.right=shadow.reach;
+  shadowCam.top=shadow.reach;shadowCam.bottom=-shadow.reach;
+  shadowCam.near=shadow.near;shadowCam.far=shadow.far;
   shadowCam.updateProjectionMatrix();
-  sun.shadow.bias=-.00012;
-  sun.shadow.normalBias=settings.shadowProfile==="high"?.025:.04;
-  sun.shadow.radius=settings.shadowProfile==="high"?1.6:2;
+  sun.shadow.bias=shadow.bias;
+  sun.shadow.normalBias=shadow.normalBias;
+  sun.shadow.radius=shadow.radius;
   sun.shadow.needsUpdate=true;
   applyVisualGuide();
 }
@@ -1832,18 +1840,24 @@ function updateLight() {
   const az = THREE.MathUtils.degToRad(+$("sun-azimuth").value);
   const el = THREE.MathUtils.degToRad(+$("sun-elevation").value);
   const radius = 65;
-  sun.target.position.copy(artRoot.position);
-  // Light direction must remain correct even when a real-world site is far from origin.
-  sun.position.copy(sun.target.position).add(new THREE.Vector3(
-    radius * Math.cos(el) * Math.sin(az),
-    radius * Math.sin(el), radius * Math.cos(el) * Math.cos(az)));
+  const bounds=new THREE.Box3().setFromObject(artRoot);
+  const focus=bounds.isEmpty()?artRoot.position.clone():bounds.getCenter(new THREE.Vector3());
+  // Real imported sculpture meshes may be offset far from their local origin.
+  // Move lights only (not artwork/site) around actual world-space sculpture bounds.
+  sun.target.position.copy(focus);
+  const direction=new THREE.Vector3(
+    Math.cos(el) * Math.sin(az),Math.sin(el),Math.cos(el) * Math.cos(az));
+  sun.position.copy(focus).addScaledVector(direction,radius);
+  fillLight.position.copy(focus).addScaledVector(direction,-45).add(new THREE.Vector3(0,25,0));
+  fillLight.target.position.copy(focus);
+  fillLight.target.updateMatrixWorld();
   sun.target.updateMatrixWorld();
-  sunGuide.position.copy(artRoot.position).addScaledVector(
-    sun.position.clone().normalize(), 8
-  );
+  lastSunArtworkPosition.copy(artRoot.position);
+  sunGuide.position.copy(focus).addScaledVector(direction,8);
   sunGuide.visible = $("sun-helper").checked;
   sun.intensity = +$("sun-strength").value;
   ambient.intensity = +$("ambient").value;
+  fillLight.intensity=fillLightIntensity(ambient.intensity);
   renderer.toneMappingExposure = +$("exposure").value;
   sun.color.set($("light-preset").value === "golden" ? 0xffc489 : 0xfff7e6);
   applyVisualLook();
@@ -3567,11 +3581,17 @@ transform.addEventListener("objectChange", () => {
   updateInspector();
   // Maintain solar direction during interactive artwork dragging; do not
   // recompute the expensive shadow fit until the drag is finished.
-  const artDelta=artRoot.position.clone().sub(sun.target.position);
-  if(!approvedMaster && selectedRoot===artRoot)translateLinkedPlinths(artDelta);
-  sun.position.add(artDelta);
-  sun.target.position.copy(artRoot.position);
-  sun.target.updateMatrixWorld();
+  const artDelta=artRoot.position.clone().sub(lastSunArtworkPosition);
+  if(!approvedMaster && selectedRoot===artRoot){
+    translateLinkedPlinths(artDelta);
+    lastSunArtworkPosition.copy(artRoot.position);
+    sun.position.add(artDelta);
+    sun.target.position.add(artDelta);
+    fillLight.position.add(artDelta);
+    fillLight.target.position.add(artDelta);
+    fillLight.target.updateMatrixWorld();
+    sun.target.updateMatrixWorld();
+  }
   refreshSelectionOutline();
 });
 renderer.domElement.addEventListener("pointerdown",e=>{
