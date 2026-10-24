@@ -1540,6 +1540,19 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await focusPage.locator("#select-artwork").click();
     assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"yes",
       "explicit artwork selection shows the yellow 3D outline");
+    const pngWithOutline=focusPage.waitForEvent("download",{timeout:40000});
+    await focusPage.locator("#shot-export").click();
+    const selectedRender=fs.readFileSync(await (await pngWithOutline).path());
+    const position=await focusPage.locator("#viewport canvas").boundingBox();
+    await focusPage.mouse.click(position.x+16,position.y+16);
+    assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"no",
+      "empty left click hides the selection outline and gizmo");
+    const pngWithoutOutline=focusPage.waitForEvent("download",{timeout:40000});
+    await focusPage.locator("#shot-export").click();
+    const clearRender=fs.readFileSync(await (await pngWithoutOutline).path());
+    assert.equal(Buffer.compare(selectedRender,clearRender),0,
+      "editor-only yellow box must never change official exported PNG bytes");
+    await focusPage.locator("#select-artwork").click();
     // v2.6: right-button panning must not clear the selected artwork.
     const uxCanvas=await focusPage.locator("#viewport canvas").boundingBox();
     assert.ok(uxCanvas);
@@ -1556,19 +1569,6 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await focusPage.mouse.up({button:"left"});
     assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"no",
       "a five-pixel pointer jitter still counts as an empty-scene click");
-    await focusPage.locator("#select-artwork").click();
-    const pngWithOutline=focusPage.waitForEvent("download",{timeout:40000});
-    await focusPage.locator("#shot-export").click();
-    const selectedRender=fs.readFileSync(await (await pngWithOutline).path());
-    const position=await focusPage.locator("#viewport canvas").boundingBox();
-    await focusPage.mouse.click(position.x+16,position.y+16);
-    assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"no",
-      "empty left click hides the selection outline and gizmo");
-    const pngWithoutOutline=focusPage.waitForEvent("download",{timeout:40000});
-    await focusPage.locator("#shot-export").click();
-    const clearRender=fs.readFileSync(await (await pngWithoutOutline).path());
-    assert.equal(Buffer.compare(selectedRender,clearRender),0,
-      "editor-only yellow box must never change official exported PNG bytes");
     await focusPage.locator("#select-artwork").click();
     await focusPage.keyboard.press("Escape");
     assert.equal(await focusPage.locator("#viewport").getAttribute("data-selection-active"),"no");
