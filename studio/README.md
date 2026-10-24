@@ -1,4 +1,18 @@
-# AXOO Public Art 3D Studio — v2.9
+# AXOO Public Art 3D Studio — v3.0
+
+## v3.0 — production stabilization and public-art review preparation
+
+**Field workflow:** import actual site + artwork sources → confirm metre scale & ground/orientation → arrange independent context assets → verify artist-approved design and camera → approve MASTER → preview 8 views → run production inspection → render 8-view ZIP → archive the full project ZIP. Stage render exports are browser WebGL PBR previews, **not photorealistic AI synthesis, a structural safety certification or a substitute for actual surveying / legally required review**.
+
+- A compact opt-in **v3.0 실전 프로젝트 점검** panel reads the current site/art/extras model footprints, verified MASTER consistency, availability of real source models and GPU-capped 16:9 output size. Download a JSON report containing numbers, warnings and caveats. This is an independent, read-only quality indicator, not a certified or automatic pass for legal submission.
+- Performance-related advice is surfaced for high triangle or draw-call counts without altering original meshes, texturing, dimensions or shadow composition. No forced decimation, geometry merging or background/source replacement.
+- Single PNG export now validates that WebGL is connected, the PNG has the correct image signature and **actual encoded dimensions match the chosen output resolution**. The live scene is checked for accidental changes after capture, and the output is blocked if that verification fails.
+- Exact restoration of all editor-only marker visibility, selection outline, gizmo state, camera aspect, GPU render size, and temporarily suspended site-preview states after success or failure. Fixes an old bug where formerly hidden editor light markers could become visible after exporting a PNG.
+- MASTER eight-shot and A/B/C comparison ZIPs now check actual PNG dimensions and WebGL context before accepting encoded images. Existing project ZIP SHA-256 source checks and versioned MASTER guards remain intact.
+- Failures show a diagnostic without deleting or silently replacing source content. Performance and WebGL stability still depend on actual browser/GPU, especially when using large OBJ/GLB models. Always confirm the rendered files on your own device and preserve original model files.
+- Validation: `node tests/studio-production-qa.test.cjs` and all previous static/browser tests, plus new Chromium integration for audit JSON, production messages, PNG header and intact project source/MASTER state.
+
+
 
 ## v2.9 — camera-only saved viewpoints & MASTER eight-shot review
 
