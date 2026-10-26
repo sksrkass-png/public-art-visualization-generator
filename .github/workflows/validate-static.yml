@@ -43,6 +43,7 @@ jobs:
           node --check studio/navigation-ux.js
           node --check studio/context-catalog.js
           node --check studio/nameplate-asset.js
+          node --check studio/plant-variants.js
           node --check studio/render-looks.js
           node --check studio/camera-bookmarks.js
           node --check studio/production-qa.js
@@ -62,6 +63,7 @@ jobs:
           node tests/studio-camera-focus.test.cjs
           node tests/studio-navigation-ux.test.cjs
           node tests/studio-context-catalog.test.cjs
+          node tests/studio-plant-variants.test.cjs
           node tests/studio-render-looks.test.cjs
           node tests/studio-camera-bookmarks.test.cjs
           node tests/studio-production-qa.test.cjs

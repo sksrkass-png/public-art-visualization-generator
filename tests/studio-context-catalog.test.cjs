@@ -4,7 +4,7 @@ const scope={Object,String,Number,Math,Array,Set,Error};
 vm.runInNewContext(src.replace(/\bexport\s+/g,"")+
   "\nthis.api={CONTEXT_CATALOG,CONTEXT_CATEGORIES,filterContextCatalog,uniformHeightScale,dimensionsLabel};",scope);
 const {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel}=scope.api;
-assert.equal(CONTEXT_CATALOG.length,17,"built-in palette must contain 17 searchable entries");
+assert.equal(CONTEXT_CATALOG.length,33,"built-in palette must contain 33 searchable entries");
 for(const kind of ["tree-birch","grass-patch","lawn-tile","walkway-tile","black-nameplate","car-sedan","bollard"]){
   assert.equal(CONTEXT_CATALOG.filter(a=>a.kind===kind).length,1,kind+" catalog entry");
 }
@@ -51,4 +51,30 @@ assert.ok(extras.includes("SURFACE_TILE_SIZE"));
 assert.ok(extras.includes("new THREE.BoxGeometry(3,.08,3)"));
 assert.ok(extras.includes("addBlackNameplate"));
 
-console.log("PASS v2.7 catalog filtering, dimension constraints, four source-safe presets and UI wiring");
+const botanicalFamilies=[
+  ["tree-round","tree-round-b","tree-round-c"],
+  ["tree-cone","tree-cone-b","tree-cone-c"],
+  ["tree-birch","tree-birch-b","tree-birch-c"],
+  ["tree-maple-a","tree-maple-b","tree-maple-c"],
+  ["tree-cherry-a","tree-cherry-b","tree-cherry-c"],
+  ["shrub","shrub-b","shrub-c"],
+  ["shrub-flower","shrub-flower-b","shrub-flower-c"]
+];
+for(const family of botanicalFamilies){
+  for(const kind of family){
+    assert.equal(CONTEXT_CATALOG.filter(x=>x.kind===kind).length,1,
+      kind+" must occur exactly once in searchable library");
+    assert.ok(html.includes('data-add-extra="'+kind+'"'),kind+" button");
+  }
+}
+assert.equal(new Set(botanicalFamilies.flat()).size,21);
+assert.equal(filterContextCatalog("단풍나무","planting").length,3);
+assert.equal(filterContextCatalog("벚꽃","planting").length,3);
+assert.equal(filterContextCatalog("덤불","planting").length,6);
+assert.equal(filterContextCatalog("침엽수","planting").length,3);
+assert.equal(filterContextCatalog("자작나무","planting").length,3);
+assert.match(js,/variants.open=true/,"matching B/C results must auto-expand");
+assert.match(js,/variants.hidden=!matchesVariants/,"other categories hide the optional plant group");
+assert.ok(html.includes('id="plant-variants"'));
+assert.ok(extras.includes("NEW_PLANT_VARIANTS"),"A legacy types unchanged, B/C types introduced separately");
+console.log("PASS v3.2 21 botanical options, searchable B/C variants, compact UI and original asset compatibility");

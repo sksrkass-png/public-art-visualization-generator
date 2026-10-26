@@ -314,13 +314,23 @@ function renderSiteLayerRows(entries) {
     : (matched.length ? matched.length+"개 목록 · 분류 후 위 레이어 표시를 조절하세요." : "일치하는 메시 없음");
 }
 function refreshContextPalette(){
-  const matched=new Set(filterContextCatalog($("context-search").value,$("context-category").value).map(a=>a.kind));
+  const query=$("context-search").value;
+  const matched=new Set(filterContextCatalog(query,$("context-category").value).map(a=>a.kind));
   document.querySelectorAll("[data-add-extra]").forEach(button=>{
     button.hidden=!matched.has(button.dataset.addExtra);
   });
+  // A compact 14-variant subsection avoids a huge default inspector. An
+  // explicit search auto-expands matching B/C variants so results aren't hidden.
+  const variants=$("plant-variants");
+  if(variants){
+    const matchesVariants=[...variants.querySelectorAll("[data-add-extra]")]
+      .some(button=>!button.hidden);
+    variants.hidden=!matchesVariants;
+    if(matchesVariants && query.trim())variants.open=true;
+  }
   syncAssetPlacementUI();
   $("context-search-count").textContent=matched.size+" / "+CONTEXT_CATALOG.length+
-    "개 기본 에셋 · 장면에 추가한 모델은 필터로 숨겨지지 않습니다.";
+    "개 기본 에셋 · B/C 수형은 아래 펼치기 · 장면에 추가한 모델은 필터로 숨겨지지 않습니다.";
 }
 function syncContextHeightUI(){
   const root=selectedRoot;
