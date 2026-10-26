@@ -1,11 +1,13 @@
 import * as THREE from "three";
 import { instantiateLibraryAsset } from "./assets.js";
 import { addBlackNameplate } from "./nameplate-asset.js";
+import {NEW_PLANT_VARIANTS,addPlantVariant} from "./plant-variants.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 
 // Procedural planting is intentionally schematic rather than a claim of true
 // botanical/photogrammetry accuracy. All extras are independent editables.
 export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "tree-autumn",
+  ...NEW_PLANT_VARIANTS,
   "person-standing", "person-man", "person-woman", "shrub-flower", "park-bench", "round-planter",
   "tree-birch", "grass-patch", "lawn-tile", "walkway-tile", "black-nameplate", "car-sedan", "bollard", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
 
@@ -332,14 +334,33 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   root.userData.extraId=id;
   root.userData.appearanceVersion=appearanceVersion;
   if(kind==="custom-glb")root.userData.assetId=assetId;
-  root.name=({ "tree-round":"활엽수", "tree-cone":"침엽수", "shrub":"덤불",
+  const plantVariantLabels={
+    "tree-round-b":"활엽수 B · 넓게 갈라진 수형",
+    "tree-round-c":"활엽수 C · 세로형 수관",
+    "tree-cone-b":"침엽수 B · 가느다란 원추형",
+    "tree-cone-c":"침엽수 C · 가지 드러난 층형",
+    "tree-birch-b":"자작나무 B · 다간형",
+    "tree-birch-c":"자작나무 C · 휘어진 풍성형",
+    "tree-maple-a":"단풍나무 A · 녹색 수관",
+    "tree-maple-b":"단풍나무 B · 넓은 붉은 수관",
+    "tree-maple-c":"단풍나무 C · 비대칭 주황 수관",
+    "tree-cherry-a":"벚꽃나무 A · 둥근 꽃 수관",
+    "tree-cherry-b":"벚꽃나무 B · 퍼지는 수관",
+    "tree-cherry-c":"벚꽃나무 C · 늘어진 가지",
+    "shrub-b":"덤불 B · 낮게 퍼지는 형",
+    "shrub-c":"덤불 C · 비대칭 자연형",
+    "shrub-flower-b":"꽃 덤불 B · 넓은 꽃군락",
+    "shrub-flower-c":"꽃 덤불 C · 높고 성긴 꽃군락"
+  };
+  root.name=({ ...plantVariantLabels,"tree-round":"활엽수", "tree-cone":"침엽수", "shrub":"덤불",
     "tree-autumn":"가을 활엽수", "person-standing":"보행자","person-man":"남성 175cm","person-woman":"여성 160cm","shrub-flower":"꽃 덤불", "park-bench":"공원 벤치",
     "round-planter":"화분", "tree-birch":"자작나무", "grass-patch":"잔디 패치",
     "lawn-tile":"3×3m 잔디밭", "walkway-tile":"3×3m 콘크리트 보도", "black-nameplate":"검정 명판 · 접어 만든 별의 비행",
     "car-sedan":"승용차", "bollard":"안전 볼라드",
     "custom-glb":"사용자 GLB", "artwork-copy":"작품 복제",
     "point-light":"포인트 조명","spot-light":"스폿 조명","plinth":"기단" })[kind]+" #"+id;
-  if(kind==="tree-round")(appearanceVersion === 1 ? legacyTreeRound : treeRound)(root);
+  if(NEW_PLANT_VARIANTS.includes(kind))addPlantVariant(root,kind);
+  else if(kind==="tree-round")(appearanceVersion === 1 ? legacyTreeRound : treeRound)(root);
   else if(kind==="tree-cone")(appearanceVersion === 1 ? legacyTreeCone : treeCone)(root);
   else if(kind==="shrub")(appearanceVersion === 1 ? legacyShrub : shrub)(root);
   else if(kind==="shrub-flower")flowerShrub(root);
