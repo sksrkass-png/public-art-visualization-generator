@@ -1925,7 +1925,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
         distinctVersions:a.children[0].geometry!==legacy.children[0].geometry
       };
       const entries=Array.from({length:135},(_,i)=>({
-        id:i+1,kind:i%5===0?"tree-maple-b":"tree-round",
+        id:i+1,kind:i%10===0?"tree-maple-b":i%10===1?"tree-round":"bollard",
         appearanceVersion:2,hidden:false,selectionLocked:false,
         transform:{p:[(i%15)*3,0,Math.floor(i/15)*3],r:[0,0,0],s:[1,1,1]}
       }));
@@ -1942,7 +1942,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await massPage.locator("#export-json").click();
     const massBase=JSON.parse(fs.readFileSync(await (await massBaseDl).path(),"utf8"));
     massBase.extras=Array.from({length:135},(_,i)=>({
-      id:i+1,kind:i%5===0?"tree-maple-b":"tree-round",
+      id:i+1,kind:i%10===0?"tree-maple-b":i%10===1?"tree-round":"bollard",
       appearanceVersion:2,hidden:false,selectionLocked:false,
       ...(i<2?{groupId:125}:{}),
       transform:{p:[(i%15)*3,0,Math.floor(i/15)*3],r:[0,0,0],s:[1,1,1]}
