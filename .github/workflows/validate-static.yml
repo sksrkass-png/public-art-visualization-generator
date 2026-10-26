@@ -64,6 +64,7 @@ jobs:
           node tests/studio-navigation-ux.test.cjs
           node tests/studio-context-catalog.test.cjs
           node tests/studio-plant-variants.test.cjs
+          node tests/studio-asset-volume.test.cjs
           node tests/studio-render-looks.test.cjs
           node tests/studio-camera-bookmarks.test.cjs
           node tests/studio-production-qa.test.cjs
