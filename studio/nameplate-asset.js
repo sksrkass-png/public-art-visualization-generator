@@ -52,11 +52,12 @@ export function addBlackNameplate(root){
   });
   // Chamfered pedestal, 300×200×100 mm outer dimensions (ground at y=0).
   const shape=new THREE.Shape();
-  const x=-width/2,z=-depth/2,r=.005;
+  const slabWidth=width-.004,slabDepth=depth-.004;
+  const x=-slabWidth/2,z=-slabDepth/2,r=.005;
   shape.moveTo(x+r,z);
-  shape.lineTo(x+width-r,z);shape.quadraticCurveTo(x+width,z,x+width,z+r);
-  shape.lineTo(x+width,z+depth-r);shape.quadraticCurveTo(x+width,z+depth,x+width-r,z+depth);
-  shape.lineTo(x+r,z+depth);shape.quadraticCurveTo(x,z+depth,x,z+depth-r);
+  shape.lineTo(x+slabWidth-r,z);shape.quadraticCurveTo(x+slabWidth,z,x+slabWidth,z+r);
+  shape.lineTo(x+slabWidth,z+slabDepth-r);shape.quadraticCurveTo(x+slabWidth,z+slabDepth,x+slabWidth-r,z+slabDepth);
+  shape.lineTo(x+r,z+slabDepth);shape.quadraticCurveTo(x,z+slabDepth,x,z+slabDepth-r);
   shape.lineTo(x,z+r);shape.quadraticCurveTo(x,z,x+r,z);
   const geometry=new THREE.ExtrudeGeometry(shape,{
     depth:height-.008,bevelEnabled:true,bevelThickness:.004,bevelSize:.002,bevelSegments:2,
@@ -65,6 +66,7 @@ export function addBlackNameplate(root){
   geometry.rotateX(-Math.PI/2);
   // Created geometry extrusion runs z=0..+height; after -90deg rotation y=0..+height.
   const body=new THREE.Mesh(geometry,stone);
+  body.position.y=.004; // bevel bottom flush to y=0, top to y=.10
   body.name="300×200×100mm black granite nameplate base";
   body.castShadow=true;body.receiveShadow=true;
   root.add(body);
