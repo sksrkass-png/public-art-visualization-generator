@@ -1,4 +1,13 @@
-# AXOO Public Art 3D Studio — v3.0.1
+# AXOO Public Art 3D Studio — v3.1
+
+## v3.1 — click-toggle repeat placement, 3×3m site tiles and black nameplate
+
+- **Automatic repeat placement:** Choose an asset button once and left-click the viewport multiple times to add independent objects. Click the **same** button again or press **Esc** to turn placement OFF. Clicking a different palette button immediately switches the repeated asset. Active placement has a green ON state and an accessible `aria-pressed` marker; no separate repeat checkbox is required. MASTER locks and layer visibility/lock settings still prevent edits. External user GLB placement uses the same repeating mechanism.
+- **Surface tiles:** 🟩 **잔디밭 3×3m** and ⬜ **콘크리트 보도 3×3m** have a physically visible **0.08m thickness**, rest on the clicked site ground and can be moved, rotated and scaled as independent 3D extras. They never erase or recolor any part of imported site, and preserve full compatibility with scene JSON/ZIP, revision MASTER history, undo/redo and other context assets.
+- **Black art plaque:** ⬛ **검정 명판 · 접어 만든 별의 비행** is available in the search/category palette as a lightweight black-granite-looking procedural proxy for the user's supplied `명판_접어만든별의비행.glb` file. Inspection of the uploaded GLB confirmed **W 0.30m × H 0.10m × D 0.20m**, two mesh groups, dark granite and printed face materials. The lightweight bundled version matches those outer dimensions and includes the actual named title/artist, but **does not embed the original GLB binary or claim pixel/mesh-identical reproduction**. For the full source artwork and the exact source texture, use the existing **내 GLB 에셋 라이브러리** import with that GLB (7.6MB under the 20MB/asset cap) and place its instance there. The source user GLB is not overwritten.
+- **Persistence and QA:** both surfacing choices and the plaque are distinct `EXTRA_TYPES`; valid `serializeExtras` / `restoreExtras` objects reopen without assets missing, and are subject to the usual MASTER locking and edit history. Studio tests exercise always-on/second-click OFF, Esc, scene config roundtrip and actual 3D PNG export.
+
+
 
 ## v3.0.1 — moonlit ARCHVIZ preset and clearly labeled control panels
 
