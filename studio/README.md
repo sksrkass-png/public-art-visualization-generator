@@ -1,4 +1,25 @@
-# AXOO Public Art 3D Studio — v3.1
+# AXOO Public Art 3D Studio — v3.2
+
+## v3.2 — 21 botanical variants for repeated site compositions
+
+**21 distinct presets across seven families**, with editable independent roots:
+- 🌳 Deciduous broadleaf A/B/C: the original round canopy (A), a broad multi-forking canopy (B), a tall compact column (C)
+- 🌲 Conifer A/B/C: original conical tree (A), slim compact tiers (B), exposed branch structure with separated needle clusters (C)
+- 🌳 Birch A/B/C: original white-bark canopy (A), three-trunk grove (B), tilted trunk with asymmetrical full canopy (C)
+- 🍁 Maple A/B/C: upright green spring canopy (A), wide dark-red autumn canopy (B), orange asymmetric canopy (C)
+- 🌸 Cherry blossom A/B/C: round pink blossom canopy (A), pale broad spreading canopy (B), hanging weeping branches (C)
+- 🌿 Shrub A/B/C: original round planting (A), low wide green hedge (B), taller irregular clumps with exposed stems (C)
+- 🌺 Flowering shrub A/B/C: original blossoms (A), spreading low flowering clusters (B), tall loose flowering shrubs (C)
+
+**Existing projects are not rewritten**: older kinds `tree-round`, `tree-cone`, `tree-birch`, `shrub`, `shrub-flower`, `tree-autumn` keep their original implementations, names, geometry and saved kind IDs. B/C and new maple/cherry kinds have distinct immutable kind IDs; `serializeExtras`, `restoreExtras`, source-safe MASTER snapshots, JSON and ZIP project archive all continue to use the existing schema.
+
+**Panel behavior:** seven A presets are easy to find directly (five original A plus new maple/cherry); 14 additional B/C variants appear under **🌿 나무·덤불 B/C 수형 14종 더보기**. Searching a matching term auto-expands this section. All variants use the existing single-click continuous asset placement, same-button OFF and Escape shortcut. Category remains `planting` for backward compatibility.
+
+**Performance:** material/foliage shapes are low-resolution deterministic procedural geometry, while repeated blossom particles use GPU instancing to reduce flower draw calls for dense planting scenes. All reference plants are intentionally schematic 3D context for public-art presentation, **not scanned botanical models**. Adding hundreds of trees can still slow WebGL; the studio's 120-extra limit and site complexity checks still apply. Neither imported architectural landscaping nor approved artwork geometry/materials are modified.
+
+**QA:** static coverage validates 21 catalog entries, 16 new deterministic builders, compact palette search and backward compatibility; Chromium regression tests inspect distinct geometry for every A/B/C family and verify repeat placement, saved JSON restoration and MASTER blocking.
+
+
 
 ## v3.1 — click-toggle repeat placement, 3×3m site tiles and black nameplate
 
