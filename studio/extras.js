@@ -11,6 +11,37 @@ export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "t
   "person-standing", "person-man", "person-woman", "shrub-flower", "park-bench", "round-planter",
   "tree-birch", "grass-patch", "lawn-tile", "walkway-tile", "black-nameplate", "car-sedan", "bollard", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
 
+// Reuse GPU geometry/materials for hundreds of repeated botanical props.
+// Clone the hierarchy only: each placed root retains its own transform,
+// object identity, selection and serializable kind. Old versions keep their
+// exact original geometry/color/proportions.
+const PLANT_TEMPLATE_KINDS=new Set([
+  "tree-round","tree-cone","tree-birch","tree-autumn","shrub","shrub-flower",
+  ...NEW_PLANT_VARIANTS
+]);
+const plantTemplates=new Map();
+function populatePlant(root,kind,appearanceVersion){
+  if(NEW_PLANT_VARIANTS.includes(kind))addPlantVariant(root,kind);
+  else if(kind==="tree-round")(appearanceVersion===1?legacyTreeRound:treeRound)(root);
+  else if(kind==="tree-cone")(appearanceVersion===1?legacyTreeCone:treeCone)(root);
+  else if(kind==="shrub")(appearanceVersion===1?legacyShrub:shrub)(root);
+  else if(kind==="shrub-flower")flowerShrub(root);
+  else if(kind==="tree-birch")birchTree(root);
+  else if(kind==="tree-autumn")autumnTree(root);
+}
+function addCachedPlant(root,kind,appearanceVersion){
+  const key=kind+"@"+appearanceVersion;
+  let template=plantTemplates.get(key);
+  if(!template){
+    template=new THREE.Group();
+    populatePlant(template,kind,appearanceVersion);
+    plantTemplates.set(key,template);
+  }
+  root.userData.botanicalPreview=NEW_PLANT_VARIANTS.includes(kind);
+  // Geometry/material references remain shared; per-instance state is local.
+  for(const child of template.children)root.add(child.clone(true));
+}
+
 function mesh(geometry, color, roughness = .85, metalness = 0) {
   const o = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, roughness, metalness }));
   o.castShadow = true;
@@ -355,22 +386,16 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   root.name=({ ...plantVariantLabels,"tree-round":"활엽수", "tree-cone":"침엽수", "shrub":"덤불",
     "tree-autumn":"가을 활엽수", "person-standing":"보행자","person-man":"남성 175cm","person-woman":"여성 160cm","shrub-flower":"꽃 덤불", "park-bench":"공원 벤치",
     "round-planter":"화분", "tree-birch":"자작나무", "grass-patch":"잔디 패치",
-    "lawn-tile":"3×3m 잔디밭", "walkway-tile":"3×3m 콘크리트 보도", "black-nameplate":"검정 명판 · 접어 만든 별의 비행",
+    "lawn-tile":"3×3m 잔디밭", "walkway-tile":"3×3m 콘크리트 보도", "black-nameplate":"검정 명판",
     "car-sedan":"승용차", "bollard":"안전 볼라드",
     "custom-glb":"사용자 GLB", "artwork-copy":"작품 복제",
     "point-light":"포인트 조명","spot-light":"스폿 조명","plinth":"기단" })[kind]+" #"+id;
-  if(NEW_PLANT_VARIANTS.includes(kind))addPlantVariant(root,kind);
-  else if(kind==="tree-round")(appearanceVersion === 1 ? legacyTreeRound : treeRound)(root);
-  else if(kind==="tree-cone")(appearanceVersion === 1 ? legacyTreeCone : treeCone)(root);
-  else if(kind==="shrub")(appearanceVersion === 1 ? legacyShrub : shrub)(root);
-  else if(kind==="shrub-flower")flowerShrub(root);
+  if(PLANT_TEMPLATE_KINDS.has(kind))addCachedPlant(root,kind,appearanceVersion);
   else if(kind==="person-man")personScaled(root,1.75,0x394956);
   else if(kind==="person-woman")personScaled(root,1.6,0xb4847c);
-  else if(kind==="tree-autumn")autumnTree(root);
   else if(kind==="person-standing")standingPerson(root);
   else if(kind==="park-bench")parkBench(root);
   else if(kind==="round-planter")roundPlanter(root);
-  else if(kind==="tree-birch")birchTree(root);
   else if(kind==="grass-patch")grassPatch(root);
   else if(kind==="lawn-tile"||kind==="walkway-tile")surfaceTile(root,kind);
   else if(kind==="black-nameplate")addBlackNameplate(root);
@@ -429,7 +454,7 @@ export function serializeExtras(container) {
   });
 }
 export function validateExtras(extras) {
-  if(!Array.isArray(extras)||extras.length>120)return false;
+  if(!Array.isArray(extras))return false;
   const ids=new Set();
   for(const x of extras) {
     if(!x||!EXTRA_TYPES.includes(x.kind)||!Number.isInteger(x.id)||x.id<1||ids.has(x.id))return false;
@@ -440,7 +465,7 @@ export function validateExtras(extras) {
     if(x.followArtwork!==undefined && (x.kind!=="plinth" || typeof x.followArtwork!=="boolean"))return false;
     if(x.hidden !== undefined && typeof x.hidden !== "boolean")return false;
     if(x.selectionLocked !== undefined && typeof x.selectionLocked !== "boolean")return false;
-    if(x.groupId!==undefined && (!Number.isInteger(x.groupId)||x.groupId<1||x.groupId>120))return false;
+    if(x.groupId!==undefined && (!Number.isSafeInteger(x.groupId)||x.groupId<1))return false;
     ids.add(x.id);
     const t=x.transform;
     if(!t||!["p","r","s"].every(k=>Array.isArray(t[k])&&t[k].length===3&&
