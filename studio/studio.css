@@ -397,3 +397,12 @@
 }
 #asset-placement-status{padding:8px 10px;border-radius:7px;
   background:#eff3f1;border:1px solid #d7e2d9;line-height:1.5}
+
+/* v3.2 — keep the 14 optional botanical B/C silhouettes compact until asked. */
+.plant-variants{margin:8px 0 14px;border:1px solid #d5dfd4;border-radius:9px;padding:8px 10px;background:#f5f8f4}
+.plant-variants[hidden]{display:none!important}
+.plant-variants>summary{cursor:pointer;font-size:12px;font-weight:750;line-height:1.65;color:#294c38}
+.plant-variants[open]>summary{padding-bottom:6px}
+.plant-variants>.hint{margin:4px 0 8px;line-height:1.5}
+.plant-variants .asset-palette{margin:8px 0 3px}
+.plant-variants .asset-palette button{font-size:11px;line-height:1.5;min-height:44px;white-space:normal;word-break:keep-all}
