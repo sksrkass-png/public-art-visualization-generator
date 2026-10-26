@@ -1,12 +1,13 @@
 import * as THREE from "three";
 import { instantiateLibraryAsset } from "./assets.js";
+import { addBlackNameplate } from "./nameplate-asset.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 
 // Procedural planting is intentionally schematic rather than a claim of true
 // botanical/photogrammetry accuracy. All extras are independent editables.
 export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "tree-autumn",
   "person-standing", "person-man", "person-woman", "shrub-flower", "park-bench", "round-planter",
-  "tree-birch", "grass-patch", "car-sedan", "bollard", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
+  "tree-birch", "grass-patch", "lawn-tile", "walkway-tile", "black-nameplate", "car-sedan", "bollard", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
 
 function mesh(geometry, color, roughness = .85, metalness = 0) {
   const o = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, roughness, metalness }));
@@ -138,6 +139,32 @@ function grassPatch(root){
   grass.receiveShadow=true;
   grass.castShadow=false;
   root.add(grass);
+}
+
+// 3 × 3 m, 8 cm-thick independent ground-surface elements.
+// Never alter or replace imported building/landscape original materials.
+export const SURFACE_TILE_SIZE=Object.freeze({width:3,depth:3,thickness:.08});
+function surfaceTile(root,kind){
+  const grass=kind==="lawn-tile";
+  const slab=mesh(new THREE.BoxGeometry(3,.08,3),grass?0x52783f:0xaeb1b0,
+    grass?1:.93,0);
+  slab.position.y=.04;slab.name=grass?"3×3m artificial lawn surface":"3×3m concrete sidewalk";
+  root.add(slab);
+  // Layered physical surface, aligned to the top of the 8cm tile.
+  if(grass){
+    const turf=mesh(new THREE.PlaneGeometry(3,3),0x6b974e,.98,0);
+    turf.rotation.x=-Math.PI/2;turf.position.y=.081;
+    turf.castShadow=false;turf.name="Grass turf surface";
+    root.add(turf);
+  }else{
+    // Three subtle concrete joints on the top plane: surface is still 3×3m.
+    for(const pos of [-.98,.98]){
+      const joint=mesh(new THREE.BoxGeometry(.011,.001,3),0x878c89,1);
+      joint.position.set(pos,.0808,0);joint.castShadow=false;root.add(joint);
+      const cross=mesh(new THREE.BoxGeometry(3,.001,.011),0x878c89,1);
+      cross.position.set(0,.0808,pos);cross.castShadow=false;root.add(cross);
+    }
+  }
 }
 function carSedan(root){
   // Approx. 1.8m W x 4.5m L x 1.55m H; Z is forward.
@@ -308,6 +335,7 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   root.name=({ "tree-round":"활엽수", "tree-cone":"침엽수", "shrub":"덤불",
     "tree-autumn":"가을 활엽수", "person-standing":"보행자","person-man":"남성 175cm","person-woman":"여성 160cm","shrub-flower":"꽃 덤불", "park-bench":"공원 벤치",
     "round-planter":"화분", "tree-birch":"자작나무", "grass-patch":"잔디 패치",
+    "lawn-tile":"3×3m 잔디밭", "walkway-tile":"3×3m 콘크리트 보도", "black-nameplate":"검정 명판 · 접어 만든 별의 비행",
     "car-sedan":"승용차", "bollard":"안전 볼라드",
     "custom-glb":"사용자 GLB", "artwork-copy":"작품 복제",
     "point-light":"포인트 조명","spot-light":"스폿 조명","plinth":"기단" })[kind]+" #"+id;
@@ -323,6 +351,8 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   else if(kind==="round-planter")roundPlanter(root);
   else if(kind==="tree-birch")birchTree(root);
   else if(kind==="grass-patch")grassPatch(root);
+  else if(kind==="lawn-tile"||kind==="walkway-tile")surfaceTile(root,kind);
+  else if(kind==="black-nameplate")addBlackNameplate(root);
   else if(kind==="car-sedan")carSedan(root);
   else if(kind==="bollard")safetyBollard(root);
   else if(kind==="plinth"){

@@ -318,6 +318,7 @@ function refreshContextPalette(){
   document.querySelectorAll("[data-add-extra]").forEach(button=>{
     button.hidden=!matched.has(button.dataset.addExtra);
   });
+  syncAssetPlacementUI();
   $("context-search-count").textContent=matched.size+" / "+CONTEXT_CATALOG.length+
     "개 기본 에셋 · 장면에 추가한 모델은 필터로 숨겨지지 않습니다.";
 }
@@ -618,6 +619,7 @@ function addMeasuredPoint(point){
   $("measure-site-status").textContent="3D 거리 "+delta.toFixed(3)+"m · 수평 거리 "+
     planar.toFixed(3)+"m · 높이차 "+Math.abs(first.y-second.y).toFixed(3)+"m";
   placementMode=null;$("placement-hint").hidden=true;
+  syncAssetPlacementUI();
 }
 function checkInterferences(){
   const annotated=siteSourceFile?enumerateSiteMeshes(siteRoot).filter(entry=>
@@ -1806,6 +1808,7 @@ function syncLock() {
   if (approvedMaster) {
     placementMode = null;
     $("placement-hint").hidden = true;
+    syncAssetPlacementUI();
     // Even a file read that began before approval must not replace the master.
     activeSiteOperation++;
     activeArtOperation++;
@@ -2074,19 +2077,43 @@ function groupForPlacement(kind){
     return layerState.groups.artwork;
   return layerState.groups.planting;
 }
+// v3.1: click a palette item once to enter continuous placement. Clicking
+// the same item again, or Escape, disables it. All tools remain source-safe.
+function isRepeatablePlacement(kind){
+  return kind==="custom-glb"||CONTEXT_CATALOG.some(item=>item.kind===kind);
+}
+function syncAssetPlacementUI(){
+  document.querySelectorAll("[data-add-extra]").forEach(button=>{
+    const active=placementMode===button.dataset.addExtra;
+    button.classList.toggle("is-placing",active);
+    button.setAttribute("aria-pressed",String(active));
+  });
+  const libraryActive=placementMode==="custom-glb";
+  $("library-place").classList.toggle("is-placing",libraryActive);
+  $("library-place").setAttribute("aria-pressed",String(libraryActive));
+  $("asset-placement-status").textContent=isRepeatablePlacement(placementMode)
+    ? "🟢 연속 배치 ON · "+(CONTEXT_CATALOG.find(item=>item.kind===placementMode)?.label||"내 GLB")+
+      " · 화면을 클릭할 때마다 추가 / 같은 버튼 다시 누르면 OFF / Esc 종료"
+    : "⚪ 배치 OFF · 에셋 버튼 → 화면 연속 클릭 / 같은 버튼으로 OFF / Esc 종료";
+}
+function stopAssetPlacement(){
+  placementMode=null;
+  $("placement-hint").hidden=true;
+  if(gizmoRequested&&selectedCanEdit())transform.attach(selectedRoot);
+  syncAssetPlacementUI();
+}
 function setPlacement(kind) {
+  if(placementMode===kind){stopAssetPlacement();return;}
   const group=groupForPlacement(kind);
   if (approvedMaster || group.locked || !group.visible) return notify("잠긴 레이어나 숨겨진 레이어에는 오브제를 추가할 수 없습니다.");
   placementMode = kind;
-  // Placement receives the next left click even if the cursor overlaps the old XYZ gizmo.
-  // Detach display-only controls; selected source meshes remain unchanged.
   transform.detach();
   $("placement-hint").hidden = false;
-  $("placement-hint").textContent = kind.includes("light")
-    ? "현장 클릭으로 조명 배치 · Esc 취소"
-    : "현장 바닥 클릭으로 "+(kind==="car-sedan"?"차량":kind==="grass-patch"?"잔디":"오브제")+" 배치 · Esc 취소";
-  if($("placement-repeat").checked)$("placement-hint").textContent+=" · 연속 배치 중";
-  notify("현장 위치를 클릭하여 추가하세요.");
+  $("placement-hint").textContent =
+    "🟢 연속 배치 · 현장 클릭마다 "+(CONTEXT_CATALOG.find(item=>item.kind===kind)?.label||"내 GLB")+
+    " 추가 · 같은 에셋 버튼 또는 Esc로 종료";
+  syncAssetPlacementUI();
+  notify("연속 배치 ON · 같은 버튼을 다시 누르거나 Esc로 종료할 수 있습니다.");
 }
 function createPlacedExtra(kind, position) {
   const group=groupForPlacement(kind);
@@ -2103,6 +2130,7 @@ function createPlacedExtra(kind, position) {
       offset: toFinite($("ground-offset").value, 0, -20, 50) });
   }
   selectRoot(root);
+  if(isRepeatablePlacement(placementMode))transform.detach();
   updateExtrasStatus();
   commit(before);
   return root;
@@ -2211,11 +2239,11 @@ function handleSelection(event) {
     const hit = pickPlacement(event);
     if (!hit) { notify("해당 지점에서 위쪽 표면을 찾을 수 없습니다. 현장 메시와 각도를 확인하세요."); return; }
     const kind = placementMode;
-    const repeating=$("placement-repeat").checked &&
-      (kind==="custom-glb"||CONTEXT_CATALOG.some(entry=>entry.kind===kind));
+    const repeating=isRepeatablePlacement(kind);
     if(kind!=="measure-point"&&!repeating){
       placementMode=null;
       $("placement-hint").hidden=true;
+      syncAssetPlacementUI();
     }
     if (kind === "measure-point") {
       addMeasuredPoint(hit.point);
@@ -3413,6 +3441,7 @@ $("ground-selected").addEventListener("click", () => groundSelected());
 $("pick-selected-site").addEventListener("click", () => {
   if (approvedMaster) return;
   placementMode = "selected-ground";
+  syncAssetPlacementUI();
   $("placement-hint").textContent = "대상 오브제를 옮길 실제 현장 바닥을 클릭하세요 · Esc 취소";
   $("placement-hint").hidden = false;
 });
@@ -3420,6 +3449,7 @@ $("plan-pick-center").addEventListener("click", () => {
   if (approvedMaster) return;
   if (!loadedPlanTexture) return notify("먼저 배치도 이미지를 불러오세요.");
   placementMode = "plan-center";
+  syncAssetPlacementUI();
   $("placement-hint").textContent = "배치도 중심을 정렬할 현장 위치를 클릭하세요 · Esc 취소";
   $("placement-hint").hidden = false;
 });
@@ -3519,10 +3549,7 @@ $("light-preset").addEventListener("change", e => {
 document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener("click", () => setPlacement(el.dataset.addExtra)));
 $("context-search").addEventListener("input",refreshContextPalette);
 $("context-category").addEventListener("change",refreshContextPalette);
-$("placement-repeat").addEventListener("change",()=>{
-  if(placementMode)$("placement-hint").textContent=
-    "현장 클릭 배치 · Esc 종료"+($("placement-repeat").checked?" · 연속 배치 중":"");
-});
+
 $("library-toggle").addEventListener("click",()=>{
   const expanded=$("library-toggle").getAttribute("aria-expanded")==="true";
   $("library-toggle").setAttribute("aria-expanded",String(!expanded));
@@ -3552,13 +3579,14 @@ $("precision-ungroup").addEventListener("click",ungroupLogical);
 $("measure-site-start").addEventListener("click",()=>{
   measuredPoints=[];
   placementMode="measure-point";
+  syncAssetPlacementUI();
   $("placement-hint").hidden=false;
   $("placement-hint").textContent="실제 현장 표면의 두 점을 차례로 클릭 · ESC 취소";
   $("measure-site-status").textContent="첫 번째 점을 선택하세요.";
 });
 $("measure-site-clear").addEventListener("click",()=>{
   measuredPoints=[];
-  if(placementMode==="measure-point"){placementMode=null;$("placement-hint").hidden=true;}
+  if(placementMode==="measure-point"){placementMode=null;$("placement-hint").hidden=true;syncAssetPlacementUI();}
   $("measure-site-status").textContent="측정점 초기화됨";
 });
 $("measure-objects").addEventListener("click",showPairMeasurement);
@@ -3594,6 +3622,7 @@ $("plinth-align").addEventListener("click",alignArtworkOnPlinth);
 $("anchor-pick").addEventListener("click",()=>{
   if(approvedMaster)return;
   placementMode="art-anchor";
+  syncAssetPlacementUI();
   $("placement-hint").hidden=false;
   $("placement-hint").textContent="현장 표면을 클릭해 설치 기준점 선택 · Esc 취소";
 });
@@ -3853,8 +3882,7 @@ window.addEventListener("keydown", e => {
   if (e.target instanceof HTMLElement && e.target.closest("input,textarea,select,[contenteditable]")) return;
   if (e.key === "Escape" && spatialBridge?.cancel()) { e.preventDefault(); return; }
   if (e.key === "Escape" && placementMode) {
-    placementMode = null; $("placement-hint").hidden = true;
-    if(gizmoRequested&&selectedCanEdit())transform.attach(selectedRoot);
+    stopAssetPlacement();
     e.preventDefault();return;
   }
   if (e.key === "Escape" && gizmoRequested) {clearCanvasSelection();e.preventDefault();return;}

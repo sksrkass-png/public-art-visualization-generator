@@ -4,8 +4,8 @@ const scope={Object,String,Number,Math,Array,Set,Error};
 vm.runInNewContext(src.replace(/\bexport\s+/g,"")+
   "\nthis.api={CONTEXT_CATALOG,CONTEXT_CATEGORIES,filterContextCatalog,uniformHeightScale,dimensionsLabel};",scope);
 const {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel}=scope.api;
-assert.equal(CONTEXT_CATALOG.length,14,"built-in palette must contain 14 searchable entries");
-for(const kind of ["tree-birch","grass-patch","car-sedan","bollard"]){
+assert.equal(CONTEXT_CATALOG.length,17,"built-in palette must contain 17 searchable entries");
+for(const kind of ["tree-birch","grass-patch","lawn-tile","walkway-tile","black-nameplate","car-sedan","bollard"]){
   assert.equal(CONTEXT_CATALOG.filter(a=>a.kind===kind).length,1,kind+" catalog entry");
 }
 assert.equal(filterContextCatalog("  승용차  ","all")[0].kind,"car-sedan");
@@ -24,11 +24,11 @@ const extras=fs.readFileSync(path.join(__dirname,"../studio/extras.js"),"utf8");
 const html=fs.readFileSync(path.join(__dirname,"../studio/index.html"),"utf8");
 const js=fs.readFileSync(path.join(__dirname,"../studio/studio.js"),"utf8");
 const assets=fs.readFileSync(path.join(__dirname,"../studio/assets.js"),"utf8");
-for(const kind of ["tree-birch","grass-patch","car-sedan","bollard"]){
+for(const kind of ["tree-birch","grass-patch","lawn-tile","walkway-tile","black-nameplate","car-sedan","bollard"]){
   assert.ok(extras.includes('"'+kind+'"'),kind+" must be constructible and restorable");
   assert.ok(html.includes('data-add-extra="'+kind+'"'),kind+" must have placement button");
 }
-for(const id of ["context-search","context-category","placement-repeat","library-toggle",
+for(const id of ["context-search","context-category","asset-placement-status","library-toggle",
   "extra-target-height","extra-fit-height","library-size-note"]){
   assert.ok(html.includes('id="'+id+'"'),id+" UI required");
   assert.ok(js.includes('"'+id+'"'),id+" runtime wiring required");
@@ -36,4 +36,19 @@ for(const id of ["context-search","context-category","placement-repeat","library
 assert.match(assets,/ASSET_CATEGORIES=.*"vehicle"/,"external vehicle GLBs allowed");
 assert.match(js,/uniformHeightScale\(/);
 assert.match(js,/approvedMaster/);
+assert.equal(filterContextCatalog("잔디","surface").length,1);
+assert.equal(filterContextCatalog("보도","surface").length,1);
+assert.equal(filterContextCatalog("명판","signage").length,1);
+assert.match(js,/isRepeatablePlacement\(kind\)/);
+assert.match(js,/placementMode===kind/);
+assert.match(js,/syncAssetPlacementUI\(\)/);
+assert.ok(!html.includes('id="placement-repeat"'),"repeating is automatic, not a second checkbox");
+const nameplate=fs.readFileSync(path.join(__dirname,"../studio/nameplate-asset.js"),"utf8");
+assert.ok(nameplate.includes("접어 만든 별의 비행"));
+assert.ok(nameplate.includes("LEE HO JOON"));
+assert.ok(nameplate.includes("width:.30,height:.10,depth:.20"));
+assert.ok(extras.includes("SURFACE_TILE_SIZE"));
+assert.ok(extras.includes("new THREE.BoxGeometry(3,.08,3)"));
+assert.ok(extras.includes("addBlackNameplate"));
+
 console.log("PASS v2.7 catalog filtering, dimension constraints, four source-safe presets and UI wiring");

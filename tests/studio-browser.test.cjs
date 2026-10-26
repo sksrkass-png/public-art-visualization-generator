@@ -1690,18 +1690,17 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       {waitUntil:"domcontentloaded",timeout:60000});
     const contextCanvas=contextPage.locator("#viewport canvas");
     await contextCanvas.waitFor({timeout:30000});
-    await contextPage.waitForFunction(()=>document.querySelector("#context-search-count")?.textContent.includes("14 / 14"));
+    await contextPage.waitForFunction(()=>document.querySelector("#context-search-count")?.textContent.includes("17 / 17"));
     assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').isVisible(),true);
     await contextPage.locator("#context-category").selectOption("street");
     await contextPage.locator("#context-search").fill("승용차");
     assert.equal(await contextPage.locator('[data-add-extra="grass-patch"]').isVisible(),false);
     assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').isVisible(),true);
-    assert.match(await contextPage.locator("#context-search-count").textContent(),/1 \/ 14/);
+    assert.match(await contextPage.locator("#context-search-count").textContent(),/1 \/ 17/);
     await contextPage.locator('[data-view="aerial"]').click();
     const cb=await contextCanvas.boundingBox();
     assert.ok(cb);
     const placeAt=async(x,y)=>contextPage.mouse.click(cb.x+cb.width*x,cb.y+cb.height*y);
-    await contextPage.locator("#placement-repeat").check();
     await contextPage.locator('[data-add-extra="car-sedan"]').click();
     await placeAt(.65,.82);
     await contextPage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===1,
@@ -1709,8 +1708,11 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await placeAt(.71,.82);
     await contextPage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===2,
       null,{timeout:15000});
-    await contextPage.keyboard.press("Escape");
-    await contextPage.locator("#placement-repeat").uncheck();
+    // Same toolbar item pressed again exits continuous mode without a checkbox.
+    assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').getAttribute("aria-pressed"),"true");
+    await contextPage.locator('[data-add-extra="car-sedan"]').click();
+    assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').getAttribute("aria-pressed"),"false");
+    assert.match(await contextPage.locator("#asset-placement-status").textContent(),/배치 OFF/);
     await contextPage.locator("#context-search").fill("");
     await contextPage.locator("#context-category").selectOption("planting");
     for(const [kind,x] of [["grass-patch",.53],["tree-birch",.59]]){
@@ -1746,7 +1748,70 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await contextPage.locator("#master-lock").click();
     assert.equal(await contextPage.locator("#extra-fit-height").isDisabled(),true,
       "approved MASTER blocks decorative rescaling");
+
     await contextPage.close();
+
+    // v3.1: native repeat-ON/OFF and standalone 3×3m surfacing + granite
+    // nameplate, all persisted as independent extras and MASTER-safe.
+    const tilePage=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
+    tilePage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await tilePage.goto("http://127.0.0.1:8787/studio/?panels=open",
+      {waitUntil:"domcontentloaded",timeout:60000});
+    const tileCanvas=tilePage.locator("#viewport canvas");
+    await tileCanvas.waitFor({timeout:30000});
+    await tilePage.locator('[data-view="aerial"]').click();
+    const tb=await tileCanvas.boundingBox();
+    const drop=async(x,y)=>tilePage.mouse.click(tb.x+tb.width*x,tb.y+tb.height*y);
+    await tilePage.locator("#context-category").selectOption("surface");
+    const lawn=tilePage.locator('[data-add-extra="lawn-tile"]');
+    const concrete=tilePage.locator('[data-add-extra="walkway-tile"]');
+    await lawn.click();
+    assert.equal(await lawn.getAttribute("aria-pressed"),"true");
+    await drop(.60,.79);await drop(.67,.8);
+    await tilePage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===2);
+    assert.equal(await lawn.getAttribute("aria-pressed"),"true");
+    await lawn.click();
+    assert.equal(await lawn.getAttribute("aria-pressed"),"false");
+    await drop(.72,.79);
+    assert.equal(await tilePage.locator("#extra-list button").count(),2,
+      "clicking the same palette kind switches continuous placement OFF");
+    await concrete.click();
+    assert.equal(await concrete.getAttribute("aria-pressed"),"true");
+    await drop(.75,.76);
+    await tilePage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===3);
+    await tilePage.keyboard.press("Escape");
+    assert.equal(await concrete.getAttribute("aria-pressed"),"false");
+    await tilePage.locator("#context-category").selectOption("signage");
+    const nameplate=tilePage.locator('[data-add-extra="black-nameplate"]');
+    await nameplate.click();
+    await drop(.54,.79);
+    await tilePage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===4);
+    assert.match(await tilePage.locator("#asset-placement-status").textContent(),/검정 명판/);
+    const tileBefore=tilePage.waitForEvent("download",{timeout:20000});
+    await tilePage.locator("#export-json").click();
+    const sceneWithTiles=JSON.parse(fs.readFileSync(await (await tileBefore).path(),"utf8"));
+    assert.deepEqual(sceneWithTiles.extras.map(x=>x.kind),
+      ["lawn-tile","lawn-tile","walkway-tile","black-nameplate"]);
+    assert.notDeepEqual(sceneWithTiles.extras[0].transform.p,sceneWithTiles.extras[1].transform.p);
+    await tilePage.keyboard.press("Escape");
+    const tilePNG=tilePage.waitForEvent("download",{timeout:40000});
+    await tilePage.locator("#shot-export").click();
+    const tileBytes=fs.readFileSync(await (await tilePNG).path());
+    assert.equal(tileBytes.toString("ascii",1,4),"PNG");
+    await tilePage.locator("#import-json").setInputFiles({
+      name:"tiles-nameplate-project.json",mimeType:"application/json",
+      buffer:Buffer.from(JSON.stringify(sceneWithTiles))
+    });
+    await tilePage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===4);
+    const importedTiles=tilePage.waitForEvent("download",{timeout:20000});
+    await tilePage.locator("#export-json").click();
+    const restoredTiles=JSON.parse(fs.readFileSync(await (await importedTiles).path(),"utf8"));
+    assert.deepEqual(restoredTiles.extras,sceneWithTiles.extras,
+      "nameplate and 3×3m tile transforms survive portable scene config");
+    await tilePage.locator("#master-lock").click();
+    assert.equal(await tilePage.locator('[data-add-extra="lawn-tile"]').isDisabled(),true);
+    assert.equal(await tilePage.locator('[data-add-extra="black-nameplate"]').isDisabled(),true);
+    await tilePage.close();
 
     // v2.8: change lighting/sky/shadow only, compare actual PNGs and prove
     // the source site, artwork and extras remain byte-identical in saved JSON.

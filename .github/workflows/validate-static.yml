@@ -42,6 +42,7 @@ jobs:
           node --check studio/camera-focus.js
           node --check studio/navigation-ux.js
           node --check studio/context-catalog.js
+          node --check studio/nameplate-asset.js
           node --check studio/render-looks.js
           node --check studio/camera-bookmarks.js
           node --check studio/production-qa.js
