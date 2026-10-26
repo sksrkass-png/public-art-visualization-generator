@@ -1907,6 +1907,82 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(await tilePage.locator('[data-add-extra="black-nameplate"]').isDisabled(),true);
     await tilePage.close();
 
+    // v3.2.1: no silent cutoff at 120; >130 identical trees must reuse GPU
+    // geometry, restore through the real editor, remain editable and export.
+    const massPage=await browser.newPage({viewport:{width:1350,height:850},acceptDownloads:true});
+    massPage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await massPage.goto("http://127.0.0.1:8787/studio/?panels=open",
+      {waitUntil:"domcontentloaded",timeout:60000});
+    await massPage.locator("#viewport canvas").waitFor({timeout:30000});
+    const sharedPlantGeometry=await massPage.evaluate(async()=>{
+      const {makeExtra,validateExtras}=await import("/studio/extras.js");
+      const a=makeExtra("tree-round",1,2),b=makeExtra("tree-round",2,2),
+        legacy=makeExtra("tree-round",3,1);
+      const result={
+        differentRoots:a!==b,
+        sharedGeometry:a.children[0].geometry===b.children[0].geometry,
+        sharedMaterial:a.children[0].material===b.children[0].material,
+        distinctVersions:a.children[0].geometry!==legacy.children[0].geometry
+      };
+      const entries=Array.from({length:135},(_,i)=>({
+        id:i+1,kind:i%5===0?"tree-maple-b":"tree-round",
+        appearanceVersion:2,hidden:false,selectionLocked:false,
+        transform:{p:[(i%15)*3,0,Math.floor(i/15)*3],r:[0,0,0],s:[1,1,1]}
+      }));
+      result.largeExtrasValid=validateExtras(entries);
+      result.groupIDValid=validateExtras(entries.map((entry,i)=>
+        i<2?{...entry,groupId:125}:entry));
+      return result;
+    });
+    assert.deepEqual(sharedPlantGeometry,{
+      differentRoots:true,sharedGeometry:true,sharedMaterial:true,
+      distinctVersions:true,largeExtrasValid:true,groupIDValid:true
+    },"reused tree resources, v1 legacy shape and 135-entry JSON must all be supported");
+    const massBaseDl=massPage.waitForEvent("download",{timeout:20000});
+    await massPage.locator("#export-json").click();
+    const massBase=JSON.parse(fs.readFileSync(await (await massBaseDl).path(),"utf8"));
+    massBase.extras=Array.from({length:135},(_,i)=>({
+      id:i+1,kind:i%5===0?"tree-maple-b":"tree-round",
+      appearanceVersion:2,hidden:false,selectionLocked:false,
+      ...(i<2?{groupId:125}:{}),
+      transform:{p:[(i%15)*3,0,Math.floor(i/15)*3],r:[0,0,0],s:[1,1,1]}
+    }));
+    await massPage.locator("#import-json").setInputFiles({
+      name:"135-planting-extras.json",mimeType:"application/json",
+      buffer:Buffer.from(JSON.stringify(massBase))
+    });
+    await massPage.waitForFunction(()=>
+      document.querySelector("#extra-count")?.textContent.includes("135"),
+      null,{timeout:30000});
+    assert.match(await massPage.locator("#asset-density-status").textContent(),/135/);
+    assert.ok(await massPage.locator("#extra-list button").count()<=101,
+      "object panel renders only a manageable window of a large scene");
+    await massPage.locator("#extra-list-search").fill("#2");
+    assert.equal(await massPage.locator('#extra-list button[data-extra-id="2"]').count(),1,
+      "search reveals a placed object far outside the most-recent window");
+    await massPage.locator("#extra-list-search").fill("");
+    await massPage.locator('[data-view="aerial"]').click();
+    const mb=await massPage.locator("#viewport canvas").boundingBox();
+    await massPage.locator('[data-add-extra="tree-round"]').click();
+    await massPage.mouse.click(mb.x+mb.width*.60,mb.y+mb.height*.82);
+    await massPage.waitForFunction(()=>
+      document.querySelector("#extra-count")?.textContent.includes("136"),null,{timeout:30000});
+    await massPage.mouse.click(mb.x+mb.width*.68,mb.y+mb.height*.81);
+    await massPage.waitForFunction(()=>
+      document.querySelector("#extra-count")?.textContent.includes("137"),null,{timeout:30000});
+    await massPage.locator('[data-add-extra="tree-round"]').click();
+    assert.equal(await massPage.locator('[data-add-extra="tree-round"]').getAttribute("aria-pressed"),"false");
+    const massSavedDl=massPage.waitForEvent("download",{timeout:25000});
+    await massPage.locator("#export-json").click();
+    const massSaved=JSON.parse(fs.readFileSync(await (await massSavedDl).path(),"utf8"));
+    assert.equal(massSaved.extras.length,137,
+      "no 120-object placement cap and both new trees saved");
+    assert.deepEqual(massSaved.extras.slice(-2).map(x=>x.id),[136,137],
+      "new IDs remain unique after importing more than 120 extras");
+    assert.equal(massSaved.extras[0].groupId,125,
+      "logical group ID >120 survives large-scene serialization");
+    await massPage.close();
+
     // v2.8: change lighting/sky/shadow only, compare actual PNGs and prove
     // the source site, artwork and extras remain byte-identical in saved JSON.
     const renderPage=await browser.newPage({viewport:{width:1300,height:820},acceptDownloads:true});
