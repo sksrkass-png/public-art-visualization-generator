@@ -384,3 +384,16 @@
 }
 .inspector-fold>summary{line-height:1.55;word-break:keep-all}
 .sidepanel h2,.sidepanel h3{word-break:keep-all}
+
+/* v3.1 — unmistakable active placement; each palette button acts as ON/OFF. */
+.asset-palette button.is-placing,
+.asset-palette button[aria-pressed="true"],
+#library-place.is-placing {
+  border-color:#40a16c!important;
+  background:#dff1e4!important;
+  color:#175638!important;
+  box-shadow:inset 0 0 0 1px #4eae75;
+  font-weight:750;
+}
+#asset-placement-status{padding:8px 10px;border-radius:7px;
+  background:#eff3f1;border:1px solid #d7e2d9;line-height:1.5}
