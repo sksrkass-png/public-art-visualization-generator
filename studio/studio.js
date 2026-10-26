@@ -458,8 +458,16 @@ function ensureAvailableLibrary(assets,library=assetLibrary){
 function renderExtraLayerRows() {
   const list=$("layer-extra-list");
   list.replaceChildren();
-  $("extra-layer-count").textContent=extrasRoot.children.length+"개";
-  for(const root of extrasRoot.children){
+  $("extra-layer-count").textContent=extrasRoot.children.length.toLocaleString("ko-KR")+"개";
+  const filter=$("extra-layer-search")?.value.trim().toLocaleLowerCase("ko-KR")||"";
+  const matching=filter?extrasRoot.children.filter(root=>
+    root.name.toLocaleLowerCase("ko-KR").includes(filter)||String(root.userData.extraId).includes(filter))
+    :extrasRoot.children;
+  const visible=matching.length>100?matching.slice(-100):matching;
+  if($("extra-layer-summary"))$("extra-layer-summary").textContent=
+    matching.length.toLocaleString("ko-KR")+"개 중 최근 "+visible.length+
+      "개 표시 · 이전 객체는 위 검색에서 찾을 수 있습니다.";
+  for(const root of visible){
     const item=document.createElement("div");
     item.className="extra-layer-item";item.dataset.extraLayerId=String(root.userData.extraId);
     const label=document.createElement("button");
@@ -489,7 +497,12 @@ function renderPrecisionRows(){
   const selectedIds=new Set(extrasRoot.children.map(root=>root.userData.extraId));
   for(const id of previous)if(!selectedIds.has(id))previous.delete(id);
   list.replaceChildren();
-  for(const root of extrasRoot.children){
+  // Avoid building thousands of checkbox DOM nodes after every placement.
+  // Preserve selected and previously checked distant IDs for grouping.
+  const recent=extrasRoot.children.length>100?extrasRoot.children.slice(-100):extrasRoot.children;
+  const kept=extrasRoot.children.filter(x=>
+    (previous.has(x.userData.extraId)||x===selectedRoot)&&!recent.includes(x));
+  for(const root of [...kept,...recent]){
     const label=document.createElement("label");
     const check=document.createElement("input");
     check.type="checkbox";check.dataset.precisionGroupId=String(root.userData.extraId);
@@ -504,7 +517,11 @@ function refreshPrecisionUI(){
   if(!$("precision-group-list"))return;
   renderPrecisionRows();
   const prevA=$("measure-first").value,prevB=$("measure-second").value;
-  const candidates=modelingObjects();
+  const all=modelingObjects();
+  const newest=all.length>101?[all[0],...all.slice(-100)]:all;
+  const keep=all.filter(o=>o===selectedRoot||String(o.userData.extraId)===prevA||
+    String(o.userData.extraId)===prevB);
+  const candidates=[...new Set([...newest,...keep])];
   for(const [id,selected] of [["measure-first",prevA],["measure-second",prevB]]){
     const input=$(id);input.replaceChildren();
     for(const [i,o] of candidates.entries())input.add(new Option(o.name,i===0?"main":String(o.userData.extraId)));
@@ -2033,7 +2050,9 @@ function updateExtrasStatus() {
   const matched=filter?extrasRoot.children.filter(node=>
     node.name.toLocaleLowerCase("ko-KR").includes(filter)||String(node.userData.extraId).includes(filter))
     :extrasRoot.children;
-  const displayed=matched.length>100?matched.slice(-100):matched;
+  const last=matched.length>100?matched.slice(-100):matched;
+  const displayed=selectedRoot?.parent===extrasRoot && !last.includes(selectedRoot) && !filter
+    ? [selectedRoot,...last]:last;
   if($("extra-list-summary"))$("extra-list-summary").textContent=
     matched.length.toLocaleString("ko-KR")+"개 중 "+displayed.length+
     "개 표시 · 오래된 객체는 검색으로 찾을 수 있습니다.";
@@ -3577,6 +3596,7 @@ document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener(
 $("context-search").addEventListener("input",refreshContextPalette);
 $("context-category").addEventListener("change",refreshContextPalette);
 $("extra-list-search").addEventListener("input",updateExtrasStatus);
+$("extra-layer-search").addEventListener("input",renderExtraLayerRows);
 
 $("library-toggle").addEventListener("click",()=>{
   const expanded=$("library-toggle").getAttribute("aria-expanded")==="true";
