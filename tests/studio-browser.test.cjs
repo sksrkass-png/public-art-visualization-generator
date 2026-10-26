@@ -1690,13 +1690,13 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       {waitUntil:"domcontentloaded",timeout:60000});
     const contextCanvas=contextPage.locator("#viewport canvas");
     await contextCanvas.waitFor({timeout:30000});
-    await contextPage.waitForFunction(()=>document.querySelector("#context-search-count")?.textContent.includes("17 / 17"));
+    await contextPage.waitForFunction(()=>document.querySelector("#context-search-count")?.textContent.includes("33 / 33"));
     assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').isVisible(),true);
     await contextPage.locator("#context-category").selectOption("street");
     await contextPage.locator("#context-search").fill("승용차");
     assert.equal(await contextPage.locator('[data-add-extra="grass-patch"]').isVisible(),false);
     assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').isVisible(),true);
-    assert.match(await contextPage.locator("#context-search-count").textContent(),/1 \/ 17/);
+    assert.match(await contextPage.locator("#context-search-count").textContent(),/1 \/ 33/);
     await contextPage.locator('[data-view="aerial"]').click();
     const cb=await contextCanvas.boundingBox();
     assert.ok(cb);
@@ -1750,6 +1750,100 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       "approved MASTER blocks decorative rescaling");
 
     await contextPage.close();
+
+    // v3.2: source-safe A/B/C morphology diversity, GPU-friendly blossoms,
+    // palette search reveal and repeated planting with exact JSON roundtrip.
+    const plantPage=await browser.newPage({viewport:{width:1420,height:880},acceptDownloads:true});
+    plantPage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await plantPage.goto("http://127.0.0.1:8787/studio/?panels=open",
+      {waitUntil:"domcontentloaded",timeout:60000});
+    const plantCanvas=plantPage.locator("#viewport canvas");
+    await plantCanvas.waitFor({timeout:30000});
+    const plants=await plantPage.evaluate(async()=>{
+      const [extras,three]=await Promise.all([
+        import("/studio/extras.js"),import("three")
+      ]);
+      const families=[
+        ["tree-round","tree-round-b","tree-round-c"],
+        ["tree-cone","tree-cone-b","tree-cone-c"],
+        ["tree-birch","tree-birch-b","tree-birch-c"],
+        ["tree-maple-a","tree-maple-b","tree-maple-c"],
+        ["tree-cherry-a","tree-cherry-b","tree-cherry-c"],
+        ["shrub","shrub-b","shrub-c"],
+        ["shrub-flower","shrub-flower-b","shrub-flower-c"]
+      ];
+      return families.map(kinds=>kinds.map((kind,i)=>{
+        const root=extras.makeExtra(kind,20+i,2);
+        const box=new three.Box3().setFromObject(root);
+        const dims=box.getSize(new three.Vector3()).toArray()
+          .map(x=>Math.round(x*100)/100);
+        const mesh=[];
+        root.traverse(o=>{
+          if(o.isMesh)mesh.push({
+            name:o.name,
+            p:o.position.toArray().map(x=>Math.round(x*100)/100).join(","),
+            instances:o.isInstancedMesh?o.count:0
+          });
+        });
+        return {kind,dims,meshes:mesh.length,
+          signature:JSON.stringify({dims,
+            mesh:mesh.slice(0,9),instances:mesh.reduce((n,o)=>n+o.instances,0)})};
+      }));
+    });
+    assert.equal(plants.length,7);
+    for(const family of plants){
+      assert.equal(family.length,3);
+      assert.equal(new Set(family.map(x=>x.signature)).size,3,
+        family[0].kind+" must have three visually different branching/crown profiles");
+      for(const variant of family){
+        assert.ok(variant.dims.every(x=>x>0),"all 3D models need valid extents");
+        assert.ok(variant.meshes>=2,"plant must have tangible mesh geometry");
+      }
+    }
+    assert.ok(plants[4][1].signature.includes("instances"),
+      "cherry blossoms should use shared instanced GPU geometry");
+    await plantPage.locator("#context-category").selectOption("planting");
+    await plantPage.locator("#context-search").fill("벚꽃");
+    assert.match(await plantPage.locator("#context-search-count").textContent(),/3 \/ 33/);
+    assert.equal(await plantPage.locator("#plant-variants").evaluate(el=>el.open),true,
+      "search automatically expands additional botanical variants");
+    assert.equal(await plantPage.locator('[data-add-extra="tree-cherry-c"]').isVisible(),true);
+    await plantPage.locator("#context-search").fill("단풍");
+    assert.match(await plantPage.locator("#context-search-count").textContent(),/3 \/ 33/);
+    await plantPage.locator('[data-view="aerial"]').click();
+    const pt=await plantCanvas.boundingBox();
+    const plantAt=async(x,y)=>plantPage.mouse.click(pt.x+pt.width*x,pt.y+pt.height*y);
+    const mapleBtn=plantPage.locator('[data-add-extra="tree-maple-b"]');
+    await mapleBtn.click();
+    await plantAt(.58,.80);
+    await plantAt(.67,.79);
+    await plantPage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===2);
+    assert.equal(await mapleBtn.getAttribute("aria-pressed"),"true");
+    await plantPage.locator("#context-search").fill("벚꽃");
+    const cherryBtn=plantPage.locator('[data-add-extra="tree-cherry-c"]');
+    await cherryBtn.click();
+    assert.equal(await mapleBtn.getAttribute("aria-pressed"),"false");
+    await plantAt(.73,.77);
+    await plantPage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===3);
+    await plantPage.keyboard.press("Escape");
+    const savedPlants=plantPage.waitForEvent("download",{timeout:25000});
+    await plantPage.locator("#export-json").click();
+    const plantsJSON=JSON.parse(fs.readFileSync(await (await savedPlants).path(),"utf8"));
+    assert.deepEqual(plantsJSON.extras.map(x=>x.kind),
+      ["tree-maple-b","tree-maple-b","tree-cherry-c"]);
+    await plantPage.locator("#import-json").setInputFiles({
+      name:"planting-variants.json",mimeType:"application/json",
+      buffer:Buffer.from(JSON.stringify(plantsJSON))
+    });
+    await plantPage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===3);
+    const restoredPlants=plantPage.waitForEvent("download",{timeout:25000});
+    await plantPage.locator("#export-json").click();
+    const restoredPlantsJSON=JSON.parse(fs.readFileSync(await (await restoredPlants).path(),"utf8"));
+    assert.deepEqual(restoredPlantsJSON.extras,plantsJSON.extras,
+      "saved plant variant IDs and world transforms survive reload");
+    await plantPage.locator("#master-lock").click();
+    assert.equal(await plantPage.locator('[data-add-extra="tree-maple-b"]').isDisabled(),true);
+    await plantPage.close();
 
     // v3.1: native repeat-ON/OFF and standalone 3×3m surfacing + granite
     // nameplate, all persisted as independent extras and MASTER-safe.
