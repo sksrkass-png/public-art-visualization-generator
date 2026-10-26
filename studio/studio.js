@@ -394,8 +394,7 @@ function refreshAssetLibraryUI(){
     :"등록된 GLB를 선택하면 원본 크기·폴리곤 수가 표시됩니다.";
   const chosenLayer=chosenSource?.category==="artwork"?layerState.groups.artwork:layerState.groups.planting;
   $("library-place").disabled=approvedMaster || !assetLibrary.size ||
-    !chosenLayer.visible || chosenLayer.locked ||
-    extrasRoot.children.length>=120;
+    !chosenLayer.visible || chosenLayer.locked;
   $("library-asset-file").disabled=approvedMaster || assetLibrary.size>=MAX_LIBRARY_ASSETS;
   $("library-asset-category").disabled=approvedMaster;
 }
@@ -459,8 +458,16 @@ function ensureAvailableLibrary(assets,library=assetLibrary){
 function renderExtraLayerRows() {
   const list=$("layer-extra-list");
   list.replaceChildren();
-  $("extra-layer-count").textContent=extrasRoot.children.length+"개";
-  for(const root of extrasRoot.children){
+  $("extra-layer-count").textContent=extrasRoot.children.length.toLocaleString("ko-KR")+"개";
+  const filter=$("extra-layer-search")?.value.trim().toLocaleLowerCase("ko-KR")||"";
+  const matching=filter?extrasRoot.children.filter(root=>
+    root.name.toLocaleLowerCase("ko-KR").includes(filter)||String(root.userData.extraId).includes(filter))
+    :extrasRoot.children;
+  const visible=matching.length>100?matching.slice(-100):matching;
+  if($("extra-layer-summary"))$("extra-layer-summary").textContent=
+    matching.length.toLocaleString("ko-KR")+"개 중 최근 "+visible.length+
+      "개 표시 · 이전 객체는 위 검색에서 찾을 수 있습니다.";
+  for(const root of visible){
     const item=document.createElement("div");
     item.className="extra-layer-item";item.dataset.extraLayerId=String(root.userData.extraId);
     const label=document.createElement("button");
@@ -490,7 +497,12 @@ function renderPrecisionRows(){
   const selectedIds=new Set(extrasRoot.children.map(root=>root.userData.extraId));
   for(const id of previous)if(!selectedIds.has(id))previous.delete(id);
   list.replaceChildren();
-  for(const root of extrasRoot.children){
+  // Avoid building thousands of checkbox DOM nodes after every placement.
+  // Preserve selected and previously checked distant IDs for grouping.
+  const recent=extrasRoot.children.length>100?extrasRoot.children.slice(-100):extrasRoot.children;
+  const kept=extrasRoot.children.filter(x=>
+    (previous.has(x.userData.extraId)||x===selectedRoot)&&!recent.includes(x));
+  for(const root of [...kept,...recent]){
     const label=document.createElement("label");
     const check=document.createElement("input");
     check.type="checkbox";check.dataset.precisionGroupId=String(root.userData.extraId);
@@ -505,19 +517,23 @@ function refreshPrecisionUI(){
   if(!$("precision-group-list"))return;
   renderPrecisionRows();
   const prevA=$("measure-first").value,prevB=$("measure-second").value;
-  const candidates=modelingObjects();
+  const all=modelingObjects();
+  const newest=all.length>101?[all[0],...all.slice(-100)]:all;
+  const keep=all.filter(o=>o===selectedRoot||String(o.userData.extraId)===prevA||
+    String(o.userData.extraId)===prevB);
+  const candidates=[...new Set([...newest,...keep])];
   for(const [id,selected] of [["measure-first",prevA],["measure-second",prevB]]){
     const input=$(id);input.replaceChildren();
     for(const [i,o] of candidates.entries())input.add(new Option(o.name,i===0?"main":String(o.userData.extraId)));
     if([...input.options].some(o=>o.value===selected))input.value=selected;
     else input.selectedIndex=id==="measure-second" && candidates.length>1?1:0;
   }
-  $("precision-duplicate").disabled=!selectedCanEdit() || extrasRoot.children.length>=120;
+  $("precision-duplicate").disabled=!selectedCanEdit();
   $("precision-group").disabled=approvedMaster || groupChecked.size<2;
   $("precision-ungroup").disabled=approvedMaster || !selectedRoot?.userData?.groupId;
 }
 function duplicateEditable(){
-  if(!selectedCanEdit() || extrasRoot.children.length>=120)return;
+  if(!selectedCanEdit())return;
   const original=selectedRoot;
   const kind=original===artRoot?"artwork-copy":original.userData.extraKind;
   const sourceID=original.userData?.assetId||null;
@@ -542,8 +558,9 @@ function createLogicalGroup(){
   if(list.length<2 || list.some(root=>!canEditObject(root,artRoot,layerState,approvedMaster)))
     return notify("그룹으로 묶을 편집 가능한 오브제 2개 이상을 선택하세요.");
   const used=new Set(extrasRoot.children.map(x=>x.userData.groupId).filter(Boolean));
-  const id=Array.from({length:120},(_,i)=>i+1).find(x=>!used.has(x));
-  if(!id)return notify("그룹은 최대 120개까지 가능합니다.");
+  let id=1;
+  while(used.has(id))id++;
+  if(!Number.isSafeInteger(id))return notify("그룹 ID 범위를 초과했습니다.");
   const before=editSnapshot();
   for(const root of list)root.userData.groupId=id;
   groupChecked.clear();
@@ -1528,7 +1545,7 @@ function refreshPlinthControls(){
   const selected=selectedRoot?.userData?.extraKind==="plinth"?selectedRoot:null;
   $("plinth-update").disabled=approvedMaster||!selected||!selectedCanEdit();
   $("plinth-align").disabled=approvedMaster||!selected||!selectedCanEdit()||!canEditObject(artRoot,artRoot,layerState,approvedMaster);
-  $("plinth-create").disabled=approvedMaster||extrasRoot.children.length>=120||linkedPlinths().length>0||
+  $("plinth-create").disabled=approvedMaster||linkedPlinths().length>0||
     !canEditObject(artRoot,artRoot,layerState,approvedMaster);
   if(selected){
     if(document.activeElement!==$("plinth-width"))$("plinth-width").value=selected.scale.x.toFixed(3);
@@ -1560,7 +1577,6 @@ function createPlinth(){
   if(approvedMaster||!canEditObject(artRoot,artRoot,layerState,approvedMaster))
     return notify("MASTER 잠금/작품 레이어 잠금을 해제하세요.");
   try{
-    if(extrasRoot.children.length>=120)throw Error("추가 오브제는 최대 120개입니다.");
     if(linkedPlinths().length)throw Error("이미 작품에 연결된 기단이 있습니다. 기존 기단을 선택해 수정하세요.");
     const {w,d,h,finish}=plinthInputs();
     const bounds=artworkWorldBox();
@@ -2019,14 +2035,31 @@ function resize() {
   updateRenderSizeLabel();
 }
 function updateExtrasStatus() {
-  $("extra-count").textContent = "추가된 오브제 " + extrasRoot.children.length + "개";
+  const totalExtras=extrasRoot.children.length;
+  $("extra-count").textContent = "추가된 오브제 " + totalExtras.toLocaleString("ko-KR") + "개";
+  const advice=$("asset-density-status");
+  if(advice)advice.textContent=totalExtras<80
+    ? "에셋 수량의 고정 제한 없이 배치할 수 있습니다. 장면 복잡도는 GPU 성능에 따라 달라집니다."
+    : totalExtras<250
+      ? "🌳 "+totalExtras.toLocaleString("ko-KR")+"개 배치됨 · 같은 수목은 3D 자원 재사용 · 화면이 느리면 이동 중 가변 해상도를 사용하세요."
+      : "⚠️ "+totalExtras.toLocaleString("ko-KR")+"개 배치됨 · 대용량 장면은 저장·렌더·GPU 메모리가 느려질 수 있습니다. 프로젝트 ZIP을 자주 저장하세요.";
   const list = $("extra-list");
   const activeId = selectedRoot.userData.extraId;
   const currentIds = [...list.children].map(node => Number(node.dataset.extraId));
-  const wantedIds = extrasRoot.children.map(node => node.userData.extraId);
+  const filter=$("extra-list-search")?.value.trim().toLocaleLowerCase("ko-KR")||"";
+  const matched=filter?extrasRoot.children.filter(node=>
+    node.name.toLocaleLowerCase("ko-KR").includes(filter)||String(node.userData.extraId).includes(filter))
+    :extrasRoot.children;
+  const last=matched.length>100?matched.slice(-100):matched;
+  const displayed=selectedRoot?.parent===extrasRoot && !last.includes(selectedRoot) && !filter
+    ? [selectedRoot,...last]:last;
+  if($("extra-list-summary"))$("extra-list-summary").textContent=
+    matched.length.toLocaleString("ko-KR")+"개 중 "+displayed.length+
+    "개 표시 · 오래된 객체는 검색으로 찾을 수 있습니다.";
+  const wantedIds = displayed.map(node => node.userData.extraId);
   if (currentIds.join(",") !== wantedIds.join(",")) {
     list.replaceChildren();
-    for (const root of extrasRoot.children) {
+    for (const root of displayed) {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.extraId = String(root.userData.extraId);
@@ -2127,7 +2160,8 @@ function setPlacement(kind) {
 }
 function createPlacedExtra(kind, position) {
   const group=groupForPlacement(kind);
-  if (approvedMaster || group.locked || !group.visible || extrasRoot.children.length >= 120) return null;
+  if (approvedMaster || group.locked || !group.visible)
+    return notify("MASTER 승인 또는 에셋 레이어 잠금/숨김으로 배치할 수 없습니다.");
   const before = editSnapshot();
   const assetId=kind==="custom-glb"?$("library-asset-select").value:null;
   if(kind==="custom-glb" && !assetLibrary.has(assetId))return notify("에셋을 선택하세요.");
@@ -2602,7 +2636,9 @@ function importSceneConfig(data) {
     normalizeSiteAnnotations(layerState,siteRoot);
   }
   refreshLayers({redrawSite:true});
-  nextExtraId = Math.max(1,...extrasRoot.children.map(x => x.userData.extraId+1));
+  // Avoid Math.max(...ids): a large planting plan can exceed JS argument limits.
+  nextExtraId = extrasRoot.children.reduce((max,root)=>
+    Math.max(max,root.userData.extraId+1),1);
   selectRoot(artRoot);
   $("uniform-scale").checked = data.artwork.uniformScale !== false;
   if (data.artwork.source === originalArt) {
@@ -3559,6 +3595,8 @@ $("light-preset").addEventListener("change", e => {
 document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener("click", () => setPlacement(el.dataset.addExtra)));
 $("context-search").addEventListener("input",refreshContextPalette);
 $("context-category").addEventListener("change",refreshContextPalette);
+$("extra-list-search").addEventListener("input",updateExtrasStatus);
+$("extra-layer-search").addEventListener("input",renderExtraLayerRows);
 
 $("library-toggle").addEventListener("click",()=>{
   const expanded=$("library-toggle").getAttribute("aria-expanded")==="true";

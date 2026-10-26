@@ -1,4 +1,15 @@
-# AXOO Public Art 3D Studio — v3.2
+# AXOO Public Art 3D Studio — v3.2.1
+
+## v3.2.1 — remove arbitrary asset count ceiling and simplify labels
+
+- No fixed **120-extra count cap**: all editor placement actions, selected-object duplication, plinth creation and custom GLB instancing now continue beyond 120. Import validator accepts arbitrary-length editable-extra lists within the existing browser/ZIP file limits; object IDs are derived without spreading all IDs as arguments. Independent logical groups can also have IDs above 120. The technical **120-item collision/audit sampling threshold is unchanged** and remains explicitly a preview limit, never a model-placement cap.
+- **Botanical performance:** the first instance of each procedural tree/shrub kind + appearance version is cached as a reusable source hierarchy. All subsequent instances clone meshes but **share GPU geometry/material resources**, while their transforms, selections, visibility, IDs and undo snapshots remain independent. Legacy appearance version and materials are maintained.
+- **Large-scene inspector responsiveness:** display recent 100 placed objects and recent 100 visible layer rows by default, with name/ID search to access all earlier instances. The saved 3D scene, camera, layer state, grouping and MASTER are not truncated. Expensive precision and measurement selectors display recent objects as well as currently selected or group-checked objects.
+- **Performance transparency:** browser WebGL hardware memory, CPU draw calls and download/browser ZIP sizes still impose real-world limits. A density hint warns for 80+ and 250+ instances; when scenes feel heavy, use adaptive navigation, save project ZIP frequently, and try reducing highly tessellated external GLBs. "No fixed object cap" is not a guarantee of literally infinite real-time rendering.
+- **Labels:** palette uses **⬛ 검정 명판** without the particular source artwork title; its source-derived printed text remains unchanged. The 3×3m concrete sidewalk now uses a legible **🧱** icon rather than nearly-white ⬜.
+- **QA:** tests cover every previous 120 placement/save cap, reusable botanical geometry/materials, scene import with 135 extras, continued mouse placement to 137, search for old objects, exact IDs/group preservation and existing render/Master behavior.
+
+
 
 ## v3.2 — 21 botanical variants for repeated site compositions
 

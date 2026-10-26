@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 3.2 PLANTING LIBRARY</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 3.2.1 DENSE ASSETS</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -204,7 +204,9 @@
         </details>
         <details class="extra-scene-objects">
           <summary>추가 식재·조명 개별 관리 <span id="extra-layer-count">0개</span></summary>
-          <div id="layer-extra-list" class="layer-extra-list"></div>
+          <input id="extra-layer-search" type="search" placeholder="에셋 이름·번호 검색" aria-label="레이어 내 추가 에셋 검색">
+           <p id="extra-layer-summary" class="hint"></p>
+           <div id="layer-extra-list" class="layer-extra-list"></div>
         </details>
       </section>
       <section class="section" id="site-visibility-studio">
@@ -404,7 +406,7 @@
           <button type="button" data-add-extra="shrub">🌿 덤불 A · 둥근형</button>
           <button type="button" data-add-extra="grass-patch">🌱 잔디 패치</button>
           <button type="button" data-add-extra="lawn-tile">🟩 잔디밭 3×3m · 8cm</button>
-          <button type="button" data-add-extra="walkway-tile">⬜ 콘크리트 보도 3×3m · 8cm</button>
+          <button type="button" data-add-extra="walkway-tile">🧱 콘크리트 보도 3×3m · 8cm</button>
           <button type="button" data-add-extra="tree-autumn">🍂 가을 수목 · 기존형</button>
           <button type="button" data-add-extra="tree-maple-a">🍁 단풍나무 A · 녹색형</button>
           <button type="button" data-add-extra="tree-cherry-a">🌸 벚꽃나무 A · 둥근 개화형</button>
@@ -415,7 +417,7 @@
           <button type="button" data-add-extra="round-planter">🪴 화분</button>
           <button type="button" data-add-extra="point-light">💡 포인트 조명</button>
           <button type="button" data-add-extra="shrub-flower">🌺 꽃 덤불 A · 기본형</button>
-          <button type="button" data-add-extra="black-nameplate">⬛ 검정 명판 · 접어 만든 별의 비행</button>
+          <button type="button" data-add-extra="black-nameplate">⬛ 검정 명판</button>
           <p class="hint" style="grid-column:1/-1">⬛ 기본 명판은 첨부 GLB의 300×200×100mm 크기와 표기 문구를 참고한 경량 모델입니다. 원본 형상·텍스처 그대로 사용하려면 아래 📂 내 GLB 에셋 라이브러리에 원본 파일을 등록하세요.</p>
         </div>
         <details id="plant-variants" class="plant-variants">
@@ -461,6 +463,9 @@
           <p class="hint">실제 에셋은 제공된 GLB의 텍스처·형상·크기를 유지합니다. 크기는 객체 선택 후 Scale 도구로 조절하세요. 소스의 사용권은 직접 확인해 주세요.</p>
         </div>
         <div id="extra-count" class="hint">추가된 오브제 0개</div>
+        <p id="asset-density-status" class="hint" aria-live="polite">에셋 수량 제한 없이 배치할 수 있습니다. 브라우저 성능에 따라 화면 속도는 달라집니다.</p>
+        <input id="extra-list-search" type="search" placeholder="배치한 에셋 찾기 · 이름 또는 번호" aria-label="배치한 에셋 이름 또는 번호 검색">
+        <p id="extra-list-summary" class="hint"></p>
         <div id="extra-list" class="extra-list" aria-label="배치한 오브제 목록"></div>
         <div class="asset-size-tools">
           <label for="extra-target-height">선택한 주변 에셋 높이 (m)</label>
