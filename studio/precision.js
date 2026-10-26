@@ -54,7 +54,7 @@ export function sceneInterferences(roots,siteMeshes=[],limit=2500) {
 export function validExtraGrouping(data){
   if(!Array.isArray(data))return false;
   return data.every(x=>x.groupId===undefined || x.groupId===null ||
-    (Number.isInteger(x.groupId)&&x.groupId>=1&&x.groupId<=120));
+    (Number.isSafeInteger(x.groupId)&&x.groupId>=1));
 }
 export function translateGroupPeers(container,selected,delta,allowed=()=>true) {
   const id=selected?.userData?.groupId;
