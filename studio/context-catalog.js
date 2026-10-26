@@ -5,7 +5,9 @@ export const CONTEXT_CATEGORIES=Object.freeze([
   {id:"planting",label:"수목·잔디"},
   {id:"people",label:"인물"},
   {id:"street",label:"거리 가구·차량"},
-  {id:"lighting",label:"조명"}
+  {id:"lighting",label:"조명"},
+  {id:"surface",label:"바닥·포장"},
+  {id:"signage",label:"명판·사이니지"}
 ]);
 export const CONTEXT_CATALOG=Object.freeze([
   {kind:"tree-round",label:"활엽수",category:"planting",keywords:"tree green deciduous"},
@@ -15,6 +17,9 @@ export const CONTEXT_CATALOG=Object.freeze([
   {kind:"shrub",label:"덤불",category:"planting",keywords:"bush hedge"},
   {kind:"shrub-flower",label:"꽃 덤불",category:"planting",keywords:"flower garden"},
   {kind:"grass-patch",label:"잔디 패치",category:"planting",keywords:"grass lawn meadow"},
+  {kind:"lawn-tile",label:"잔디밭 3×3m",category:"surface",keywords:"lawn 3x3m 잔디 녹지 바닥"},
+  {kind:"walkway-tile",label:"콘크리트 보도 3×3m",category:"surface",keywords:"concrete sidewalk 3x3m 포장 도보"},
+  {kind:"black-nameplate",label:"검정 명판",category:"signage",keywords:"nameplate plaque 이호준 접어 만든 별의 비행 안내판"},
   {kind:"person-man",label:"남성 175cm",category:"people",keywords:"human scale mannequin"},
   {kind:"person-woman",label:"여성 160cm",category:"people",keywords:"human scale mannequin"},
   {kind:"park-bench",label:"공원 벤치",category:"street",keywords:"seat bench furniture"},
