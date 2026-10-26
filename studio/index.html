@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 3.0.1 NIGHT & ICONS</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 3.1 ASSET WORKFLOW</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -382,7 +382,7 @@
       </section>
       <section class="section">
         <h2>🌳 현장 에셋 라이브러리 <span class="tag">v2.7</span></h2>
-        <p class="hint">수목·잔디·실제 크기 인물·거리 가구·승용차를 현장에 배치합니다. 기본 모델은 시각 검토용이며 실측 현장·기존 조경은 변경하지 않습니다.</p>
+        <p class="hint">수목·인물·거리 가구 외에 3×3m 바닥 타일과 검정 명판을 독립 객체로 배치합니다. 배치한 에셋은 각각 선택·이동·복제할 수 있으며 실제 현장의 원본 마감·조경을 수정하지 않습니다.</p>
         <label for="context-search">에셋 검색</label>
         <input id="context-search" type="search" placeholder="예: 잔디, 나무, 차량, bench" autocomplete="off">
         <label for="context-category">에셋 분류</label>
@@ -392,15 +392,19 @@
           <option value="people">인물</option>
           <option value="street">거리 가구·차량</option>
           <option value="lighting">조명</option>
+          <option value="surface">바닥·포장</option>
+          <option value="signage">명판·사이니지</option>
         </select>
         <p id="context-search-count" class="hint" aria-live="polite">에셋 검색 준비 중</p>
-        <label class="toggle"><input type="checkbox" id="placement-repeat"> 연속 배치 — 같은 에셋을 클릭할 때마다 추가 · Esc 종료</label>
+        <p id="asset-placement-status" class="hint" aria-live="polite">에셋 버튼 선택 → 현장 반복 클릭으로 연속 배치 · 같은 버튼 다시 누르면 OFF · Esc로 종료</p>
         <div class="asset-palette">
           <button type="button" data-add-extra="tree-round">🌳 활엽수</button>
           <button type="button" data-add-extra="tree-cone">🌲 침엽수</button>
           <button type="button" data-add-extra="tree-birch">🌳 자작나무</button>
           <button type="button" data-add-extra="shrub">🌿 덤불</button>
           <button type="button" data-add-extra="grass-patch">🌱 잔디 패치</button>
+          <button type="button" data-add-extra="lawn-tile">🟩 잔디밭 3×3m · 8cm</button>
+          <button type="button" data-add-extra="walkway-tile">⬜ 콘크리트 보도 3×3m · 8cm</button>
           <button type="button" data-add-extra="tree-autumn">🍂 가을 수목</button>
           <button type="button" data-add-extra="person-man">🚶 남성 175cm</button><button type="button" data-add-extra="person-woman">🚶‍♀️ 여성 160cm</button>
           <button type="button" data-add-extra="park-bench">🪑 벤치</button>
@@ -409,6 +413,7 @@
           <button type="button" data-add-extra="round-planter">🪴 화분</button>
           <button type="button" data-add-extra="point-light">💡 포인트 조명</button>
           <button type="button" data-add-extra="shrub-flower">🌺 꽃 덤불</button>
+          <button type="button" data-add-extra="black-nameplate">⬛ 검정 명판 · 접어 만든 별의 비행</button>
         </div>
         <button id="library-toggle" class="outline full" type="button" aria-controls="asset-library-panel" aria-expanded="false">📂 내 GLB 에셋 라이브러리 열기</button>
         <div class="asset-library-panel" id="asset-library-panel" hidden>
