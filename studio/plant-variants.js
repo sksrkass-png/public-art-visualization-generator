@@ -83,16 +83,29 @@ function branchNet(root,points,baseY=2.0,branchColor=brown){
     .095-(i%3)*.013,branchColor));
 }
 function blooms(root,parts,colors,qty,seed){
+  // A single instanced draw call handles all blossom petals — important when
+  // public-art sites repeat dozens of trees/shrubs. No generated randomness.
+  const geometry=new THREE.IcosahedronGeometry(1,0);
+  const flowers=new THREE.InstancedMesh(geometry,physical(0xffffff,.96),qty);
+  flowers.name="Repeated flower blossoms (GPU-instanced)";
+  const instance=new THREE.Object3D();
   for(let i=0;i<qty;i++){
     const c=parts[i%parts.length],a=(i*2.399963+seed),r=.31+((i*13+seed)%11)/16;
     const x=c[0]+Math.sin(a)*c[3]*r;
     const y=c[1]+Math.cos(a*.9)*c[4]*r;
     const z=c[2]+Math.cos(a)*c[5]*r;
-    const p=primitive(root,new THREE.IcosahedronGeometry(.06+(i%3)*.018,0),
-      colors[(i+seed)%colors.length],"Flower blossom",false);
-    p.position.set(x,y,z);
+    instance.position.set(x,y,z);
+    instance.scale.setScalar(.06+(i%3)*.018);
+    instance.updateMatrix();
+    flowers.setMatrixAt(i,instance.matrix);
+    flowers.setColorAt(i,new THREE.Color(colors[(i+seed)%colors.length]));
   }
+  flowers.instanceMatrix.needsUpdate=true;
+  flowers.instanceColor.needsUpdate=true;
+  flowers.castShadow=false;flowers.receiveShadow=true;
+  root.add(flowers);
 }
+
 function shrubbery(root,kind){
   const wide=kind.endsWith("-b");
   const flower=kind.startsWith("shrub-flower");
