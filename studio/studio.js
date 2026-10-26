@@ -619,6 +619,7 @@ function addMeasuredPoint(point){
   $("measure-site-status").textContent="3D 거리 "+delta.toFixed(3)+"m · 수평 거리 "+
     planar.toFixed(3)+"m · 높이차 "+Math.abs(first.y-second.y).toFixed(3)+"m";
   placementMode=null;$("placement-hint").hidden=true;
+  syncAssetPlacementUI();
 }
 function checkInterferences(){
   const annotated=siteSourceFile?enumerateSiteMeshes(siteRoot).filter(entry=>
@@ -3440,6 +3441,7 @@ $("ground-selected").addEventListener("click", () => groundSelected());
 $("pick-selected-site").addEventListener("click", () => {
   if (approvedMaster) return;
   placementMode = "selected-ground";
+  syncAssetPlacementUI();
   $("placement-hint").textContent = "대상 오브제를 옮길 실제 현장 바닥을 클릭하세요 · Esc 취소";
   $("placement-hint").hidden = false;
 });
@@ -3447,6 +3449,7 @@ $("plan-pick-center").addEventListener("click", () => {
   if (approvedMaster) return;
   if (!loadedPlanTexture) return notify("먼저 배치도 이미지를 불러오세요.");
   placementMode = "plan-center";
+  syncAssetPlacementUI();
   $("placement-hint").textContent = "배치도 중심을 정렬할 현장 위치를 클릭하세요 · Esc 취소";
   $("placement-hint").hidden = false;
 });
@@ -3576,13 +3579,14 @@ $("precision-ungroup").addEventListener("click",ungroupLogical);
 $("measure-site-start").addEventListener("click",()=>{
   measuredPoints=[];
   placementMode="measure-point";
+  syncAssetPlacementUI();
   $("placement-hint").hidden=false;
   $("placement-hint").textContent="실제 현장 표면의 두 점을 차례로 클릭 · ESC 취소";
   $("measure-site-status").textContent="첫 번째 점을 선택하세요.";
 });
 $("measure-site-clear").addEventListener("click",()=>{
   measuredPoints=[];
-  if(placementMode==="measure-point"){placementMode=null;$("placement-hint").hidden=true;}
+  if(placementMode==="measure-point"){placementMode=null;$("placement-hint").hidden=true;syncAssetPlacementUI();}
   $("measure-site-status").textContent="측정점 초기화됨";
 });
 $("measure-objects").addEventListener("click",showPairMeasurement);
@@ -3618,6 +3622,7 @@ $("plinth-align").addEventListener("click",alignArtworkOnPlinth);
 $("anchor-pick").addEventListener("click",()=>{
   if(approvedMaster)return;
   placementMode="art-anchor";
+  syncAssetPlacementUI();
   $("placement-hint").hidden=false;
   $("placement-hint").textContent="현장 표면을 클릭해 설치 기준점 선택 · Esc 취소";
 });
