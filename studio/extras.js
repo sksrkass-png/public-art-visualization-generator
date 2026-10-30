@@ -337,7 +337,7 @@ function recessedGroundHousing(root){
   housing.castShadow=true;housing.receiveShadow=true;root.add(housing);
   const bezel=new THREE.Mesh(new THREE.TorusGeometry(.103,.013,8,44),
     new THREE.MeshStandardMaterial({color:0x5d666b,metalness:.86,roughness:.3}));
-  bezel.rotation.x=Math.PI/2;bezel.position.y=.049;
+  bezel.rotation.x=Math.PI/2;bezel.position.y=.042; // top is flush at 55mm
   bezel.name="Slim brushed steel flush top ring";bezel.castShadow=false;root.add(bezel);
   const darkWell=new THREE.Mesh(new THREE.CircleGeometry(.091,40),
     new THREE.MeshStandardMaterial({color:0x131b22,metalness:.18,roughness:.57,side:THREE.DoubleSide}));
