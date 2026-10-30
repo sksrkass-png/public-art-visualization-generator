@@ -1849,8 +1849,7 @@ function syncLock() {
     "plan-rotation", "plan-elevation", "plan-opacity"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   document.querySelectorAll("[data-add-extra]").forEach(btn => { btn.disabled = approvedMaster; });
-  ["art-material","art-material-color","apply-material","reset-material",
-    "visual-tone","visual-sky","visual-shadows"].forEach(id=>{$(id).disabled=approvedMaster;});
+  ["art-material","art-material-color","apply-material","reset-material"].forEach(id=>{$(id).disabled=approvedMaster;});
   updateExtrasStatus();
   syncContextHeightUI();
   refreshVisualSlots();
