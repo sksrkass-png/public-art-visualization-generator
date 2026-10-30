@@ -1,5 +1,7 @@
 // v2.8 — render-only lighting recipes. No mesh/source/master edits.
 // WebGL PBR lighting, not path-traced or generative photorealism.
+// Shared clear-day sky used by live viewport, 8-view exports and A/B/C render stages.
+export const SKY_COLORS=Object.freeze({cool:0xdce0e2,warm:0xe7e0d4,white:0xf4f4f2,blue:0x72bdec});
 export const NIGHT_SKY_COLOR=0x11192c;   // deep midnight blue, for browser render only
 export const NIGHT_KEY_COLOR=0xb6d0ff;   // cool moonlit directional illumination
 export const ARCHVIZ_LOOKS=Object.freeze({
