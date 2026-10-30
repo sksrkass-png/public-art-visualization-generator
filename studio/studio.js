@@ -30,7 +30,7 @@ import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precis
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
 import { decodeSiteBundle, inspectImportedSite, validSiteAlignment } from "./site-import.js";
-import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape } from "./extras.js";
+import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape, upgradeGroundLight } from "./extras.js";
 import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
   validPlacementReference,validatePlinthDimensions} from "./dimensioning.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
@@ -42,7 +42,7 @@ import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js
 import {isCanvasClick,navigationSpeeds,CLICK_TOLERANCE_PX} from "./navigation-ux.js";
 import {CAMERA_SLOTS,validCameraBookmarks,bookmarkCamera,savedCameraCount} from "./camera-bookmarks.js";
 import {sceneFootprint,productionReport,verifyPngCapture,assertRendererAvailable} from "./production-qa.js";
-import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR} from "./render-looks.js";
+import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity,SKY_COLORS,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR} from "./render-looks.js";
 import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel} from "./context-catalog.js";
 import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
   visualReadiness,visualPackageManifest} from "./visual-workflow.js";
@@ -864,6 +864,7 @@ function refreshLayers({redrawSite = false} = {}) {
   $("apply-height").disabled=!canEditObject(artRoot,artRoot,layerState,approvedMaster);
   $("extra-light-power").disabled=!selectedCanEdit();
   $("extra-light-color").disabled=!selectedCanEdit();
+  $("ground-light-upgrade").disabled=!selectedCanEdit();
   document.querySelectorAll("[data-add-extra]").forEach(button=>{
     const group=button.dataset.addExtra.includes("light") ? layerState.groups.lighting : layerState.groups.planting;
     button.disabled=approvedMaster || !group.visible || group.locked;
@@ -1096,9 +1097,8 @@ function applyVisualGuide(){
 function applyVisualLook(){
   const settings=currentVisualSettings();
   renderer.toneMapping=settings.toneCurve==="neutral"?THREE.NeutralToneMapping:THREE.ACESFilmicToneMapping;
-  const skyColors={cool:0xdce0e2,warm:0xe7e0d4,white:0xf4f4f2};
   const isNight=$("light-preset").value==="night";
-  scene.background.set(isNight?NIGHT_SKY_COLOR:skyColors[settings.sky]);
+  scene.background.set(isNight?NIGHT_SKY_COLOR:SKY_COLORS[settings.sky]);
   const bounds=new THREE.Box3().setFromObject(artRoot);
   const size=bounds.getSize(new THREE.Vector3());
   const shadow=renderShadowSettings({
@@ -1843,7 +1843,7 @@ function syncLock() {
   }
   else if (gizmoRequested && selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
   ["library-place","library-asset-file","library-asset-category","extra-target-height","extra-fit-height",
-    "site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color",
+    "site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color", "ground-light-upgrade",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
     "plan-pick-center", "plan-visible", "map-file", "map-width", "plan-x", "plan-z",
     "plan-rotation", "plan-elevation", "plan-opacity"]
@@ -1893,6 +1893,10 @@ function updateInspector(force = false) {
   $("object-name").textContent = selectedRoot.name;
   const light = selectedRoot === artRoot ? null : extraLight(selectedRoot);
   $("extra-light-controls").hidden = !light;
+  const oldUplight=selectedRoot?.userData?.extraKind==="point-light" &&
+    (selectedRoot.userData.appearanceVersion||1)<4;
+  $("ground-light-upgrade").hidden=!oldUplight;
+  $("ground-light-upgrade").disabled=!selectedCanEdit();
   if (light) {
     $("extra-light-power").value = light.intensity;
     $("extra-light-power-value").textContent = light.intensity.toFixed(1);
@@ -2165,7 +2169,7 @@ function createPlacedExtra(kind, position) {
   const before = editSnapshot();
   const assetId=kind==="custom-glb"?$("library-asset-select").value:null;
   if(kind==="custom-glb" && !assetLibrary.has(assetId))return notify("에셋을 선택하세요.");
-  const root = makeExtra(kind, nextExtraId++,kind==="point-light"?3:2,assetId,assetLibrary,artRoot);
+  const root = makeExtra(kind, nextExtraId++,kind==="point-light"?4:2,assetId,assetLibrary,artRoot);
   root.position.copy(position);
   if (kind.includes("light") && kind!=="point-light") root.position.y += 3;
   extrasRoot.add(root);
@@ -3651,6 +3655,17 @@ $("extra-light-color").addEventListener("input", e => {
   if (approvedMaster) return;
   const light = extraLight(selectedRoot);
   if (light) light.color.set(e.target.value);
+});
+$("ground-light-upgrade").addEventListener("click",()=>{
+  if(!selectedCanEdit() || selectedRoot?.userData?.extraKind!=="point-light" ||
+    (selectedRoot.userData.appearanceVersion||1)>=4)
+    return notify("MASTER 잠금 해제 후 기존 바닥조명을 선택하세요.");
+  const before=editSnapshot();
+  upgradeGroundLight(selectedRoot);
+  commit(before);
+  updateInspector(true);
+  updateExtrasStatus();
+  notify("선택한 바닥조명을 작은 매입형으로 변경했습니다 · 원래 형태는 실행 취소로 복원할 수 있습니다.");
 });
 $("snap").addEventListener("change", snapSetting);
 $("sample-art").addEventListener("click", () => {

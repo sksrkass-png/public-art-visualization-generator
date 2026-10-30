@@ -325,17 +325,55 @@ function lightIcon(root, kind) {
   icon.renderOrder=1000;
   root.add(icon);
 }
+// v4: low-profile recessed architectural ground uplight. 240 mm diameter,
+// ~55 mm height, compared with previous 400 x 140 mm housing.
+// No volumetric ray/cone geometry: night lighting illuminates nearby surfaces
+// naturally through the actual SpotLight. Concentric bezel + anti-glare grid.
+export const RECESSED_GROUND_LIGHT=Object.freeze({diameter:.24,height:.055});
+function recessedGroundHousing(root){
+  const housing=new THREE.Mesh(new THREE.CylinderGeometry(.115,.115,.047,32),
+    new THREE.MeshStandardMaterial({color:0x32373a,metalness:.72,roughness:.39}));
+  housing.position.y=.0235;housing.name="Recessed waterproof lamp housing";
+  housing.castShadow=true;housing.receiveShadow=true;root.add(housing);
+  const bezel=new THREE.Mesh(new THREE.TorusGeometry(.103,.013,8,44),
+    new THREE.MeshStandardMaterial({color:0x5d666b,metalness:.86,roughness:.3}));
+  bezel.rotation.x=Math.PI/2;bezel.position.y=.042; // top is flush at 55mm
+  bezel.name="Slim brushed steel flush top ring";bezel.castShadow=false;root.add(bezel);
+  const darkWell=new THREE.Mesh(new THREE.CircleGeometry(.091,40),
+    new THREE.MeshStandardMaterial({color:0x131b22,metalness:.18,roughness:.57,side:THREE.DoubleSide}));
+  darkWell.rotation.x=-Math.PI/2;darkWell.position.y=.048;
+  darkWell.name="Recessed optical well";darkWell.castShadow=false;root.add(darkWell);
+  const lens=new THREE.Mesh(new THREE.CircleGeometry(.066,32),
+    new THREE.MeshPhysicalMaterial({color:0xd9d2be,roughness:.3,metalness:.04,
+      clearcoat:.2,clearcoatRoughness:.34,side:THREE.DoubleSide}));
+  lens.rotation.x=-Math.PI/2;lens.position.y=.050;
+  lens.name="Recessed warm glass optical lens";lens.castShadow=false;root.add(lens);
+  // Flat non-emissive grille protects the lamp, without visual light beams.
+  for(const x of [-.038,0,.038]){
+    const grille=new THREE.Mesh(new THREE.BoxGeometry(.007,.003,.131),
+      new THREE.MeshStandardMaterial({color:0x30373c,metalness:.77,roughness:.42}));
+    grille.position.set(x,.053,0);grille.castShadow=false;
+    grille.name="Anti-glare slat";root.add(grille);
+  }
+}
 function lightFixture(root,kind,appearanceVersion=2) {
   // v3 point-light is an upward architectural uplight. Existing v1–v2 project
   // lights reopen with the original behavior to protect approved scenes.
   const uplight=kind==="point-light"&&appearanceVersion>=3;
-  const light=uplight?new THREE.SpotLight(0xfff1cc,16,12,Math.PI/7,.55,1.5):
+  const recessed=uplight&&appearanceVersion>=4;
+  const light=recessed?new THREE.SpotLight(0xffedce,11,10,Math.PI/5,.92,2):
+    uplight?new THREE.SpotLight(0xfff1cc,16,12,Math.PI/7,.55,1.5):
     kind==="point-light"?new THREE.PointLight(0xfff4dd,4,0,2):
       new THREE.SpotLight(0xfff4dd,10,20,Math.PI/5,.35,2);
   light.name=kind;
   light.castShadow=true;
   light.shadow.mapSize.set(512,512);
-  if(uplight){
+  if(recessed){
+    light.position.y=.067;
+    const target=new THREE.Object3D();target.position.y=6;
+    target.name="Upward light target";root.add(target);light.target=target;
+    recessedGroundHousing(root);
+  }else if(uplight){
     light.position.y=.17;
     const target=new THREE.Object3D();
     target.position.y=5;root.add(target);light.target=target;
@@ -355,8 +393,33 @@ function lightFixture(root,kind,appearanceVersion=2) {
     root.add(target);light.target=target;
   }
   root.add(light);
-  lightIcon(root,kind);
+  // The old 38cm debug globe would obscure a 24cm realistic flush lamp.
+  if(!recessed)lightIcon(root,kind);
   return light;
+}
+export function upgradeGroundLight(root){
+  if(root?.userData?.extraKind!=="point-light" ||
+    (root.userData.appearanceVersion||1)>=4)
+    throw Error("업그레이드 가능한 기존 바닥조명을 선택해 주세요.");
+  const old=extraLight(root),oldPower=old?.intensity??11;
+  const oldColor=old?.color?.clone();
+  // This function is invoked explicitly by the user on an unlocked scene.
+  for(const child of [...root.children]){
+    root.remove(child);
+    child.traverse(o=>{
+      if(o.isMesh){
+        o.geometry?.dispose();
+        if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());
+        else o.material?.dispose();
+      }
+      if(o.isLight)o.shadow?.dispose?.();
+    });
+  }
+  root.userData.appearanceVersion=4;
+  const light=lightFixture(root,"point-light",4);
+  light.intensity=Math.min(20,oldPower);
+  if(oldColor)light.color.copy(oldColor);
+  return root;
 }
 export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,artRoot=null) {
   if(!EXTRA_TYPES.includes(kind))throw Error("Unknown decorative object kind");
@@ -458,7 +521,7 @@ export function validateExtras(extras) {
   const ids=new Set();
   for(const x of extras) {
     if(!x||!EXTRA_TYPES.includes(x.kind)||!Number.isInteger(x.id)||x.id<1||ids.has(x.id))return false;
-    if(x.appearanceVersion !== undefined && ![1,2,3].includes(x.appearanceVersion))return false;
+    if(x.appearanceVersion !== undefined && ![1,2,3,4].includes(x.appearanceVersion))return false;
     if(x.kind==="custom-glb" && !/^lib[1-9]\d{0,4}$/.test(x.assetId||""))return false;
     if(x.kind==="plinth" && x.shape!==undefined && !["box","round"].includes(x.shape))return false;
     if(x.kind==="plinth" && x.finish!==undefined && !Object.hasOwn(PLINTH_MATERIALS,x.finish))return false;

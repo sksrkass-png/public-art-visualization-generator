@@ -2,8 +2,8 @@ const fs=require("node:fs"),path=require("node:path"),vm=require("node:vm"),asse
 const src=fs.readFileSync(path.join(__dirname,"../studio/render-looks.js"),"utf8");
 const scope={Object,Number,Math,Array,Error};
 vm.runInNewContext(src.replace(/\bexport\s+/g,"")+
-  "\nthis.api={ARCHVIZ_LOOKS,SHADOW_CONFIGS,renderShadowSettings,fillLightIntensity,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR};",scope);
-const {ARCHVIZ_LOOKS,SHADOW_CONFIGS,renderShadowSettings,fillLightIntensity,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR}=scope.api;
+  "\nthis.api={ARCHVIZ_LOOKS,SHADOW_CONFIGS,renderShadowSettings,fillLightIntensity,SKY_COLORS,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR};",scope);
+const {ARCHVIZ_LOOKS,SHADOW_CONFIGS,renderShadowSettings,fillLightIntensity,SKY_COLORS,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR}=scope.api;
 assert.equal(Object.keys(ARCHVIZ_LOOKS).length,4);
 assert.ok(["architectural","soft","detail","night"].every(key=>!!ARCHVIZ_LOOKS[key]));
 for(const preset of Object.values(ARCHVIZ_LOOKS)){
@@ -44,6 +44,23 @@ assert.ok(ARCHVIZ_LOOKS.night.ambient<ARCHVIZ_LOOKS.architectural.ambient);
 assert.ok(ARCHVIZ_LOOKS.night.environmentIntensity<ARCHVIZ_LOOKS.architectural.environmentIntensity);
 assert.notEqual(NIGHT_SKY_COLOR,0xdce0e2);
 assert.notEqual(NIGHT_KEY_COLOR,0xfff7e6);
+assert.ok(SKY_COLORS.blue!==undefined);
+assert.notEqual(SKY_COLORS.blue,SKY_COLORS.cool);
+assert.notEqual(SKY_COLORS.blue,SKY_COLORS.white);
+assert.ok(html.includes('<option value="blue">🔵 푸른 맑은 하늘</option>'));
+assert.match(app,/SKY_COLORS\[settings.sky\]/);
+assert.match(stage,/SKY_COLORS\[kind\]/);
+const extras=fs.readFileSync(path.join(__dirname,"../studio/extras.js"),"utf8");
+assert.match(extras,/RECESSED_GROUND_LIGHT/);
+assert.match(extras,/diameter:\.24,height:\.055/);
+assert.match(extras,/const recessed=uplight&&appearanceVersion>=4/);
+assert.match(extras,/recessedGroundHousing\(root\)/);
+assert.match(extras,/if\(!recessed\)lightIcon\(root,kind\)/);
+assert.match(extras,/export function upgradeGroundLight\(root\)/);
+assert.match(app,/kind==="point-light"\?4:2/);
+assert.match(app,/ground-light-upgrade/);
+assert.match(extras,/\[1,2,3,4\]\.includes\(x.appearanceVersion\)/);
+
 assert.match(app,/saved.lightPreset/);
 assert.match(app,/master.lightPreset/);
 assert.match(app,/NIGHT_SKY_COLOR/);

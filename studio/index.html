@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 3.2.1 DENSE ASSETS</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 3.2.2 BLUE SKY & UPLIGHT</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -480,6 +480,8 @@
           <input type="range" id="extra-light-power" min="0" max="20" step=".5" value="4">
           <label for="extra-light-color">선택한 조명 색상</label>
           <input type="color" id="extra-light-color" value="#fff4dd">
+          <button id="ground-light-upgrade" class="outline full" type="button" hidden>💡 선택한 기존 바닥조명 → 작은 매입형으로 변경</button>
+          <p id="ground-light-design-note" class="hint">신규 매입형 조명은 직경 24cm·높이 약 5.5cm이며, 깔때기형 빛 그래픽 없이 표면을 비춥니다. 승인 MASTER는 자동 변경하지 않습니다.</p>
         </div>
       </section>
       <section class="section">
@@ -510,7 +512,7 @@
         <label for="visual-tone">톤 매핑</label>
         <select id="visual-tone"><option value="aces">ACES · 부드러운 하이라이트</option><option value="neutral">Neutral · 자연스러운 채도</option></select>
         <label for="visual-sky">배경 하늘색</label>
-        <select id="visual-sky"><option value="cool">연한 하늘 회색</option><option value="warm">따뜻한 주광</option><option value="white">뉴트럴 화이트</option></select>
+        <select id="visual-sky"><option value="cool">연한 하늘 회색</option><option value="warm">따뜻한 주광</option><option value="white">뉴트럴 화이트</option><option value="blue">🔵 푸른 맑은 하늘</option></select>
         <p class="hint">작품 실제 경계에 맞춰 그림자 프러스텀을 자동 조정하고, 은은한 반사광으로 음영을 살립니다. 원본 건축·조형물 메시·재질·크기는 수정하지 않습니다. MASTER LOCK을 해제해야 프리셋을 변경할 수 있습니다.</p>
       </section>
       <section class="section" id="render-look">

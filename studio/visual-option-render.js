@@ -3,7 +3,7 @@ import {restoreExtras,setEditorGizmosVisible} from "./extras.js";
 import {applyLayerVisibility} from "./layers.js";
 import {makeMaterial} from "./rendering.js";
 import {cameraFocusSettings} from "./camera-focus.js";
-import {renderShadowSettings,fillLightIntensity,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR} from "./render-looks.js";
+import {renderShadowSettings,fillLightIntensity,SKY_COLORS,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR} from "./render-looks.js";
 
 // v2.5: stage different visual options in a separate THREE.Scene. The user
 // scene's object identities, original geometry, materials and MASTER are untouched.
@@ -18,9 +18,8 @@ export function createVisualOptionStage({
     (neutralEnvironment||sceneEnvironment);
   staged.environmentIntensity=(option.render?.envIntensity??1)*
     (option.render?.environmentMode==="bright"?1.35:option.render?.environmentMode==="overcast"?.65:1);
-  const sky={cool:0xdce0e2,warm:0xe7e0d4,white:0xf4f4f2};
   const kind=option.render?.visual?.sky||"cool";
-  staged.background=new THREE.Color(option.lightPreset==="night"?NIGHT_SKY_COLOR:(sky[kind]||sky.cool));
+  staged.background=new THREE.Color(option.lightPreset==="night"?NIGHT_SKY_COLOR:(SKY_COLORS[kind]??SKY_COLORS.cool));
   const siteCopy=siteRoot.clone(true);
   const artCopy=artRoot.clone(true);
   artCopy.position.fromArray(option.scene.artwork.p);
