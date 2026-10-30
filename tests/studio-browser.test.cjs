@@ -2203,6 +2203,124 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(await nightPage.locator("#light-preset").inputValue(),"night");
     await nightPage.close();
 
+    // v3.2.2: crisp blue daytime sky and physically recessed compact uplight.
+    // Both must be render-only/site-safe and roundtrip as user-approved config.
+    const skyPage=await browser.newPage({viewport:{width:1250,height:780},acceptDownloads:true});
+    skyPage.on("pageerror",e=>errors.push(e.stack||e.message));
+    await skyPage.goto("http://127.0.0.1:8787/studio/?panels=open",
+      {waitUntil:"domcontentloaded",timeout:60000});
+    await skyPage.locator("#viewport canvas").waitFor({timeout:30000});
+    const sourceSkyEvent=skyPage.waitForEvent("download",{timeout:25000});
+    await skyPage.locator("#export-json").click();
+    const originalSkyJSON=JSON.parse(fs.readFileSync(await (await sourceSkyEvent).path(),"utf8"));
+    const defaultSkyShot=skyPage.waitForEvent("download",{timeout:45000});
+    await skyPage.locator("#shot-export").click();
+    const defaultSkyPNG=fs.readFileSync(await (await defaultSkyShot).path());
+    await skyPage.locator("#visual-sky").selectOption("blue");
+    const blueSkyShot=skyPage.waitForEvent("download",{timeout:45000});
+    await skyPage.locator("#shot-export").click();
+    const blueSkyPNG=fs.readFileSync(await (await blueSkyShot).path());
+    assert.ok(blueSkyPNG.length>1000 && !blueSkyPNG.equals(defaultSkyPNG),
+      "clear blue background must change actual WebGL capture pixels");
+    const blueConfigEvent=skyPage.waitForEvent("download",{timeout:25000});
+    await skyPage.locator("#export-json").click();
+    const blueConfig=JSON.parse(fs.readFileSync(await (await blueConfigEvent).path(),"utf8"));
+    assert.equal(blueConfig.render.visual.sky,"blue");
+    assert.deepEqual(blueConfig.artwork,originalSkyJSON.artwork,
+      "blue-sky look may not mutate the artwork");
+    assert.deepEqual(blueConfig.site,originalSkyJSON.site,
+      "blue-sky look may not mutate buildings/landscape");
+    assert.deepEqual(blueConfig.extras,originalSkyJSON.extras);
+    await skyPage.locator("#visual-sky").selectOption("white");
+    await skyPage.locator("#import-json").setInputFiles({
+      name:"blue-sky.json",mimeType:"application/json",
+      buffer:Buffer.from(JSON.stringify(blueConfig))
+    });
+    await skyPage.waitForFunction(()=>
+      document.querySelector("#visual-sky")?.value==="blue",null,{timeout:12000});
+    const shapeCheck=await skyPage.evaluate(async()=>{
+      const [{makeExtra,RECESSED_GROUND_LIGHT},THREE]=await Promise.all([
+        import("/studio/extras.js"),import("three")
+      ]);
+      const old=makeExtra("point-light",91,3);
+      const modern=makeExtra("point-light",92,4);
+      const extent=root=>new THREE.Box3().setFromObject(root)
+        .getSize(new THREE.Vector3()).toArray();
+      const meshNames=root=>{
+        const names=[];root.traverse(x=>{if(x.isMesh)names.push(x.name);});return names;
+      };
+      return {
+        diameter:RECESSED_GROUND_LIGHT.diameter,
+        height:RECESSED_GROUND_LIGHT.height,
+        oldSize:extent(old),newSize:extent(modern),
+        oldBeam:meshNames(old).some(x=>x.includes("beam")),
+        newBeam:meshNames(modern).some(x=>x.includes("beam")),
+        newRing:meshNames(modern).some(x=>x.includes("flush top ring")),
+        newSlats:meshNames(modern).filter(x=>x==="Anti-glare slat").length,
+        hasLight:modern.children.some(x=>x.isSpotLight),
+        noEditorGlobe:!modern.children.some(x=>x.userData?.editorOnly)
+      };
+    });
+    assert.equal(shapeCheck.diameter,.24);
+    assert.equal(shapeCheck.height,.055);
+    assert.equal(shapeCheck.oldBeam,true,"legacy appearance v3 must remain recoverable");
+    assert.equal(shapeCheck.newBeam,false,"no fake funnel beam in modern uplight");
+    assert.equal(shapeCheck.newRing,true);
+    assert.equal(shapeCheck.newSlats,3);
+    assert.equal(shapeCheck.hasLight,true);
+    assert.equal(shapeCheck.noEditorGlobe,true);
+    assert.ok(shapeCheck.newSize[0]<.26 && shapeCheck.newSize[2]<.26 &&
+      shapeCheck.newSize[1]<.065,"new fixture is 24cm wide and ~5.5cm tall");
+    assert.ok(shapeCheck.oldSize[0]>shapeCheck.newSize[0]*2,
+      "new fixture visually smaller than old cone-shaped fixture");
+    // The library button must place appearance v4 automatically.
+    await skyPage.locator('[data-view="aerial"]').click();
+    const rect=await skyPage.locator("#viewport canvas").boundingBox();
+    await skyPage.locator('[data-add-extra="point-light"]').click();
+    await skyPage.mouse.click(rect.x+rect.width*.61,rect.y+rect.height*.8);
+    await skyPage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===1);
+    await skyPage.keyboard.press("Escape");
+    const newLampDownload=skyPage.waitForEvent("download",{timeout:20000});
+    await skyPage.locator("#export-json").click();
+    const newLampJSON=JSON.parse(fs.readFileSync(await (await newLampDownload).path(),"utf8"));
+    assert.equal(newLampJSON.extras[0].kind,"point-light");
+    assert.equal(newLampJSON.extras[0].appearanceVersion,4);
+    assert.equal(newLampJSON.render.visual.sky,"blue");
+    // Opt-in upgrade of an old fixture: old projects are not silently mutated.
+    const legacyLampConfig=structuredClone(newLampJSON);
+    legacyLampConfig.extras[0].appearanceVersion=3;
+    legacyLampConfig.extras[0].power=12;
+    legacyLampConfig.extras[0].color="#e4d2ad";
+    await skyPage.locator("#import-json").setInputFiles({
+      name:"old-ground-uplight.json",mimeType:"application/json",
+      buffer:Buffer.from(JSON.stringify(legacyLampConfig))
+    });
+    await skyPage.locator('#extra-list button').first().click();
+    assert.equal(await skyPage.locator("#ground-light-upgrade").isVisible(),true);
+    await skyPage.locator("#ground-light-upgrade").click();
+    assert.equal(await skyPage.locator("#ground-light-upgrade").isVisible(),false);
+    const upgradedEvent=skyPage.waitForEvent("download",{timeout:20000});
+    await skyPage.locator("#export-json").click();
+    const upgraded=JSON.parse(fs.readFileSync(await (await upgradedEvent).path(),"utf8"));
+    assert.equal(upgraded.extras[0].appearanceVersion,4);
+    assert.equal(upgraded.extras[0].power,12);
+    assert.equal(upgraded.extras[0].color,"#e4d2ad");
+    assert.deepEqual(upgraded.extras[0].transform,legacyLampConfig.extras[0].transform,
+      "retrofitted fixture keeps the same site position/scale");
+    await skyPage.locator("#master-lock").click();
+    assert.equal(await skyPage.locator("#visual-sky").isDisabled(),true,
+      "approved MASTER locks daytime sky selections");
+    assert.equal(await skyPage.locator("#ground-light-upgrade").isDisabled(),true,
+      "approved MASTER blocks fixture edits");
+    const blueMasterEvent=skyPage.waitForEvent("download",{timeout:20000});
+    await skyPage.locator("#export-json").click();
+    const blueMaster=JSON.parse(fs.readFileSync(await (await blueMasterEvent).path(),"utf8"));
+    assert.equal(blueMaster.masterSnapshots.at(-1).render.visual.sky,"blue",
+      "MASTER 8-view render snapshot retains crisp blue sky");
+    assert.equal(blueMaster.masterSnapshots.at(-1).extras[0].appearanceVersion,4,
+      "MASTER snapshot retains upgraded no-funnel fixture");
+    await skyPage.close();
+
     assert.deepEqual(errors, [], "no uncaught runtime errors");
     console.log("PASS studio browser: v1.4 11-slide proposal package, 8 source renders, manual metadata safety, DRAFT audit and immutable MASTER state plus all prior regressions");
   } finally {
