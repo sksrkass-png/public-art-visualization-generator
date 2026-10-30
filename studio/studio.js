@@ -42,7 +42,7 @@ import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js
 import {isCanvasClick,navigationSpeeds,CLICK_TOLERANCE_PX} from "./navigation-ux.js";
 import {CAMERA_SLOTS,validCameraBookmarks,bookmarkCamera,savedCameraCount} from "./camera-bookmarks.js";
 import {sceneFootprint,productionReport,verifyPngCapture,assertRendererAvailable} from "./production-qa.js";
-import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR} from "./render-looks.js";
+import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity,SKY_COLORS,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR} from "./render-looks.js";
 import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel} from "./context-catalog.js";
 import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
   visualReadiness,visualPackageManifest} from "./visual-workflow.js";
@@ -1096,9 +1096,8 @@ function applyVisualGuide(){
 function applyVisualLook(){
   const settings=currentVisualSettings();
   renderer.toneMapping=settings.toneCurve==="neutral"?THREE.NeutralToneMapping:THREE.ACESFilmicToneMapping;
-  const skyColors={cool:0xdce0e2,warm:0xe7e0d4,white:0xf4f4f2};
   const isNight=$("light-preset").value==="night";
-  scene.background.set(isNight?NIGHT_SKY_COLOR:skyColors[settings.sky]);
+  scene.background.set(isNight?NIGHT_SKY_COLOR:SKY_COLORS[settings.sky]);
   const bounds=new THREE.Box3().setFromObject(artRoot);
   const size=bounds.getSize(new THREE.Vector3());
   const shadow=renderShadowSettings({
