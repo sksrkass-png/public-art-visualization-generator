@@ -1,4 +1,13 @@
-# AXOO Public Art 3D Studio — v3.2.1
+# AXOO Public Art 3D Studio — v3.2.2
+
+## v3.2.2 — clear blue midday sky + compact recessed ground uplights
+
+- **🔵 푸른 맑은 하늘:** the fourth `배경 하늘색` option is a crisp clear blue (`#72BDEC`), alongside the earlier soft gray, warm daylight and white. The same color table is used in the live WebGL editor and isolated A/B/C visual-option capture scene; night mode continues to override the sky to midnight blue when enabled. The `sky:"blue"` enum persists in validated JSON/ZIP projects, saved visual variants, MASTER approved snapshots and 8-view outputs. This is a **uniform blue sky-background color**, not a photographic HDR sky or generated clouds, and does **not** change the existing sun, art/source materials, landscaping or architectural geometry. Visual environment controls are disabled while MASTER is locked.
+- **💡 Ground uplight v4:** new `point-light` assets now show a compact, dark recessed ground lamp with a slim metal top bezel, recessed optical lens and anti-glare slats, approximately **240 mm diameter × 55 mm overall height**, replacing the old 400 mm × 140 mm elevated housing. The v4 fixture contains a real, upward pointing Three.js SpotLight with soft penumbra to illuminate **surfaces only**; it has no translucent ConeGeometry/volumetric beam and no bulky editor marker globe covering the housing. The visual is an on-device schematic physical fixture inspired by the provided lamp reference, not an exact manufacturer's CAD reconstruction or true volumetric illumination.
+- **Existing scenes and MASTER:** v1/v2/v3 light geometry stays versioned and loads unchanged; previously approved positions, geometry, light parameters and MASTER snapshots are not silently migrated. Select an old ground light in an **unlocked** scene and press `💡 선택한 기존 바닥조명 → 작은 매입형으로 변경` to explicitly convert it to v4. This is recorded in undo/revision history, preserves its XYZ/scale, retained power/color (within the editor's 0–20 brightness range), and is blocked by MASTER LOCK. Newly placed lights save appearanceVersion 4; JSON/ZIP import accepts all 1–4 fixture versions.
+- **Verification:** static regression and Chromium tests cover a real blue/neutral PNG difference, saved blue-sky roundtrip and MASTER sky lock, old-v3 vs new-v4 dimensions, no cone or oversized marker, correct newly placed version, optional v3→v4 conversion, preserving lamp transform, power/color and approved MASTER records.
+
+
 
 ## v3.2.1 — remove arbitrary asset count ceiling and simplify labels
 
