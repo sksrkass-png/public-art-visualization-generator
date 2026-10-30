@@ -868,7 +868,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     for(const [index,kind] of
       ["tree-autumn","person-man","park-bench","round-planter"].entries()){
       await page.locator('[data-add-extra="'+kind+'"]').click();
-      await page.mouse.click(rect.x+rect.width*.65,skyPlacementBounds.y+skyPlacementBounds.height*.82);
+      await page.mouse.click(rect.x+rect.width*.65,rect.y+rect.height*.82);
       await page.waitForFunction(n=>document.querySelectorAll("#extra-list button").length===n,
         baselineCount+index+1,{timeout:15000});
     }
@@ -2277,7 +2277,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await skyPage.locator('[data-view="aerial"]').click();
     const skyPlacementBounds=await skyPage.locator("#viewport canvas").boundingBox();
     await skyPage.locator('[data-add-extra="point-light"]').click();
-    await skyPage.mouse.click(skyPlacementBounds.x+skyPlacementBounds.width*.61,rect.y+rect.height*.8);
+    await skyPage.mouse.click(skyPlacementBounds.x+skyPlacementBounds.width*.61,skyPlacementBounds.y+skyPlacementBounds.height*.8);
     await skyPage.waitForFunction(()=>document.querySelectorAll("#extra-list button").length===1);
     await skyPage.keyboard.press("Escape");
     const newLampDownload=skyPage.waitForEvent("download",{timeout:20000});
