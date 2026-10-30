@@ -2308,15 +2308,19 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.deepEqual(upgraded.extras[0].transform,legacyLampConfig.extras[0].transform,
       "retrofitted fixture keeps the same site position/scale");
     await skyPage.locator("#master-lock").click();
-    assert.equal(await skyPage.locator("#visual-sky").isDisabled(),true,
-      "approved MASTER locks daytime sky selections");
+    // Like existing studio behavior, visual preview sky can be adjusted after
+    // approval, but the MASTER snapshot must remain anchored to saved blue.
+    assert.equal(await skyPage.locator("#visual-sky").isEnabled(),true);
+    await skyPage.locator("#visual-sky").selectOption("white");
     assert.equal(await skyPage.locator("#ground-light-upgrade").isDisabled(),true,
       "approved MASTER blocks fixture edits");
     const blueMasterEvent=skyPage.waitForEvent("download",{timeout:20000});
     await skyPage.locator("#export-json").click();
     const blueMaster=JSON.parse(fs.readFileSync(await (await blueMasterEvent).path(),"utf8"));
+    assert.equal(blueMaster.render.visual.sky,"white",
+      "editing the preview sky after approval is not blocked");
     assert.equal(blueMaster.masterSnapshots.at(-1).render.visual.sky,"blue",
-      "MASTER 8-view render snapshot retains crisp blue sky");
+      "approved MASTER 8-view sky stays blue, unaffected by preview changes");
     assert.equal(blueMaster.masterSnapshots.at(-1).extras[0].appearanceVersion,4,
       "MASTER snapshot retains upgraded no-funnel fixture");
     await skyPage.close();
