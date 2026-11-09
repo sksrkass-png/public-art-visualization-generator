@@ -2558,11 +2558,11 @@ function validateProjectConfig(data) {
        (data.artwork.resources !== undefined &&
          (!Array.isArray(data.artwork.resources) || data.artwork.resources.length > MAX_OBJ_RESOURCES ||
            data.artwork.resources.some(x => !x || typeof x.name !== "string" ||
-             !/^[^/\\\\]{1,180}\\.(?:mtl|png|jpe?g|webp|bmp)$/i.test(x.name) ||
+             !/^[^/\\]{1,180}\.(?:mtl|png|jpe?g|webp|bmp)$/i.test(x.name) ||
              !Number.isInteger(x.byteSize) || x.byteSize <= 0 || x.byteSize > MAX_OBJ_SINGLE_RESOURCE_BYTES) ||
            data.artwork.resources.reduce((sum,x) => sum + x.byteSize,0) > 80 * 1024 * 1024 ||
            new Set(data.artwork.resources.map(x => x.name.toLowerCase())).size !== data.artwork.resources.length ||
-           (data.artwork.resources.length && !/\\.obj$/i.test(data.artwork.source)))) ||
+           (data.artwork.resources.length && !/\.obj$/i.test(data.artwork.source)))) ||
       !["empty", "plaza", "courtyard", "promenade"].includes(data.site.preset) ||
       (data.extras !== undefined && !validateExtras(data.extras)) ||
       (data.library !== undefined && !validLibraryManifest(data.library)) ||
