@@ -2361,7 +2361,7 @@ function setTransformFromField(el) {
   refreshSelectionOutline();
 }
 const SITE_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl", "ply", "dae", "3ds", "zip"]);
-const ARTWORK_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "stl"]);
+const ARTWORK_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl"]);
 
 function plainGeometryMesh(geometry, kind) {
   if (!geometry.getAttribute("normal")) geometry.computeVertexNormals();
@@ -2376,13 +2376,13 @@ function plainGeometryMesh(geometry, kind) {
   return new THREE.Mesh(geometry, material);
 }
 async function decodeModel(file, isSite) {
-  if (!file || file.size > 80 * 1024 * 1024) throw new Error("3D 모델은 80MB 이하여야 합니다.");
+  if (!file || file.size > MAX_MODEL_BYTES) throw new Error("3D 모델은 120MB 이하여야 합니다.");
   const ext = file.name.split(".").pop().toLowerCase();
   const formats = isSite ? SITE_MODEL_FORMATS : ARTWORK_MODEL_FORMATS;
   if (!formats.includes(ext)) {
     throw new Error(isSite
       ? "현장 모델은 GLB, GLTF, OBJ, FBX, STL, PLY, DAE, 3DS 또는 glTF 번들 ZIP을 사용하세요. SKP/IFC/RVT/DWG는 GLB 변환이 필요합니다."
-      : "작품 모델은 GLB, GLTF, OBJ, STL 형식만 지원합니다.");
+      : "작품 모델은 GLB, GLTF, OBJ, FBX, STL 형식만 지원합니다.");
   }
   if (isSite && ext === "zip")return (await decodeSiteBundle(file)).model;
   if (ext === "glb" || ext === "gltf") {
@@ -2695,8 +2695,8 @@ function importSceneConfig(data) {
 // The portable project ZIP stores the actual original bytes, not just filenames.
 // Built-in sample meshes and scene presets remain reproducible from the application.
 const PROJECT_ARCHIVE_SCHEMA = "axoo-public-art-portable-v1";
-const MAX_ZIP_BYTES = 200 * 1024 * 1024;
-const MAX_MODEL_BYTES = 80 * 1024 * 1024;
+const MAX_ZIP_BYTES = 320 * 1024 * 1024;
+const MAX_MODEL_BYTES = 120 * 1024 * 1024;
 const MAX_MAP_BYTES = 20 * 1024 * 1024;
 async function exportProjectArchive() {
   try {
@@ -2717,7 +2717,7 @@ async function exportProjectArchive() {
     $("save-status").textContent = "검증 가능한 프로젝트 패키지 저장 중…";
     const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
     if(blob.size>MAX_ZIP_BYTES)
-      throw Error("ZIP 200MB 복원 한도를 초과했습니다. 현장·작품·에셋 파일을 경량화하세요.");
+      throw Error("ZIP 320MB 복원 한도를 초과했습니다. 현장·작품·에셋 파일을 경량화하세요.");
     download(safeFileName() + "-project.zip", blob);
     notify("프로젝트 ZIP 저장 완료 · 원본과 SHA-256 손상 검증 정보 포함");
   } catch (err) {
@@ -2747,7 +2747,7 @@ async function recoverArchiveAsset(entry, name, maxSize, mime = "application/oct
 async function importProjectArchive(file) {
   if (!file) return;
   if (approvedMaster) return notify("MASTER LOCK을 해제한 뒤 프로젝트 ZIP을 불러오세요.");
-  if (file.size > MAX_ZIP_BYTES) return notify("ZIP 파일은 200MB 이하여야 합니다.");
+  if (file.size > MAX_ZIP_BYTES) return notify("ZIP 파일은 320MB 이하여야 합니다.");
   const op = ++activeProjectOperation;
   $("save-status").textContent = "프로젝트 파일 검증 중…";
   let planTexture = null, preparedHDR=null, recoveredHDRFile=null;
