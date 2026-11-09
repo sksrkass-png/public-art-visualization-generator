@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 3.2.3 · 120MB & FBX</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 3.2.4 · OBJ MATERIALS</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -117,8 +117,8 @@
       </section>
       <section class="section">
         <div class="section-title"><h2>🗿 02. 설치 작품</h2><span id="art-status" class="tag">샘플</span></div>
-        <label class="file-button" for="art-file"><span>+ 작품 3D 모델 불러오기</span><small>GLB · GLTF · OBJ · FBX · STL · 120MB 이하</small></label>
-        <input id="art-file" class="sr-only" type="file" accept=".glb,.gltf,.obj,.fbx,.stl,model/gltf-binary">
+        <label class="file-button" for="art-file"><span>+ 작품 3D 모델 불러오기</span><small>GLB · GLTF · OBJ · FBX · STL · 120MB 이하 · OBJ+MTL+이미지 동시 선택</small></label>
+        <input id="art-file" class="sr-only" type="file" multiple accept=".glb,.gltf,.obj,.fbx,.stl,.mtl,.png,.jpg,.jpeg,.webp,.bmp,model/gltf-binary">
         <button class="outline full" type="button" id="sample-art">샘플 조형물 다시 넣기</button>
         <div class="art-multi-import">
           <label class="file-button secondary" for="multi-art-file"><span>+ 추가 작품 GLB 불러오기 · 전체 최대 5개</span><small>독립형 GLB · 20MB 이하 / 개</small></label>
@@ -127,7 +127,7 @@
           <p id="multi-art-status" class="hint" aria-live="polite">기본 작품 1개 + 추가 작품 최대 4개. 추가 작품 선택 후 삭제하면 슬롯을 다시 사용할 수 있습니다.</p>
         </div>
         <p id="art-filename" class="asset-caption">현재: 편집 가능한 샘플 조형물</p>
-        <p class="hint">FBX는 파일에 포함된 컬러·재질을 불러올 수 있습니다. OBJ의 별도 MTL·텍스처는 현재 자동 연결되지 않으므로, 재질을 보존하려면 텍스처 포함 GLB/FBX를 권장합니다.</p>
+        <p class="hint">OBJ 재질 적용: 파일 선택창에서 OBJ 1개와 MTL 1개, 관련 텍스처 이미지를 <strong>한 번에 다중 선택</strong>하세요. 모델 120MB 이하, 부속 파일 최대 24개·총 80MB(개당 40MB)이며 프로젝트 ZIP에 함께 저장됩니다. 파일 선택 후 미리보기에서 실제 마감·색상을 확인하세요.</p>
         <label for="art-height">작품 실제 높이 (m)</label>
         <div class="inline"><input id="art-height" type="number" min="0.05" max="100" step="0.1" value="3"><button id="apply-height" class="outline" type="button">높이 맞춤</button></div>
         <p class="hint">업로드한 모델의 크기는 <strong>자동 변경하지 않습니다.</strong> GLB/OBJ/FBX/STL의 원본 단위를 확인해야 하며, 단위 확인 후 '높이 맞춤'으로만 변경됩니다.</p>
