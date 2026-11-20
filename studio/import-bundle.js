@@ -8,6 +8,7 @@ export const MODEL_MAX=120*1024*1024;
 export const RESOURCE_MAX=80*1024*1024;
 export const RESOURCE_COUNT=45;
 const ASSETS=new Set(["mtl","bin","png","jpg","jpeg","webp","bmp"]);
+const IGNORE_IN_FOLDERS=new Set(["txt","md","pdf","json","ini"]);
 const ext=s=>String(s).split(".").pop().toLowerCase();
 export const fileExtension=ext;
 
@@ -45,7 +46,8 @@ export function validateSelection(file,resources=[],paths=[]){
   return true;
 }
 export function chooseModel(files){
-  const all=[...files].filter(f=>!/(^|[/\\])(?:\.DS_Store|Thumbs\.db)$/i.test(f.webkitRelativePath||f.name));
+  const all=[...files].filter(f=>!/(^|[/\\])(?:\.DS_Store|Thumbs\.db)$/i.test(f.webkitRelativePath||f.name) &&
+    !IGNORE_IN_FOLDERS.has(ext(f.name)));
   const models=all.filter(f=>MODEL_FORMATS.includes(ext(f.name)));
   if(models.length!==1)throw Error("3D 모델 파일은 정확히 한 개만 선택하세요.");
   const file=models[0],resources=all.filter(f=>f!==file),paths=resources.map(pathOf);
@@ -73,7 +75,8 @@ export async function unzipModel(file){
   if(ext(file.name)!=="zip"||file.size>MODEL_MAX)throw Error("모델 ZIP 120MB 제한 초과");
   const zip=await JSZip.loadAsync(file);
   const entries=Object.entries(zip.files).filter(([,entry])=>!entry.dir &&
-    !/(^|\/)(?:\.DS_Store|Thumbs\.db)$/i.test(entry.name));
+    !/(^|\/)(?:\.DS_Store|Thumbs\.db)$/i.test(entry.name) &&
+    !IGNORE_IN_FOLDERS.has(ext(entry.name)));
   if(entries.length<1||entries.length>RESOURCE_COUNT+1)throw Error("ZIP 내부 파일은 최대 46개입니다.");
   const models=[],assets=[],seen=new Set();let sideSize=0;
   for(const [raw,entry] of entries){
@@ -106,13 +109,19 @@ export async function decodeLinkedGLTF(file,resources=[],paths=[],sourcePath=fil
   try{json=JSON.parse(source)}catch{throw Error("GLTF JSON 오류")}
   if(String(json.asset?.version||"").split(".")[0]!=="2")throw Error("GLTF 2.0 파일이 아닙니다.");
   const folder=safePath(sourcePath).split("/").slice(0,-1).join("/");
-  const available=new Map();
-  resources.forEach((f,i)=>available.set(safePath(paths[i]||pathOf(f)).toLowerCase(),f));
+  const available=new Map(),byName=new Map();
+  resources.forEach((f,i)=>{
+    const p=safePath(paths[i]||pathOf(f)).toLowerCase();
+    available.set(p,f);
+    const k=p.split("/").pop();
+    if(byName.has(k))byName.set(k,null);else byName.set(k,f);
+  });
   const blobs=[],mapped=new Map();
   try{
     for(const r of [...(json.buffers||[]),...(json.images||[])]){
       if(!r.uri||/^(?:data:|blob:)/i.test(r.uri))continue;
-      const p=resolveResource(folder,r.uri),f=available.get(p.toLowerCase());
+      const p=resolveResource(folder,r.uri);
+      const f=available.get(p.toLowerCase()) || byName.get(p.split("/").pop().toLowerCase());
       if(!f)throw Error("GLTF에 필요한 파일이 없습니다: "+p);
       if(!mapped.has(p.toLowerCase())){
         const mime={png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",bmp:"image/bmp"}[ext(p)]||"application/octet-stream";
@@ -125,7 +134,9 @@ export async function decodeLinkedGLTF(file,resources=[],paths=[],sourcePath=fil
     manager.setURLModifier(uri=>{
       if(/^(?:data:|blob:)/i.test(uri))return uri;
       if(!uri.startsWith(base))throw Error("외부 GLTF 요청 차단");
-      const found=mapped.get(safePath(uri.slice(base.length)).toLowerCase());
+      let decoded=uri.slice(base.length);
+      try{decoded=decodeURIComponent(decoded)}catch{throw Error("잘못된 리소스 URL 인코딩")}
+      const found=mapped.get(safePath(decoded).toLowerCase());
       if(!found)throw Error("연결되지 않은 GLTF 파일: "+uri);
       return found;
     });
