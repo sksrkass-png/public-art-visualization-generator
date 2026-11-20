@@ -2451,21 +2451,27 @@ function inspectSiteGeometry(model) {
   }
   return { meshCount, size };
 }
-async function importModel(file, isSite, resources = []) {
+async function importModel(file, isSite, resources = [], paths = [], sourcePath = file?.name) {
   if (!file) return;
   if (approvedMaster) return notify("MASTER LOCK을 먼저 해제해야 작품·공간 모델을 변경할 수 있습니다.");
   activeProjectOperation++;
   const op = isSite ? ++activeSiteOperation : ++activeArtOperation;
   try {
-    notify("파일을 읽고 있습니다: " + file.name);
-    if (!isSite) validateOBJResources(resources);
-    const model = await decodeModel(file, isSite, resources);
+    importProgress(isSite, "① 모델 파일·부속 리소스 확인 중", 15);
+    notify("파일을 읽고 있습니다: "+file.name);
+    if (/\.obj$/i.test(file.name)) validateOBJResources(resources);
+    if (!/\.zip$/i.test(file.name)) validateSelection(file, resources, paths);
+    await new Promise(resolve=>requestAnimationFrame(resolve));
+    importProgress(isSite, "② 3D 구조·재질 해석 중 (고용량 모델은 오래 걸릴 수 있습니다)", 45);
+    const model = await decodeModel(file, isSite, resources, paths, sourcePath);
+    importProgress(isSite, "③ 메시·실측·렌더 메모리 점검 중", 75);
     if(!isSite && extrasRoot.children.some(o=>o.userData.extraKind==="artwork-copy"))
       throw Error("작품 복제본이 남아 있습니다. 복제본을 삭제한 뒤 원본 작품을 교체하세요.");
     if(!isSite && linkedPlinths().length)
       throw Error("작품 연결 기단을 먼저 삭제한 후 원본 작품을 교체하세요.");
     const siteStats = isSite ? inspectSiteGeometry(model) : null;
     const inspected = isSite ? inspectImportedSite(model) : null;
+    const perf = importReport(isSite, file, model, sourcePath);
     if (approvedMaster || op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
     if (isSite) {
       siteViewport.reset();
@@ -2478,10 +2484,12 @@ async function importModel(file, isSite, resources = []) {
       sourceSiteInspection=inspected;
       siteFileName = file.name;
       siteSourceFile = file;
+      siteSourceResources=[...resources]; siteResourcePaths=[...paths]; siteModelPath=sourcePath;
       $("site-filename").textContent = file.name;
       $("site-status").textContent = "실제 모델";
       $("site-preset").value = "empty";
-      $("site-unit").value = "m"; $("site-up").value = "y";
+      const hints=importHints(/\.zip$/i.test(file.name) ? sourcePath.split(".").pop().toLowerCase() : file.name.split(".").pop().toLowerCase());
+      $("site-unit").value=hints.unit; $("site-up").value=hints.up;
       applySiteUnits(); syncGroundAvailability();
       setShadows(siteRoot);
       resetSiteAnnotations({clearPending:false});
@@ -2500,7 +2508,7 @@ async function importModel(file, isSite, resources = []) {
       notify("현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
     } else {
       // Imported geometry retains original dimensions; never fit to stale 3m field.
-      setArtwork(model, file.name, { file, resources });
+      setArtwork(model, file.name, { file, resources, paths, sourcePath });
       if (pendingArtwork && pendingArtwork.source === file.name) {
         restore(pendingArtwork.transform);
         approvedMaster = !!pendingArtwork.locked;
@@ -2508,10 +2516,12 @@ async function importModel(file, isSite, resources = []) {
         syncLock();
       }
       changeView("main");
-      notify("작품 모델을 불러왔습니다. 크기와 위치를 조정할 수 있습니다.");
+      notify("작품 모델을 불러왔습니다. 원본 크기와 컬러·재질을 확인하세요.");
     }
+    importProgress(isSite, "④ 불러오기 완료 · "+perf.triangles.toLocaleString()+" triangles", 100);
   } catch (error) {
     console.error(error);
+    importProgress(isSite, "오류: "+(error.message || "파일 형식 확인 필요"), 0);
     notify("불러오기 실패: " + (error.message || "파일 형식 확인 필요"));
   }
 }
