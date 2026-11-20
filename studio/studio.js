@@ -2384,6 +2384,14 @@ function plainGeometryMesh(geometry, kind) {
   });
   return new THREE.Mesh(geometry, material);
 }
+function localOnlyResourceManager(){
+  const manager=new THREE.LoadingManager();
+  manager.setURLModifier(uri=>{
+    if (/^(?:data:|blob:)/i.test(uri))return uri;
+    throw Error("외부 텍스처 경로는 지원하지 않습니다. 텍스처 포함 GLB로 다시 내보내세요: "+uri);
+  });
+  return manager;
+}
 async function decodeModel(file, isSite, resources = [], paths = [], sourcePath = file?.name) {
   if (!file || file.size > MAX_MODEL_BYTES)
     throw new Error("3D 모델은 120MB 이하여야 합니다.");
@@ -2399,7 +2407,7 @@ async function decodeModel(file, isSite, resources = [], paths = [], sourcePath 
   if (ext === "gltf")
     return decodeLinkedGLTF(file, resources, paths, sourcePath);
   if (ext === "glb")
-    return (await new GLTFLoader().parseAsync(await file.arrayBuffer(), "")).scene;
+    return (await new GLTFLoader(localOnlyResourceManager()).parseAsync(await file.arrayBuffer(), "")).scene;
   if (ext === "obj")
     return loadOBJWithMaterials(file, resources);
   if (ext === "stl")
@@ -2407,11 +2415,11 @@ async function decodeModel(file, isSite, resources = [], paths = [], sourcePath 
   if (ext === "ply")
     return plainGeometryMesh(new PLYLoader().parse(await file.arrayBuffer()), "ply");
   if (ext === "fbx")
-    return new FBXLoader().parse(await file.arrayBuffer(), "");
+    return new FBXLoader(localOnlyResourceManager()).parse(await file.arrayBuffer(), "");
   if (ext === "dae")
-    return new ColladaLoader().parse(await file.text(), "").scene;
+    return new ColladaLoader(localOnlyResourceManager()).parse(await file.text(), "").scene;
   if (ext === "3ds")
-    return new TDSLoader().parse(await file.arrayBuffer(), "");
+    return new TDSLoader(localOnlyResourceManager()).parse(await file.arrayBuffer(), "");
   throw new Error("지원하지 않는 확장자입니다.");
 }
 function importProgress(isSite, message, percent = 0) {
@@ -2471,8 +2479,8 @@ async function importModel(file, isSite, resources = [], paths = [], sourcePath 
       throw Error("작품 연결 기단을 먼저 삭제한 후 원본 작품을 교체하세요.");
     const siteStats = isSite ? inspectSiteGeometry(model) : null;
     const inspected = isSite ? inspectImportedSite(model) : null;
-    const perf = importReport(isSite, file, model, sourcePath);
     if (approvedMaster || op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
+    const perf = importReport(isSite, file, model, sourcePath);
     if (isSite) {
       siteViewport.reset();
       invalidateSiteMeshIndex(siteRoot);
