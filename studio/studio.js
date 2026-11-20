@@ -2,10 +2,9 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { loadOBJWithMaterials, validateOBJResources } from "./obj-materials.js";
 import { MODEL_FORMATS, chooseModel, validateSelection, unzipModel, decodeLinkedGLTF,
-  importHints, inspectPerformance, validCompanions, safePath } from "./import-bundle.js";
+  importHints, inspectPerformance, validCompanions } from "./import-bundle.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { PLYLoader } from "three/addons/loaders/PLYLoader.js";
@@ -32,7 +31,7 @@ import {FRAME_MODES,CAMERA_LENSES,normalizeVisualSettings,
 import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precision.js";
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
-import { decodeSiteBundle, inspectImportedSite, validSiteAlignment } from "./site-import.js";
+import { inspectImportedSite, validSiteAlignment } from "./site-import.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape, upgradeGroundLight } from "./extras.js";
 import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
   validPlacementReference,validatePlinthDimensions} from "./dimensioning.js";
