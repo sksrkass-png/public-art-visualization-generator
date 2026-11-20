@@ -117,3 +117,36 @@ git push -u origin main
 - Per-project saved presets (e.g. save a site's lock configuration for reuse across multiple artwork proposals).
 - Batch shot selection presets tailored to specific competition submission requirements.
 - Optional side-by-side Korean translation of the generated English prompt for internal review.
+
+
+## AXOO 3D Studio v3.3 — Universal Import I (2026-11)
+
+This release upgrades the **existing static, browser-local studio**. It does **not** add a remote backend, cross-device saving, real-time teamwork, or native SKP/BLEND/3DM/RVT/DWG/IFC parsers. Previous v3.2 portable project ZIPs and MASTER approval data remain supported.
+
+### Supported model sources
+
+- **Site and primary artwork**: GLB, glTF 2.0 (.gltf), OBJ, FBX, STL, PLY, DAE, 3DS and ZIP containing **one** supported model plus linked assets. Model or model-ZIP upload cap: **120 MiB**.
+- **OBJ**: select OBJ and one MTL, plus optional supported texture images, in a **single multi-file selection**, whole-folder chooser, or ZIP. OBJ+MTL keeps its established stricter sidecar limits (maximum 24, 40 MiB per image/material file). OBJ material names and original geometry are retained.
+- **glTF**: choose .gltf, external .bin buffers and referenced JPG/PNG/WEBP/BMP together (multi-file or folder), or zip them. Nested paths are respected when provided; flat file selections match unique basenames. External URLs are blocked. Standalone .glb is recommended when available.
+- **FBX/DAE/3DS**: source geometry can be loaded; external texture paths are not automatically imported. Re-export self-contained GLB if materials must be preserved.
+- Companion file budget: **45 files, total 80 MiB** for the general bundle workflow; ZIP payloads validate the uncompressed sizes before allocation.
+
+### Import process and diagnostics
+
+- Two identical source import panels: **site** and **artwork**, each with multi-select, folder picker, and file drag-and-drop. Browser folder picker support depends on the client (Chromium recommended).
+- Four stage indicators: verify inputs → parse geometry and materials → inspect complexity and scale → finish. Percent in progress bar represents **stages, not actual transferred bytes**; heavy synchronous parsers may still temporarily block the tab.
+- Diagnostics show mesh count, triangle count, approximate geometry/texture GPU memory footprint, non-destructive format-specific unit/axis hints, and performance warnings. These are engineering estimates, **not a guarantee of renderer memory usage**.
+- Source geometry is not decimated, rescaled, or recentered by this workflow. Site units/height axis still require physical measurement and explicit user checking; FBX conversions can be performed by its loader.
+
+### Project persistence and migration
+
+- Both **site and artwork** companion files are stored in the portable project ZIP with original relative paths. v3.2 projects without these fields still open through the previous `axoo-public-art-portable-v1` schema.
+- A local-only `sourceManifest` is saved in the JSON as groundwork for a future cloud project database. Source files are not uploaded to AXOO or other remote storage.
+- The total portable project ZIP cap remains **320 MiB**. A combination of two 120 MiB models and extensive texture assets can exceed this limit; lighten assets or save smaller versions before exporting. A model file being accepted does **not** guarantee that the final ZIP fits or that the device can render it.
+- Existing MASTER LOCK, revisions, site coordinates, project ZIP integrity checking, camera bookmarks, and the offline Team Review workflow stay in place.
+
+### QA checks and known gaps
+
+Use real artist-provided sample sets (OBJ+MTL+images, glTF+BIN+images in a folder, bundled ZIP, FBX, and 120 MiB models), then save and reload a portable ZIP to confirm materials and matching real-world dimensions. Validation covers path traversal, duplicate filenames, oversized files, missing textures and basic glTF references. Browser/GPU smoke tests with actual large models are still required.
+
+**Planned later**: offline SKP/Rhino/Blender/CAD format conversion services in v3.4; project-type modes in v3.5; account-based cloud workspaces in v4.0; true online concurrent team editing in v4.1.

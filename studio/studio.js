@@ -2,8 +2,9 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
-import { loadOBJWithMaterials, validateOBJResources, MAX_OBJ_RESOURCES, MAX_OBJ_SINGLE_RESOURCE_BYTES } from "./obj-materials.js";
+import { loadOBJWithMaterials, validateOBJResources } from "./obj-materials.js";
+import { MODEL_FORMATS, chooseModel, validateSelection, unzipModel, decodeLinkedGLTF,
+  importHints, inspectPerformance, validCompanions } from "./import-bundle.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { PLYLoader } from "three/addons/loaders/PLYLoader.js";
@@ -30,7 +31,7 @@ import {FRAME_MODES,CAMERA_LENSES,normalizeVisualSettings,
 import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precision.js";
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
-import { decodeSiteBundle, inspectImportedSite, validSiteAlignment } from "./site-import.js";
+import { inspectImportedSite, validSiteAlignment } from "./site-import.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape, upgradeGroundLight } from "./extras.js";
 import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
   validPlacementReference,validatePlinthDimensions} from "./dimensioning.js";
@@ -170,7 +171,8 @@ let undoStack = [], redoStack = [];
 let pendingArtwork = null;
 let activeSiteOperation = 0, activeArtOperation = 0, activePlanOperation = 0, activeProjectOperation = 0;
 let siteSourceFile = null, artSourceFile = null, planSourceFile = null;
-let artSourceResources = [];
+let artSourceResources = [], artResourcePaths = [], artModelPath = "";
+let siteSourceResources = [], siteResourcePaths = [], siteModelPath = "";
 let sourceSiteInspection = null;
 let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
@@ -978,6 +980,9 @@ function buildSite(preset) {
   clearGroup(siteRoot);
   siteFileName = "";
   siteSourceFile = null;
+  siteSourceResources = []; siteResourcePaths = []; siteModelPath = "";
+  if($("site-import-diagnostics"))$("site-import-diagnostics").textContent="예시 현장 · 가져온 모델 없음";
+  if($("site-import-progress"))importProgress(true,"예시 현장 선택됨",0);
   navigationSiteRadius = 0;
   updateNavigationSpeed();
   resetSiteAnnotations();
@@ -1380,6 +1385,8 @@ function setArtwork(object, name, options = {}) {
   selectRoot(artRoot);
   artSourceFile = options.file || null;
   artSourceResources = options.resources ? [...options.resources] : [];
+  artResourcePaths = options.paths ? [...options.paths] : artSourceResources.map(file=>file.name);
+  artModelPath = options.sourcePath || options.file?.name || "";
   sourceDimensions = aligned.sourceSize.toArray();
   $("source-dimensions").textContent = sourceDimensions.map(v => v.toFixed(3)).join(" × ") + " m (W×H×D)";
   setShadows(artRoot);
@@ -1397,6 +1404,10 @@ function setArtwork(object, name, options = {}) {
   renderMasterHistory();
   $("art-filename").textContent = "현재: " + name;
   $("art-status").textContent = name === "Sample Artwork" ? "샘플" : "가져온 작품";
+  if(name==="Sample Artwork"){
+    if($("art-import-diagnostics"))$("art-import-diagnostics").textContent="샘플 조형물 · 실제 작품 파일 필요";
+    importProgress(false,"샘플 조형물 선택됨",0);
+  }
   $("object-name").textContent = name;
 }
 function fitArtworkHeight(height) {
@@ -2363,8 +2374,8 @@ function setTransformFromField(el) {
   if(selectedRoot===artRoot)updateLight();
   refreshSelectionOutline();
 }
-const SITE_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl", "ply", "dae", "3ds", "zip"]);
-const ARTWORK_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl"]);
+const SITE_MODEL_FORMATS = MODEL_FORMATS;
+const ARTWORK_MODEL_FORMATS = MODEL_FORMATS;
 
 function plainGeometryMesh(geometry, kind) {
   if (!geometry.getAttribute("normal")) geometry.computeVertexNormals();
@@ -2378,31 +2389,63 @@ function plainGeometryMesh(geometry, kind) {
   });
   return new THREE.Mesh(geometry, material);
 }
-async function decodeModel(file, isSite, resources = []) {
-  if (!file || file.size > MAX_MODEL_BYTES) throw new Error("3D 모델은 120MB 이하여야 합니다.");
+function localOnlyResourceManager(){
+  const manager=new THREE.LoadingManager();
+  manager.setURLModifier(uri=>{
+    if (/^(?:data:|blob:)/i.test(uri))return uri;
+    throw Error("외부 텍스처 경로는 지원하지 않습니다. 텍스처 포함 GLB로 다시 내보내세요: "+uri);
+  });
+  return manager;
+}
+async function decodeModel(file, isSite, resources = [], paths = [], sourcePath = file?.name) {
+  if (!file || file.size > MAX_MODEL_BYTES)
+    throw new Error("3D 모델은 120MB 이하여야 합니다.");
   const ext = file.name.split(".").pop().toLowerCase();
   const formats = isSite ? SITE_MODEL_FORMATS : ARTWORK_MODEL_FORMATS;
-  if (!formats.includes(ext)) {
-    throw new Error(isSite
-      ? "현장 모델은 GLB, GLTF, OBJ, FBX, STL, PLY, DAE, 3DS 또는 glTF 번들 ZIP을 사용하세요. SKP/IFC/RVT/DWG는 GLB 변환이 필요합니다."
-      : "작품 모델은 GLB, GLTF, OBJ, FBX, STL 형식만 지원합니다.");
+  if (!formats.includes(ext))
+    throw Error("지원하지 않는 3D 파일 확장자입니다. SKP/3DM/BLEND/IFC/RVT/DWG는 GLB 변환이 필요합니다.");
+  if (ext === "zip") {
+    const bundle = await unzipModel(file);
+    return decodeModel(bundle.file, isSite, bundle.resources, bundle.paths, bundle.sourcePath);
   }
-  if (isSite && ext === "zip")return (await decodeSiteBundle(file)).model;
-  if (ext === "glb" || ext === "gltf") {
-    // A standalone .gltf requires embedded geometry/texture data.
-    // Prefer .glb when the source references additional .bin/images.
-    const data = ext === "glb" ? await file.arrayBuffer() : await file.text();
-    return (await new GLTFLoader().parseAsync(data, "")).scene;
-  }
-  if (ext === "obj") return isSite
-    ? new OBJLoader().parse(await file.text())
-    : loadOBJWithMaterials(file, resources);
-  if (ext === "stl") return plainGeometryMesh(new STLLoader().parse(await file.arrayBuffer()), "stl");
-  if (ext === "ply") return plainGeometryMesh(new PLYLoader().parse(await file.arrayBuffer()), "ply");
-  if (ext === "fbx") return new FBXLoader().parse(await file.arrayBuffer(), "");
-  if (ext === "dae") return new ColladaLoader().parse(await file.text(), "").scene;
-  if (ext === "3ds") return new TDSLoader().parse(await file.arrayBuffer(), "");
+  validateSelection(file, resources, paths);
+  if (ext === "gltf")
+    return decodeLinkedGLTF(file, resources, paths, sourcePath);
+  if (ext === "glb")
+    return (await new GLTFLoader(localOnlyResourceManager()).parseAsync(await file.arrayBuffer(), "")).scene;
+  if (ext === "obj")
+    return loadOBJWithMaterials(file, resources);
+  if (ext === "stl")
+    return plainGeometryMesh(new STLLoader().parse(await file.arrayBuffer()), "stl");
+  if (ext === "ply")
+    return plainGeometryMesh(new PLYLoader().parse(await file.arrayBuffer()), "ply");
+  if (ext === "fbx")
+    return new FBXLoader(localOnlyResourceManager()).parse(await file.arrayBuffer(), "");
+  if (ext === "dae")
+    return new ColladaLoader(localOnlyResourceManager()).parse(await file.text(), "").scene;
+  if (ext === "3ds")
+    return new TDSLoader(localOnlyResourceManager()).parse(await file.arrayBuffer(), "");
   throw new Error("지원하지 않는 확장자입니다.");
+}
+function importProgress(isSite, message, percent = 0) {
+  const role = isSite ? "site" : "art";
+  const status = $(role + "-import-progress");
+  const bar = $(role + "-import-bar");
+  if (status) status.textContent=message;
+  if (bar) bar.value=percent;
+}
+function importReport(isSite, file, model, sourcePath = file.name) {
+  const role=isSite?"site":"art", data=inspectPerformance(model);
+  const bytes=(data.geometryBytes+data.textureBytes)/1024/1024;
+  const kind=file.name.toLowerCase().endsWith(".zip")
+    ? sourcePath.split(".").pop().toLowerCase() : file.name.split(".").pop().toLowerCase();
+  const hint=importHints(kind);
+  const el=$(role+"-import-diagnostics");
+  if(el)el.textContent="형식: "+kind.toUpperCase()+
+    " · 메시 "+data.meshCount.toLocaleString()+" · 삼각형 "+data.triangles.toLocaleString()+
+    " · 추정 렌더 메모리 "+bytes.toFixed(1)+"MB\n"+
+    hint.note+(data.warnings.length?"\n⚠ "+data.warnings.join("\n⚠ "):"");
+  return data;
 }
 function showSiteGeometryStats(stats) {
   $("site-dimensions").textContent = stats
@@ -2421,15 +2464,20 @@ function inspectSiteGeometry(model) {
   }
   return { meshCount, size };
 }
-async function importModel(file, isSite, resources = []) {
+async function importModel(file, isSite, resources = [], paths = [], sourcePath = file?.name) {
   if (!file) return;
   if (approvedMaster) return notify("MASTER LOCK을 먼저 해제해야 작품·공간 모델을 변경할 수 있습니다.");
   activeProjectOperation++;
   const op = isSite ? ++activeSiteOperation : ++activeArtOperation;
   try {
-    notify("파일을 읽고 있습니다: " + file.name);
-    if (!isSite) validateOBJResources(resources);
-    const model = await decodeModel(file, isSite, resources);
+    importProgress(isSite, "① 모델 파일·부속 리소스 확인 중", 15);
+    notify("파일을 읽고 있습니다: "+file.name);
+    if (/\.obj$/i.test(file.name)) validateOBJResources(resources);
+    if (!/\.zip$/i.test(file.name)) validateSelection(file, resources, paths);
+    await new Promise(resolve=>requestAnimationFrame(resolve));
+    importProgress(isSite, "② 3D 구조·재질 해석 중 (고용량 모델은 오래 걸릴 수 있습니다)", 45);
+    const model = await decodeModel(file, isSite, resources, paths, sourcePath);
+    importProgress(isSite, "③ 메시·실측·렌더 메모리 점검 중", 75);
     if(!isSite && extrasRoot.children.some(o=>o.userData.extraKind==="artwork-copy"))
       throw Error("작품 복제본이 남아 있습니다. 복제본을 삭제한 뒤 원본 작품을 교체하세요.");
     if(!isSite && linkedPlinths().length)
@@ -2437,6 +2485,7 @@ async function importModel(file, isSite, resources = []) {
     const siteStats = isSite ? inspectSiteGeometry(model) : null;
     const inspected = isSite ? inspectImportedSite(model) : null;
     if (approvedMaster || op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
+    const perf = importReport(isSite, file, model, sourcePath);
     if (isSite) {
       siteViewport.reset();
       invalidateSiteMeshIndex(siteRoot);
@@ -2448,10 +2497,12 @@ async function importModel(file, isSite, resources = []) {
       sourceSiteInspection=inspected;
       siteFileName = file.name;
       siteSourceFile = file;
+      siteSourceResources=[...resources]; siteResourcePaths=[...paths]; siteModelPath=sourcePath;
       $("site-filename").textContent = file.name;
       $("site-status").textContent = "실제 모델";
       $("site-preset").value = "empty";
-      $("site-unit").value = "m"; $("site-up").value = "y";
+      const hints=importHints(/\.zip$/i.test(file.name) ? sourcePath.split(".").pop().toLowerCase() : file.name.split(".").pop().toLowerCase());
+      $("site-unit").value=hints.unit; $("site-up").value=hints.up;
       applySiteUnits(); syncGroundAvailability();
       setShadows(siteRoot);
       resetSiteAnnotations({clearPending:false});
@@ -2470,7 +2521,7 @@ async function importModel(file, isSite, resources = []) {
       notify("현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
     } else {
       // Imported geometry retains original dimensions; never fit to stale 3m field.
-      setArtwork(model, file.name, { file, resources });
+      setArtwork(model, file.name, { file, resources, paths, sourcePath });
       if (pendingArtwork && pendingArtwork.source === file.name) {
         restore(pendingArtwork.transform);
         approvedMaster = !!pendingArtwork.locked;
@@ -2478,10 +2529,12 @@ async function importModel(file, isSite, resources = []) {
         syncLock();
       }
       changeView("main");
-      notify("작품 모델을 불러왔습니다. 크기와 위치를 조정할 수 있습니다.");
+      notify("작품 모델을 불러왔습니다. 원본 크기와 컬러·재질을 확인하세요.");
     }
+    importProgress(isSite, "④ 불러오기 완료 · "+perf.triangles.toLocaleString()+" triangles", 100);
   } catch (error) {
     console.error(error);
+    importProgress(isSite, "오류: "+(error.message || "파일 형식 확인 필요"), 0);
     notify("불러오기 실패: " + (error.message || "파일 형식 확인 필요"));
   }
 }
@@ -2518,12 +2571,16 @@ function sceneConfig() {
     schema: "axoo-public-art-3d-studio-v1",
     projectName: $("project-name").value,
     library:libraryManifest(assetLibrary),
+    sourceManifest:{schema:"axoo-source-manifest-v1",localOnly:true,
+      site:siteSourceFile?{name:siteSourceFile.name,format:siteSourceFile.name.split(".").pop().toLowerCase(),byteSize:siteSourceFile.size}:null,
+      artwork:artSourceFile?{name:artSourceFile.name,format:artSourceFile.name.split(".").pop().toLowerCase(),byteSize:artSourceFile.size}:null},
     createdAt: new Date().toISOString(),
     site: { file: siteFileName, preset: $("site-preset").value, floor: $("floor-map").value,
       unit: $("site-unit").value, up: $("site-up").value,
       alignment:{centerOrigin:$("site-center-origin").checked},
       planFile: planFileName, planWidth: +$("map-width").value,
-      planAlignment: planAlignmentSnapshot() },
+      planAlignment: planAlignmentSnapshot(), sourcePath:siteModelPath,
+      resources:siteSourceResources.map((file,i)=>({name:file.name,byteSize:file.size,path:siteResourcePaths[i]||file.name})) },
     groundPlacement: { auto: $("auto-ground").checked, offset: +$("ground-offset").value },
     extras: serializeExtras(extrasRoot),
     layers:structuredClone(layerState),
@@ -2532,7 +2589,8 @@ function sceneConfig() {
     navSpeed: +$("nav-speed").value,
     lightPreset: $("light-preset").value,
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked,
-      resources: artSourceResources.map(file => ({ name: file.name, byteSize: file.size })) },
+      sourcePath:artModelPath,
+      resources:artSourceResources.map((file,i)=>({name:file.name,byteSize:file.size,path:artResourcePaths[i]||file.name})) },
     render:currentRenderConfig(),
     placementReference:currentPlacementReference(),
     masterSnapshots,
@@ -2555,14 +2613,8 @@ function validateProjectConfig(data) {
       !validTransform(data.artwork.transform) || !data.lighting || !data.camera ||
       !isTriple(data.camera.position) || !isTriple(data.camera.target) ||
       typeof data.artwork.source !== "string" || typeof data.site.file !== "string" ||
-       (data.artwork.resources !== undefined &&
-         (!Array.isArray(data.artwork.resources) || data.artwork.resources.length > MAX_OBJ_RESOURCES ||
-           data.artwork.resources.some(x => !x || typeof x.name !== "string" ||
-             !/^[^/\\]{1,180}\.(?:mtl|png|jpe?g|webp|bmp)$/i.test(x.name) ||
-             !Number.isInteger(x.byteSize) || x.byteSize <= 0 || x.byteSize > MAX_OBJ_SINGLE_RESOURCE_BYTES) ||
-           data.artwork.resources.reduce((sum,x) => sum + x.byteSize,0) > 80 * 1024 * 1024 ||
-           new Set(data.artwork.resources.map(x => x.name.toLowerCase())).size !== data.artwork.resources.length ||
-           (data.artwork.resources.length && !/\.obj$/i.test(data.artwork.source)))) ||
+      !validCompanions(data.site.resources,data.site.file) ||
+      !validCompanions(data.artwork.resources,data.artwork.source) ||
       !["empty", "plaza", "courtyard", "promenade"].includes(data.site.preset) ||
       (data.extras !== undefined && !validateExtras(data.extras)) ||
       (data.library !== undefined && !validLibraryManifest(data.library)) ||
@@ -2722,6 +2774,8 @@ async function exportProjectArchive() {
     // path traversal and prevent the archive from assuming a user's directory.
     zip.file("project.json", JSON.stringify(data, null, 2));
     if (siteSourceFile) zip.file("assets/site", siteSourceFile);
+    for(let i=0;i<siteSourceResources.length;i++)
+      zip.file("assets/site-resources/"+i,siteSourceResources[i]);
     if (artSourceFile) zip.file("assets/artwork", artSourceFile);
     for (let i = 0; i < artSourceResources.length; i++)
       zip.file("assets/artwork-resources/" + i, artSourceResources[i]);
@@ -2761,6 +2815,20 @@ async function recoverArchiveAsset(entry, name, maxSize, mime = "application/oct
   if (bytes.length > maxSize) throw new Error("허용 용량을 초과한 모델입니다.");
   return new File([bytes], name, { type: mime });
 }
+async function recoverModelCompanions(zip,items,role){
+  const resources=[],paths=[];
+  for(const [i,entry] of (items||[]).entries()){
+    const src=checkedArchiveEntry(zip,"assets/"+role+"-resources/"+i,80*1024*1024,true);
+    const file=await recoverArchiveAsset(src,entry.name,80*1024*1024);
+    if(file.size!==entry.byteSize)throw Error(role+" 파일의 크기가 일치하지 않습니다: "+entry.name);
+    resources.push(file);paths.push(entry.path||entry.name);
+  }
+  const actual=Object.keys(zip.files).filter(k=>k.startsWith("assets/"+role+"-resources/") && !zip.files[k].dir).sort();
+  const declared=resources.map((_,i)=>"assets/"+role+"-resources/"+i).sort();
+  if(JSON.stringify(actual)!==JSON.stringify(declared))
+    throw Error(role+" 부속 파일 목록이 저장된 프로젝트와 일치하지 않습니다.");
+  return {resources,paths};
+}
 async function importProjectArchive(file) {
   if (!file) return;
   if (approvedMaster) return notify("MASTER LOCK을 해제한 뒤 프로젝트 ZIP을 불러오세요.");
@@ -2770,7 +2838,7 @@ async function importProjectArchive(file) {
   let planTexture = null, preparedHDR=null, recoveredHDRFile=null;
   try {
     const zip = await JSZip.loadAsync(file);
-    if (Object.keys(zip.files).length > 60) throw new Error("허용되지 않는 파일이 너무 많습니다.");
+    if (Object.keys(zip.files).length > 135) throw new Error("허용되지 않는 파일이 너무 많습니다.");
     const integrityResult=await verifyIntegrityManifest(zip);
     $("save-status").textContent=integrityResult.verified
       ? "ZIP 모든 파일 SHA-256 검사 통과"
@@ -2801,26 +2869,16 @@ async function importProjectArchive(file) {
     const hdrEntry = checkedArchiveEntry(zip,"assets/environment",MAX_MAP_BYTES,!!data.render?.environmentFile);
     const siteFile = await recoverArchiveAsset(siteEntry, data.site.file, MAX_MODEL_BYTES);
     const artFile = await recoverArchiveAsset(artEntry, data.artwork.source, MAX_MODEL_BYTES);
-    const artResources = [];
-    for (const [i, entry] of (data.artwork.resources || []).entries()) {
-      const zipEntry = checkedArchiveEntry(zip, "assets/artwork-resources/" + i, MAX_OBJ_SINGLE_RESOURCE_BYTES, true);
-      const resource = await recoverArchiveAsset(zipEntry, entry.name, MAX_OBJ_SINGLE_RESOURCE_BYTES);
-      if (resource.size !== entry.byteSize) throw Error("OBJ 부속 파일의 크기가 일치하지 않습니다: " + entry.name);
-      artResources.push(resource);
-    }
-    validateOBJResources(artResources);
-    const actualResources = Object.keys(zip.files).filter(name => /^assets\/artwork-resources\/\d+$/.test(name)).sort();
-    const expectedResources = artResources.map((_, i) => "assets/artwork-resources/" + i).sort();
-    if (JSON.stringify(actualResources) !== JSON.stringify(expectedResources))
-      throw Error("프로젝트 ZIP의 OBJ 부속 파일 목록이 일치하지 않습니다.");
+    const siteBundle=await recoverModelCompanions(zip,data.site.resources,"site");
+    const artBundle=await recoverModelCompanions(zip,data.artwork.resources,"artwork");
     const planName = String(data.site.planFile || "");
     const planType = /\.png$/i.test(planName) ? "image/png" :
       /\.webp$/i.test(planName) ? "image/webp" : "image/jpeg";
     const planFile = await recoverArchiveAsset(planEntry, planName, MAX_MAP_BYTES, planType);
     recoveredHDRFile=await recoverArchiveAsset(hdrEntry,data.render?.environmentFile || "",MAX_MAP_BYTES,"image/vnd.radiance");
     const [siteModel, artModel] = await Promise.all([
-      siteFile ? decodeModel(siteFile, true) : Promise.resolve(null),
-      artFile ? decodeModel(artFile, false, artResources) : Promise.resolve(null)
+      siteFile ? decodeModel(siteFile,true,siteBundle.resources,siteBundle.paths,data.site.sourcePath||siteFile.name):Promise.resolve(null),
+      artFile ? decodeModel(artFile,false,artBundle.resources,artBundle.paths,data.artwork.sourcePath||artFile.name):Promise.resolve(null)
     ]);
     const siteStats = siteModel ? inspectSiteGeometry(siteModel) : null;
     const siteInspected=siteModel ? inspectImportedSite(siteModel) : null;
@@ -2854,6 +2912,8 @@ async function importProjectArchive(file) {
       sourceSiteInspection=siteInspected;
       siteFileName = siteFile.name;
       siteSourceFile = siteFile;
+      siteSourceResources=[...siteBundle.resources]; siteResourcePaths=[...siteBundle.paths];
+      siteModelPath=data.site.sourcePath||siteFile.name;
       $("site-status").textContent = "실제 모델";
       $("site-filename").textContent = siteFile.name;
       $("site-preset").value = "empty";
@@ -2866,7 +2926,7 @@ async function importProjectArchive(file) {
       $("site-preset").value = data.site.preset;
       buildSite(data.site.preset);
     }
-    if (artModel) setArtwork(artModel, artFile.name, { file: artFile, resources: artResources });
+    if (artModel) setArtwork(artModel, artFile.name, { file: artFile, resources: artBundle.resources,paths:artBundle.paths,sourcePath:data.artwork.sourcePath||artFile.name });
     else setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 });
     if (planTexture) {
       applyPlanTexture(planTexture, planFile);
@@ -3504,19 +3564,36 @@ $("site-preset").addEventListener("change", e => {
 $("site-view-apply").addEventListener("click",applySitePreview);
 $("site-view-reset").addEventListener("click",resetSitePreviewUI);
 $("site-navigation-performance").addEventListener("change",setupNavigationPerformance);
-$("site-file").addEventListener("change", e => importModel(e.target.files[0], true));
-$("art-file").addEventListener("change", e => {
-  const files = [...e.target.files];
-  e.target.value = "";
-  if (!files.length) return;
-  const models = files.filter(file => /\.(?:glb|gltf|obj|fbx|stl)$/i.test(file.name));
-  if (models.length !== 1) return notify("작품 모델은 한 개만 선택하세요. OBJ + MTL + 텍스처 이미지를 함께 선택할 수 있습니다.");
-  const main = models[0];
-  const resources = files.filter(file => file !== main);
-  if (resources.length && !/\.obj$/i.test(main.name))
-    return notify("MTL과 텍스처 이미지는 OBJ 모델과 함께 선택해야 합니다.");
-  importModel(main, false, resources);
-});
+async function handleUniversalSelection(files,isSite){
+  if(!files?.length)return;
+  try{
+    const chosen=chooseModel(files);
+    await importModel(chosen.file,isSite,chosen.resources,chosen.paths,chosen.sourcePath);
+  }catch(error){
+    importProgress(isSite,"파일 선택 오류: "+error.message,0);
+    notify("파일 선택 오류: "+error.message);
+  }
+}
+for(const [id,isSite] of [["site-file",true],["site-folder-file",true],
+                           ["art-file",false],["art-folder-file",false]]){
+  $(id).addEventListener("change",event=>{
+    const files=[...event.target.files];
+    event.target.value="";
+    void handleUniversalSelection(files,isSite);
+  });
+}
+for(const [id,isSite] of [["site-dropzone",true],["art-dropzone",false]]){
+  const area=$(id);
+  area.addEventListener("dragover",event=>{
+    if(!event.dataTransfer?.types?.includes("Files"))return;
+    event.preventDefault();area.classList.add("drag-active");
+  });
+  area.addEventListener("dragleave",()=>area.classList.remove("drag-active"));
+  area.addEventListener("drop",event=>{
+    event.preventDefault();area.classList.remove("drag-active");
+    void handleUniversalSelection([...event.dataTransfer.files],isSite);
+  });
+}
 $("multi-art-file").addEventListener("change",e=>{
   addArtworkGLB(e.target.files[0]);e.target.value="";
 });
