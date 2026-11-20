@@ -3551,19 +3551,36 @@ $("site-preset").addEventListener("change", e => {
 $("site-view-apply").addEventListener("click",applySitePreview);
 $("site-view-reset").addEventListener("click",resetSitePreviewUI);
 $("site-navigation-performance").addEventListener("change",setupNavigationPerformance);
-$("site-file").addEventListener("change", e => importModel(e.target.files[0], true));
-$("art-file").addEventListener("change", e => {
-  const files = [...e.target.files];
-  e.target.value = "";
-  if (!files.length) return;
-  const models = files.filter(file => /\.(?:glb|gltf|obj|fbx|stl)$/i.test(file.name));
-  if (models.length !== 1) return notify("작품 모델은 한 개만 선택하세요. OBJ + MTL + 텍스처 이미지를 함께 선택할 수 있습니다.");
-  const main = models[0];
-  const resources = files.filter(file => file !== main);
-  if (resources.length && !/\.obj$/i.test(main.name))
-    return notify("MTL과 텍스처 이미지는 OBJ 모델과 함께 선택해야 합니다.");
-  importModel(main, false, resources);
-});
+async function handleUniversalSelection(files,isSite){
+  if(!files?.length)return;
+  try{
+    const chosen=chooseModel(files);
+    await importModel(chosen.file,isSite,chosen.resources,chosen.paths,chosen.sourcePath);
+  }catch(error){
+    importProgress(isSite,"파일 선택 오류: "+error.message,0);
+    notify("파일 선택 오류: "+error.message);
+  }
+}
+for(const [id,isSite] of [["site-file",true],["site-folder-file",true],
+                           ["art-file",false],["art-folder-file",false]]){
+  $(id).addEventListener("change",event=>{
+    const files=[...event.target.files];
+    event.target.value="";
+    void handleUniversalSelection(files,isSite);
+  });
+}
+for(const [id,isSite] of [["site-dropzone",true],["art-dropzone",false]]){
+  const area=$(id);
+  area.addEventListener("dragover",event=>{
+    if(!event.dataTransfer?.types?.includes("Files"))return;
+    event.preventDefault();area.classList.add("drag-active");
+  });
+  area.addEventListener("dragleave",()=>area.classList.remove("drag-active"));
+  area.addEventListener("drop",event=>{
+    event.preventDefault();area.classList.remove("drag-active");
+    void handleUniversalSelection([...event.dataTransfer.files],isSite);
+  });
+}
 $("multi-art-file").addEventListener("change",e=>{
   addArtworkGLB(e.target.files[0]);e.target.value="";
 });
