@@ -54,6 +54,9 @@ export async function loadOBJWithMaterials(objFile, resources = []) {
   }
   let released = false;
   let textureRequests = 0;
+  let textureError = "";
+  let resolveTextures, rejectTextures;
+  const ready = new Promise((resolve,reject)=>{ resolveTextures=resolve;rejectTextures=reject; });
   const release = () => {
     if (released) return;
     released = true;
@@ -72,8 +75,15 @@ export async function loadOBJWithMaterials(objFile, resources = []) {
     // Do not accidentally fetch a missing artist texture from the website.
     throw Error("MTL에서 참조한 텍스처 파일을 찾을 수 없습니다: " + baseName(url));
   });
-  manager.onLoad = release;
-  manager.onError = url => console.warn("OBJ texture unavailable:", url);
+  manager.onLoad = () => {
+    release();
+    if(textureError) rejectTextures(Error("텍스처 이미지 로딩 오류: "+textureError));
+    else resolveTextures();
+  };
+  manager.onError = url => {
+    textureError = String(url);
+    console.warn("OBJ texture unavailable:", url);
+  };
   try {
     const mtlLoader = new MTLLoader(manager);
     mtlLoader.setMaterialOptions({ side: 2 });
@@ -85,6 +95,7 @@ export async function loadOBJWithMaterials(objFile, resources = []) {
     const model = loader.parse(objSource);
     // If no texture was requested, LoadingManager won't emit onLoad.
     if (!images.length || !textureRequests) release();
+    else await ready;
     return model;
   } catch (error) {
     release();
