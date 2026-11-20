@@ -3,7 +3,9 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
-import { loadOBJWithMaterials, validateOBJResources, MAX_OBJ_RESOURCES, MAX_OBJ_SINGLE_RESOURCE_BYTES } from "./obj-materials.js";
+import { loadOBJWithMaterials, validateOBJResources } from "./obj-materials.js";
+import { MODEL_FORMATS, chooseModel, validateSelection, unzipModel, decodeLinkedGLTF,
+  importHints, inspectPerformance, validCompanions, safePath } from "./import-bundle.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { PLYLoader } from "three/addons/loaders/PLYLoader.js";
@@ -170,7 +172,8 @@ let undoStack = [], redoStack = [];
 let pendingArtwork = null;
 let activeSiteOperation = 0, activeArtOperation = 0, activePlanOperation = 0, activeProjectOperation = 0;
 let siteSourceFile = null, artSourceFile = null, planSourceFile = null;
-let artSourceResources = [];
+let artSourceResources = [], artResourcePaths = [], artModelPath = "";
+let siteSourceResources = [], siteResourcePaths = [], siteModelPath = "";
 let sourceSiteInspection = null;
 let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
@@ -978,6 +981,7 @@ function buildSite(preset) {
   clearGroup(siteRoot);
   siteFileName = "";
   siteSourceFile = null;
+  siteSourceResources = []; siteResourcePaths = []; siteModelPath = "";
   navigationSiteRadius = 0;
   updateNavigationSpeed();
   resetSiteAnnotations();
@@ -1380,6 +1384,8 @@ function setArtwork(object, name, options = {}) {
   selectRoot(artRoot);
   artSourceFile = options.file || null;
   artSourceResources = options.resources ? [...options.resources] : [];
+  artResourcePaths = options.paths ? [...options.paths] : artSourceResources.map(file=>file.name);
+  artModelPath = options.sourcePath || options.file?.name || "";
   sourceDimensions = aligned.sourceSize.toArray();
   $("source-dimensions").textContent = sourceDimensions.map(v => v.toFixed(3)).join(" × ") + " m (W×H×D)";
   setShadows(artRoot);
@@ -2363,8 +2369,8 @@ function setTransformFromField(el) {
   if(selectedRoot===artRoot)updateLight();
   refreshSelectionOutline();
 }
-const SITE_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl", "ply", "dae", "3ds", "zip"]);
-const ARTWORK_MODEL_FORMATS = Object.freeze(["glb", "gltf", "obj", "fbx", "stl"]);
+const SITE_MODEL_FORMATS = MODEL_FORMATS;
+const ARTWORK_MODEL_FORMATS = MODEL_FORMATS;
 
 function plainGeometryMesh(geometry, kind) {
   if (!geometry.getAttribute("normal")) geometry.computeVertexNormals();
@@ -2378,31 +2384,55 @@ function plainGeometryMesh(geometry, kind) {
   });
   return new THREE.Mesh(geometry, material);
 }
-async function decodeModel(file, isSite, resources = []) {
-  if (!file || file.size > MAX_MODEL_BYTES) throw new Error("3D 모델은 120MB 이하여야 합니다.");
+async function decodeModel(file, isSite, resources = [], paths = [], sourcePath = file?.name) {
+  if (!file || file.size > MAX_MODEL_BYTES)
+    throw new Error("3D 모델은 120MB 이하여야 합니다.");
   const ext = file.name.split(".").pop().toLowerCase();
   const formats = isSite ? SITE_MODEL_FORMATS : ARTWORK_MODEL_FORMATS;
-  if (!formats.includes(ext)) {
-    throw new Error(isSite
-      ? "현장 모델은 GLB, GLTF, OBJ, FBX, STL, PLY, DAE, 3DS 또는 glTF 번들 ZIP을 사용하세요. SKP/IFC/RVT/DWG는 GLB 변환이 필요합니다."
-      : "작품 모델은 GLB, GLTF, OBJ, FBX, STL 형식만 지원합니다.");
+  if (!formats.includes(ext))
+    throw Error("지원하지 않는 3D 파일 확장자입니다. SKP/3DM/BLEND/IFC/RVT/DWG는 GLB 변환이 필요합니다.");
+  if (ext === "zip") {
+    const bundle = await unzipModel(file);
+    return decodeModel(bundle.file, isSite, bundle.resources, bundle.paths, bundle.sourcePath);
   }
-  if (isSite && ext === "zip")return (await decodeSiteBundle(file)).model;
-  if (ext === "glb" || ext === "gltf") {
-    // A standalone .gltf requires embedded geometry/texture data.
-    // Prefer .glb when the source references additional .bin/images.
-    const data = ext === "glb" ? await file.arrayBuffer() : await file.text();
-    return (await new GLTFLoader().parseAsync(data, "")).scene;
-  }
-  if (ext === "obj") return isSite
-    ? new OBJLoader().parse(await file.text())
-    : loadOBJWithMaterials(file, resources);
-  if (ext === "stl") return plainGeometryMesh(new STLLoader().parse(await file.arrayBuffer()), "stl");
-  if (ext === "ply") return plainGeometryMesh(new PLYLoader().parse(await file.arrayBuffer()), "ply");
-  if (ext === "fbx") return new FBXLoader().parse(await file.arrayBuffer(), "");
-  if (ext === "dae") return new ColladaLoader().parse(await file.text(), "").scene;
-  if (ext === "3ds") return new TDSLoader().parse(await file.arrayBuffer(), "");
+  validateSelection(file, resources, paths);
+  if (ext === "gltf")
+    return decodeLinkedGLTF(file, resources, paths, sourcePath);
+  if (ext === "glb")
+    return (await new GLTFLoader().parseAsync(await file.arrayBuffer(), "")).scene;
+  if (ext === "obj")
+    return loadOBJWithMaterials(file, resources);
+  if (ext === "stl")
+    return plainGeometryMesh(new STLLoader().parse(await file.arrayBuffer()), "stl");
+  if (ext === "ply")
+    return plainGeometryMesh(new PLYLoader().parse(await file.arrayBuffer()), "ply");
+  if (ext === "fbx")
+    return new FBXLoader().parse(await file.arrayBuffer(), "");
+  if (ext === "dae")
+    return new ColladaLoader().parse(await file.text(), "").scene;
+  if (ext === "3ds")
+    return new TDSLoader().parse(await file.arrayBuffer(), "");
   throw new Error("지원하지 않는 확장자입니다.");
+}
+function importProgress(isSite, message, percent = 0) {
+  const role = isSite ? "site" : "art";
+  const status = $(role + "-import-progress");
+  const bar = $(role + "-import-bar");
+  if (status) status.textContent=message;
+  if (bar) bar.value=percent;
+}
+function importReport(isSite, file, model, sourcePath = file.name) {
+  const role=isSite?"site":"art", data=inspectPerformance(model);
+  const bytes=(data.geometryBytes+data.textureBytes)/1024/1024;
+  const kind=file.name.toLowerCase().endsWith(".zip")
+    ? sourcePath.split(".").pop().toLowerCase() : file.name.split(".").pop().toLowerCase();
+  const hint=importHints(kind);
+  const el=$(role+"-import-diagnostics");
+  if(el)el.textContent="형식: "+kind.toUpperCase()+
+    " · 메시 "+data.meshCount.toLocaleString()+" · 삼각형 "+data.triangles.toLocaleString()+
+    " · 추정 렌더 메모리 "+bytes.toFixed(1)+"MB\n"+
+    hint.note+(data.warnings.length?"\n⚠ "+data.warnings.join("\n⚠ "):"");
+  return data;
 }
 function showSiteGeometryStats(stats) {
   $("site-dimensions").textContent = stats
