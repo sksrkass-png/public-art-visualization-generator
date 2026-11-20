@@ -2558,12 +2558,16 @@ function sceneConfig() {
     schema: "axoo-public-art-3d-studio-v1",
     projectName: $("project-name").value,
     library:libraryManifest(assetLibrary),
+    sourceManifest:{schema:"axoo-source-manifest-v1",localOnly:true,
+      site:siteSourceFile?{name:siteSourceFile.name,format:siteSourceFile.name.split(".").pop().toLowerCase(),byteSize:siteSourceFile.size}:null,
+      artwork:artSourceFile?{name:artSourceFile.name,format:artSourceFile.name.split(".").pop().toLowerCase(),byteSize:artSourceFile.size}:null},
     createdAt: new Date().toISOString(),
     site: { file: siteFileName, preset: $("site-preset").value, floor: $("floor-map").value,
       unit: $("site-unit").value, up: $("site-up").value,
       alignment:{centerOrigin:$("site-center-origin").checked},
       planFile: planFileName, planWidth: +$("map-width").value,
-      planAlignment: planAlignmentSnapshot() },
+      planAlignment: planAlignmentSnapshot(), sourcePath:siteModelPath,
+      resources:siteSourceResources.map((file,i)=>({name:file.name,byteSize:file.size,path:siteResourcePaths[i]||file.name})) },
     groundPlacement: { auto: $("auto-ground").checked, offset: +$("ground-offset").value },
     extras: serializeExtras(extrasRoot),
     layers:structuredClone(layerState),
@@ -2572,7 +2576,8 @@ function sceneConfig() {
     navSpeed: +$("nav-speed").value,
     lightPreset: $("light-preset").value,
     artwork: { source: artFileName, transform: snapshot(), locked: approvedMaster, revision, uniformScale: $("uniform-scale").checked,
-      resources: artSourceResources.map(file => ({ name: file.name, byteSize: file.size })) },
+      sourcePath:artModelPath,
+      resources:artSourceResources.map((file,i)=>({name:file.name,byteSize:file.size,path:artResourcePaths[i]||file.name})) },
     render:currentRenderConfig(),
     placementReference:currentPlacementReference(),
     masterSnapshots,
@@ -2595,14 +2600,8 @@ function validateProjectConfig(data) {
       !validTransform(data.artwork.transform) || !data.lighting || !data.camera ||
       !isTriple(data.camera.position) || !isTriple(data.camera.target) ||
       typeof data.artwork.source !== "string" || typeof data.site.file !== "string" ||
-       (data.artwork.resources !== undefined &&
-         (!Array.isArray(data.artwork.resources) || data.artwork.resources.length > MAX_OBJ_RESOURCES ||
-           data.artwork.resources.some(x => !x || typeof x.name !== "string" ||
-             !/^[^/\\]{1,180}\.(?:mtl|png|jpe?g|webp|bmp)$/i.test(x.name) ||
-             !Number.isInteger(x.byteSize) || x.byteSize <= 0 || x.byteSize > MAX_OBJ_SINGLE_RESOURCE_BYTES) ||
-           data.artwork.resources.reduce((sum,x) => sum + x.byteSize,0) > 80 * 1024 * 1024 ||
-           new Set(data.artwork.resources.map(x => x.name.toLowerCase())).size !== data.artwork.resources.length ||
-           (data.artwork.resources.length && !/\.obj$/i.test(data.artwork.source)))) ||
+      !validCompanions(data.site.resources,data.site.file) ||
+      !validCompanions(data.artwork.resources,data.artwork.source) ||
       !["empty", "plaza", "courtyard", "promenade"].includes(data.site.preset) ||
       (data.extras !== undefined && !validateExtras(data.extras)) ||
       (data.library !== undefined && !validLibraryManifest(data.library)) ||
@@ -2762,6 +2761,8 @@ async function exportProjectArchive() {
     // path traversal and prevent the archive from assuming a user's directory.
     zip.file("project.json", JSON.stringify(data, null, 2));
     if (siteSourceFile) zip.file("assets/site", siteSourceFile);
+    for(let i=0;i<siteSourceResources.length;i++)
+      zip.file("assets/site-resources/"+i,siteSourceResources[i]);
     if (artSourceFile) zip.file("assets/artwork", artSourceFile);
     for (let i = 0; i < artSourceResources.length; i++)
       zip.file("assets/artwork-resources/" + i, artSourceResources[i]);
@@ -2810,7 +2811,7 @@ async function importProjectArchive(file) {
   let planTexture = null, preparedHDR=null, recoveredHDRFile=null;
   try {
     const zip = await JSZip.loadAsync(file);
-    if (Object.keys(zip.files).length > 60) throw new Error("허용되지 않는 파일이 너무 많습니다.");
+    if (Object.keys(zip.files).length > 135) throw new Error("허용되지 않는 파일이 너무 많습니다.");
     const integrityResult=await verifyIntegrityManifest(zip);
     $("save-status").textContent=integrityResult.verified
       ? "ZIP 모든 파일 SHA-256 검사 통과"
