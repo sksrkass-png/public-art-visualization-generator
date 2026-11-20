@@ -2802,6 +2802,20 @@ async function recoverArchiveAsset(entry, name, maxSize, mime = "application/oct
   if (bytes.length > maxSize) throw new Error("허용 용량을 초과한 모델입니다.");
   return new File([bytes], name, { type: mime });
 }
+async function recoverModelCompanions(zip,items,role){
+  const resources=[],paths=[];
+  for(const [i,entry] of (items||[]).entries()){
+    const src=checkedArchiveEntry(zip,"assets/"+role+"-resources/"+i,80*1024*1024,true);
+    const file=await recoverArchiveAsset(src,entry.name,80*1024*1024);
+    if(file.size!==entry.byteSize)throw Error(role+" 파일의 크기가 일치하지 않습니다: "+entry.name);
+    resources.push(file);paths.push(entry.path||entry.name);
+  }
+  const actual=Object.keys(zip.files).filter(k=>k.startsWith("assets/"+role+"-resources/") && !zip.files[k].dir).sort();
+  const declared=resources.map((_,i)=>"assets/"+role+"-resources/"+i).sort();
+  if(JSON.stringify(actual)!==JSON.stringify(declared))
+    throw Error(role+" 부속 파일 목록이 저장된 프로젝트와 일치하지 않습니다.");
+  return {resources,paths};
+}
 async function importProjectArchive(file) {
   if (!file) return;
   if (approvedMaster) return notify("MASTER LOCK을 해제한 뒤 프로젝트 ZIP을 불러오세요.");
@@ -2842,26 +2856,16 @@ async function importProjectArchive(file) {
     const hdrEntry = checkedArchiveEntry(zip,"assets/environment",MAX_MAP_BYTES,!!data.render?.environmentFile);
     const siteFile = await recoverArchiveAsset(siteEntry, data.site.file, MAX_MODEL_BYTES);
     const artFile = await recoverArchiveAsset(artEntry, data.artwork.source, MAX_MODEL_BYTES);
-    const artResources = [];
-    for (const [i, entry] of (data.artwork.resources || []).entries()) {
-      const zipEntry = checkedArchiveEntry(zip, "assets/artwork-resources/" + i, MAX_OBJ_SINGLE_RESOURCE_BYTES, true);
-      const resource = await recoverArchiveAsset(zipEntry, entry.name, MAX_OBJ_SINGLE_RESOURCE_BYTES);
-      if (resource.size !== entry.byteSize) throw Error("OBJ 부속 파일의 크기가 일치하지 않습니다: " + entry.name);
-      artResources.push(resource);
-    }
-    validateOBJResources(artResources);
-    const actualResources = Object.keys(zip.files).filter(name => /^assets\/artwork-resources\/\d+$/.test(name)).sort();
-    const expectedResources = artResources.map((_, i) => "assets/artwork-resources/" + i).sort();
-    if (JSON.stringify(actualResources) !== JSON.stringify(expectedResources))
-      throw Error("프로젝트 ZIP의 OBJ 부속 파일 목록이 일치하지 않습니다.");
+    const siteBundle=await recoverModelCompanions(zip,data.site.resources,"site");
+    const artBundle=await recoverModelCompanions(zip,data.artwork.resources,"artwork");
     const planName = String(data.site.planFile || "");
     const planType = /\.png$/i.test(planName) ? "image/png" :
       /\.webp$/i.test(planName) ? "image/webp" : "image/jpeg";
     const planFile = await recoverArchiveAsset(planEntry, planName, MAX_MAP_BYTES, planType);
     recoveredHDRFile=await recoverArchiveAsset(hdrEntry,data.render?.environmentFile || "",MAX_MAP_BYTES,"image/vnd.radiance");
     const [siteModel, artModel] = await Promise.all([
-      siteFile ? decodeModel(siteFile, true) : Promise.resolve(null),
-      artFile ? decodeModel(artFile, false, artResources) : Promise.resolve(null)
+      siteFile ? decodeModel(siteFile,true,siteBundle.resources,siteBundle.paths,data.site.sourcePath||siteFile.name):Promise.resolve(null),
+      artFile ? decodeModel(artFile,false,artBundle.resources,artBundle.paths,data.artwork.sourcePath||artFile.name):Promise.resolve(null)
     ]);
     const siteStats = siteModel ? inspectSiteGeometry(siteModel) : null;
     const siteInspected=siteModel ? inspectImportedSite(siteModel) : null;
@@ -2895,6 +2899,8 @@ async function importProjectArchive(file) {
       sourceSiteInspection=siteInspected;
       siteFileName = siteFile.name;
       siteSourceFile = siteFile;
+      siteSourceResources=[...siteBundle.resources]; siteResourcePaths=[...siteBundle.paths];
+      siteModelPath=data.site.sourcePath||siteFile.name;
       $("site-status").textContent = "실제 모델";
       $("site-filename").textContent = siteFile.name;
       $("site-preset").value = "empty";
@@ -2907,7 +2913,7 @@ async function importProjectArchive(file) {
       $("site-preset").value = data.site.preset;
       buildSite(data.site.preset);
     }
-    if (artModel) setArtwork(artModel, artFile.name, { file: artFile, resources: artResources });
+    if (artModel) setArtwork(artModel, artFile.name, { file: artFile, resources: artBundle.resources,paths:artBundle.paths,sourcePath:data.artwork.sourcePath||artFile.name });
     else setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 });
     if (planTexture) {
       applyPlanTexture(planTexture, planFile);
