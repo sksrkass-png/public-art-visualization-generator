@@ -982,6 +982,8 @@ function buildSite(preset) {
   siteFileName = "";
   siteSourceFile = null;
   siteSourceResources = []; siteResourcePaths = []; siteModelPath = "";
+  if($("site-import-diagnostics"))$("site-import-diagnostics").textContent="예시 현장 · 가져온 모델 없음";
+  if($("site-import-progress"))importProgress(true,"예시 현장 선택됨",0);
   navigationSiteRadius = 0;
   updateNavigationSpeed();
   resetSiteAnnotations();
@@ -1403,6 +1405,10 @@ function setArtwork(object, name, options = {}) {
   renderMasterHistory();
   $("art-filename").textContent = "현재: " + name;
   $("art-status").textContent = name === "Sample Artwork" ? "샘플" : "가져온 작품";
+  if(name==="Sample Artwork"){
+    if($("art-import-diagnostics"))$("art-import-diagnostics").textContent="샘플 조형물 · 실제 작품 파일 필요";
+    importProgress(false,"샘플 조형물 선택됨",0);
+  }
   $("object-name").textContent = name;
 }
 function fitArtworkHeight(height) {
