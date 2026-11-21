@@ -390,9 +390,9 @@ function applyModeStarter(){
   const items=starterLayout(currentProjectMode);
   if(!validateModeStarter(currentProjectMode,EXTRA_TYPES))
     return notify("모드 템플릿에 유효하지 않은 에셋이 있습니다.");
-  if(layerState.groups.planting.locked||layerState.groups.lighting.locked||
-     !layerState.groups.planting.visible||!layerState.groups.lighting.visible)
-    return notify("환경·조명 레이어 잠금/숨김을 해제한 후 예시 배치를 사용하세요.");
+  const requiredLayers=new Set(items.map(item=>item.kind.includes("light")?"lighting":"planting"));
+  if([...requiredLayers].some(layer=>layerState.groups[layer].locked||!layerState.groups[layer].visible))
+    return notify("예시 배치에 필요한 공간·조명 레이어의 잠금 또는 숨김을 해제하세요.");
   if((siteSourceFile||extrasRoot.children.length) &&
      !window.confirm("이 예시 배치는 기존 작품·현장을 수정하지 않고 별도 오브제를 추가합니다. 현재 현장과 위치가 맞지 않을 수 있습니다. 계속할까요?"))return;
   const before=editSnapshot();
