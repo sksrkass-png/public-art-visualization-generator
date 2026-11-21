@@ -231,8 +231,8 @@
           <div class="layer-group" data-layer-row="buildings"><span class="layer-group-title">건물 / 건축</span><label title="건물 표시"><input type="checkbox" data-layer-visible="buildings" checked> 표시</label><span class="site-fixed-lock">🔒</span></div>
           <div class="layer-group" data-layer-row="landscape"><span class="layer-group-title">기존 조경</span><label title="조경 표시"><input type="checkbox" data-layer-visible="landscape" checked> 표시</label><span class="site-fixed-lock">🔒</span></div>
           <div class="layer-group" data-layer-row="unassigned"><span class="layer-group-title">미분류 현장</span><label title="기타 현장 표시"><input type="checkbox" data-layer-visible="unassigned" checked> 표시</label><span class="site-fixed-lock">🔒</span></div>
-          <div class="layer-group" data-layer-row="artwork"><span class="layer-group-title">🎨 설치 작품</span><label><input type="checkbox" data-layer-visible="artwork" checked> 표시</label><label><input type="checkbox" data-layer-lock="artwork"> 잠금</label></div>
-          <div class="layer-group" data-layer-row="planting"><span class="layer-group-title">🌳 식재·인물·가구</span><label><input type="checkbox" data-layer-visible="planting" checked> 표시</label><label><input type="checkbox" data-layer-lock="planting"> 잠금</label></div>
+          <div class="layer-group" data-layer-row="artwork"><span class="layer-group-title">🎨 기본 작품·모델</span><label><input type="checkbox" data-layer-visible="artwork" checked> 표시</label><label><input type="checkbox" data-layer-lock="artwork"> 잠금</label></div>
+          <div class="layer-group" data-layer-row="planting"><span class="layer-group-title">🧱 공간·환경 에셋</span><label><input type="checkbox" data-layer-visible="planting" checked> 표시</label><label><input type="checkbox" data-layer-lock="planting"> 잠금</label></div>
           <div class="layer-group" data-layer-row="lighting"><span class="layer-group-title">💡 추가 조명</span><label><input type="checkbox" data-layer-visible="lighting" checked> 표시</label><label><input type="checkbox" data-layer-lock="lighting"> 잠금</label></div>
         </div>
         <details class="site-scene-objects">
@@ -244,7 +244,7 @@
           <p id="site-selected-name" class="hint" aria-live="polite">현장 객체를 선택하면 위치를 표시합니다 (편집은 불가)</p>
         </details>
         <details class="extra-scene-objects">
-          <summary>추가 식재·조명 개별 관리 <span id="extra-layer-count">0개</span></summary>
+          <summary>배치 오브제·조명 개별 관리 <span id="extra-layer-count">0개</span></summary>
           <input id="extra-layer-search" type="search" placeholder="에셋 이름·번호 검색" aria-label="레이어 내 추가 에셋 검색">
            <p id="extra-layer-summary" class="hint"></p>
            <div id="layer-extra-list" class="layer-extra-list"></div>
@@ -291,7 +291,7 @@
       </section>
       <section class="section">
         <div class="section-title"><h2>🎯 선택 객체 Transform</h2><span id="object-state" class="tag">편집 가능</span></div>
-        <p class="hint">작품·식재·조명을 화면에서 클릭해 선택하고 이동(G)·회전(R)·크기(S)를 조정하세요.</p>
+        <p class="hint">작품·공간 에셋·조명을 화면에서 클릭해 선택하고 이동(G)·회전(R)·크기(S)를 조정하세요.</p>
         <button class="outline full" id="select-artwork" type="button">작품 선택</button>
         <button class="outline full" id="delete-selected" type="button" disabled>선택한 추가 오브제 삭제 (Delete)</button>
         <div class="section-subtitle">정밀 지면 배치</div>
