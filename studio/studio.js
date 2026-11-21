@@ -467,7 +467,7 @@ function refreshAssetLibraryUI(){
   const placed=extrasRoot.children.filter(x=>x.userData.extraKind==="custom-glb");
   const perf=libraryMemoryStats(assetLibrary,placed);
   $("library-status").textContent="등록 "+assetLibrary.size+" / "+MAX_LIBRARY_ASSETS+" · "+
-    (total/1048576).toFixed(1)+"MB / 60MB · 장면 내 GLB "+placed.length+
+    (total/1048576).toFixed(1)+"MB / "+(MAX_LIBRARY_BYTES/1048576)+"MB · 장면 내 GLB "+placed.length+
     "개 / 약 "+perf.visibleTriangles.toLocaleString()+" 삼각형"+
     (perf.visibleTriangles>500000?" · 저사양 GPU 주의":"");
   const chosenSource=assetLibrary.get(select.value);
@@ -496,7 +496,7 @@ async function addArtworkGLB(file){
     return notify("기본 작품 포함 최대 5개입니다. 추가 작품 하나를 삭제하면 슬롯이 열립니다.");
   const existingBytes=[...assetLibrary.values()].reduce((sum,a)=>sum+a.file.size,0);
   if(assetLibrary.size>=MAX_LIBRARY_ASSETS||existingBytes+file.size>MAX_LIBRARY_BYTES)
-    return notify("프로젝트 GLB 파일 한도를 확인하세요 (전체 최대 60MB).");
+    return notify("프로젝트 GLB 파일 한도를 확인하세요 (12종 · 합계 120MB, 전체 프로젝트 ZIP 320MB).");
   const op=++activeLibraryOperation,id="lib"+nextLibraryId++;
   try{
     const asset=await parseLibraryGLB(file,id,"artwork");
@@ -516,9 +516,9 @@ async function addArtworkGLB(file){
 }
 async function importLibraryGLB(file){
   if(!file || approvedMaster)return;
-  if(assetLibrary.size>=MAX_LIBRARY_ASSETS)return notify("에셋은 최대 6개까지 등록할 수 있습니다.");
+  if(assetLibrary.size>=MAX_LIBRARY_ASSETS)return notify("독립 GLB 에셋은 최대 "+MAX_LIBRARY_ASSETS+"종 등록할 수 있습니다.");
   const bytes=[...assetLibrary.values()].reduce((sum,a)=>sum+a.file.size,0);
-  if(bytes+file.size>MAX_LIBRARY_BYTES)return notify("GLB 합계 60MB 초과입니다.");
+  if(bytes+file.size>MAX_LIBRARY_BYTES)return notify("GLB 합계 "+(MAX_LIBRARY_BYTES/1048576)+"MB 초과입니다.");
   const op=++activeLibraryOperation;activeProjectOperation++;
   const id="lib"+nextLibraryId++;
   try{
