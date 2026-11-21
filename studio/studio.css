@@ -449,3 +449,13 @@
 .gpu-recovery-status{display:inline-flex;align-items:center;background:#fff1df;color:#9a3b0a;padding:6px 9px;border-radius:5px;font-size:11px;font-weight:700;line-height:1.3;max-width:310px}
 .gpu-recovery-status[hidden]{display:none!important}
 @media(max-width:800px){.gpu-recovery-status{max-width:100%;width:100%}}
+
+/* v3.8 — explicit metal material tuning; no preview changes on slider input. */
+.material-finetune{display:grid;gap:7px;background:#f7f9fa;border:1px solid #dce1e4;padding:11px;border-radius:6px;margin:9px 0 11px}
+.material-finetune>.section-title{display:flex;align-items:center;justify-content:space-between;gap:7px}
+.material-finetune>.section-title h3{font-size:12px;margin:0;line-height:1.45}
+.material-finetune label{font-size:11px;font-weight:650;color:#3d464b;display:flex;justify-content:space-between;gap:8px}
+.material-finetune input[type=range]{width:100%;min-width:0;accent-color:#d83b30}
+.material-finetune output{font-variant-numeric:tabular-nums;color:#555d65}
+.material-finetune .hint{font-size:11px;line-height:1.5;margin:0}
+.material-finetune button{margin-top:2px}
