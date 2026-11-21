@@ -529,3 +529,19 @@ html[data-studio-workspace="quick"] .sidepanel.right .inspector-fold:not([open])
 .environment-subpanel h2{font-size:13px!important}
 .save-status{max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .save-status[title]{cursor:help}
+
+/* v4.0 inspector workgroups and browser-local projects. */
+.inspector-category-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:12px 12px 5px}
+.inspector-category-nav button{border:1px solid #d8dfe2;background:#f5f6f6;border-radius:9px;min-height:36px;padding:6px 8px;text-align:left;color:#333b41;font-size:11px;font-weight:700;cursor:pointer}
+.inspector-category-nav button:last-child{grid-column:1/-1}
+.inspector-category-nav button[aria-pressed="true"]{background:#1b252e;color:#fff;border-color:#1b252e}
+.inspector-category-status{margin:3px 13px 12px!important}
+.sidepanel.right .inspector-fold[hidden]{display:none!important}
+.camera-tour-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+.camera-tour-tools button{min-width:0}
+.camera-bookmarks [data-camera-load].is-current-camera{background:#d7e6e0!important;border-color:#8aa99f!important;color:#1a4033!important}
+.browser-vault-panel{padding:14px;margin:10px 0 16px;border:1px solid #cadbd3;background:#f5f9f6;border-radius:12px}
+.browser-vault-panel h3{font-size:14px;margin:0 0 9px}
+.browser-vault-panel #vault-list{width:100%;min-width:0}
+.browser-vault-panel #vault-status{overflow-wrap:anywhere}
+@media(max-width:650px){.inspector-category-nav{grid-template-columns:repeat(2,minmax(0,1fr))}.inspector-category-nav button{font-size:10px}}
