@@ -73,7 +73,7 @@ export function parseDXF2D(text){
         if(last)add(last,point,layer);
         last=point;
       }
-    }else if(!["SEQEND","VERTEX","POLYLINE","ENDSEC","ENDBLK"].includes(type)){
+    }else if(!["SEQEND","ENDSEC","ENDBLK"].includes(type)){
       unsupported.set(type,(unsupported.get(type)||0)+1);
     }
     current=null;
