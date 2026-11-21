@@ -433,3 +433,13 @@
 .mode-checklist{margin:7px 0 3px;padding-left:17px;color:#60656c;display:grid;gap:5px;font-size:11px;line-height:1.45}
 .mode-top-tag{font-weight:700;letter-spacing:.065em}
 @media(max-width:960px){.mode-top-tag{display:none}}
+
+/* v3.6 spatial visualization: concise, high-contrast inline tool panels */
+.spatial-visual-tools{border:1px solid #d9dcdf;border-radius:7px;background:#f8f9fa;padding:12px 11px;margin:10px 0 14px;display:grid;gap:7px;min-width:0}
+.spatial-visual-tools[hidden]{display:none!important}
+.spatial-visual-tools>.section-title{display:flex;align-items:center;justify-content:space-between;margin:0 0 2px;gap:7px}
+.spatial-visual-tools .section-title h3{margin:0;line-height:1.4;font-size:12px}
+.spatial-visual-tools .hint{font-size:11px;line-height:1.5;margin:1px 0;color:#5d6670}
+.spatial-visual-tools label{font-size:11px;margin:2px 0 0}
+.spatial-visual-tools select,.spatial-visual-tools input{width:100%;min-width:0}
+.spatial-visual-tools button{margin-top:3px}
