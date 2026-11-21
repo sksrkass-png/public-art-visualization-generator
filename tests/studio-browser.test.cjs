@@ -257,7 +257,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await fileInput.setInputFiles({
       name: "unsupported.skp", mimeType: "application/octet-stream", buffer: Buffer.from("not-supported")
     });
-    await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("SKP/IFC"),
+    await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("3D 모델 파일은 정확히 한 개"),
       null, { timeout: 10000 });
     assert.equal(await page.locator("#site-filename").textContent(), "test-site.obj");
 
