@@ -100,7 +100,7 @@ test("All UI IDs are unique and mode/asset/batch actions are actually wired",()=
   const ids=[...html.matchAll(/\sid="([^"]+)"/g)].map(x=>x[1]);
   assert.equal(ids.length,new Set(ids).size,"HTML IDs should remain unique");
   for(const id of ["workspace-quick","workspace-advanced","workspace-mode-status",
-    "workspace-project-panel","workspace-assets-panel","workspace-camera-panel",
+    "workspace-project-panel","workspace-assets-panel","workspace-transform-panel","workspace-camera-panel",
     "workspace-backup-panel","context-favorites-only","context-favorites-count",
     "precision-multi-search","precision-select-visible","precision-clear-selection",
     "precision-selected-count","workspace-batch-axis","workspace-batch-anchor",
