@@ -99,6 +99,7 @@ grid.material.opacity = .44;
 scene.add(grid);
 
 const siteRoot = new THREE.Group();
+const emptyCadCollisionRoot = new THREE.Group(); // 2D DXF references are not physical terrain.
 siteRoot.name = "Locked Site";
 scene.add(siteRoot);
 const artRoot = new THREE.Group();
@@ -195,7 +196,7 @@ const neutralEnvironment=scene.environment;
 let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
 let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
 let artworkMaterialState={preset:"original",color:"#d0d6db"};
-const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048 });
+const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048, inch: .0254 });
 const MAX_UNDO = 40;
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
 const buttons = [...document.querySelectorAll("[data-mode]")];
@@ -370,8 +371,8 @@ function applyContextHeight(){
     if(Math.abs(factor-1)<.00001)return syncContextHeightUI();
     const before=editSnapshot();
     root.scale.multiplyScalar(factor);
-    if($("auto-ground").checked)snapRootToSurface(root,siteRoot,{
-      allowFallback:!siteSourceFile,offset:toFinite($("ground-offset").value,0,-20,50)
+    if($("auto-ground").checked)snapRootToSurface(root,physicalSiteForPlacement(),{
+      allowFallback:siteNeedsReferenceGround(),offset:toFinite($("ground-offset").value,0,-20,50)
     });
     commit(before);
     updateInspector(true);
@@ -1017,8 +1018,11 @@ function buildSite(preset) {
   invalidateSiteMeshIndex(siteRoot);
   refreshLayers({redrawSite:true});
 }
+function has2DCADSite(){return siteRoot.children.some(o=>o.userData.cadReferenceOnly);}
+function physicalSiteForPlacement(){return has2DCADSite()?emptyCadCollisionRoot:siteRoot;}
+function siteNeedsReferenceGround(){return !siteSourceFile||has2DCADSite();}
 function syncGroundAvailability() {
-  const imported = !!siteSourceFile && !siteRoot.children.some(o=>o.userData.cadReferenceOnly);
+  const imported = !!siteSourceFile && !has2DCADSite();
   $("fallback-ground").hidden = imported;
   $("site-ground-note").hidden = !imported;
   floor.visible = !imported;
@@ -1176,7 +1180,7 @@ function currentProductionAudit(){
     extras=sceneFootprint(extrasRoot);
   return productionReport({
     project:$("project-name").value,
-    siteModel:!!siteSourceFile&&!siteRoot.children.some(o=>o.userData.cadReferenceOnly),artworkModel:!!artSourceFile,
+    siteModel:!!siteSourceFile&&!has2DCADSite(),artworkModel:!!artSourceFile,
     masterApproved:approvedMaster,
     masterMatches:!!master&&masterConsistency(master,baselineForMaster()).ok,
     site,artwork,extras,
@@ -2191,7 +2195,7 @@ function createPlacedExtra(kind, position) {
   if (kind.includes("light") && kind!=="point-light") root.position.y += 3;
   extrasRoot.add(root);
   if (!kind.includes("light")) {
-    snapRootToSurface(root, siteRoot, { allowFallback: !siteSourceFile,
+    snapRootToSurface(root, physicalSiteForPlacement(), { allowFallback: siteNeedsReferenceGround(),
       offset: toFinite($("ground-offset").value, 0, -20, 50) });
   }
   selectRoot(root);
@@ -2229,8 +2233,8 @@ function groundSelected({ silent = false } = {}) {
   // not at the sculpture's raised bottom.
   const linked=selectedRoot===artRoot?linkedPlinths():[];
   const snapTarget=linked[0]||selectedRoot;
-  const result = snapRootToSurface(snapTarget, siteRoot, {
-    allowFallback: !siteSourceFile,
+  const result = snapRootToSurface(snapTarget, physicalSiteForPlacement(), {
+    allowFallback: siteNeedsReferenceGround(),
     offset: toFinite($("ground-offset").value, 0, -20, 50)
   });
   if (result) {
@@ -2295,7 +2299,7 @@ function pickPlacement(event) {
   }
   // Real imported sites require a verified, upward-facing 3D mesh triangle;
   // avoid manufacturing a ground surface when only a facade/sky is clicked.
-  return surfaceAtPointer(event, camera, viewport, siteRoot, !siteSourceFile);
+  return surfaceAtPointer(event, camera, viewport, physicalSiteForPlacement(), siteNeedsReferenceGround());
 }
 function handleSelection(event) {
   if(spatialBridge?.handleCanvasClick(event,mouseMoved))return;
@@ -2363,8 +2367,8 @@ function setTransformFromField(el) {
   if ($("auto-ground").checked && !(selectedRoot===artRoot&&linkedPlinths().length) &&
       el.dataset.transform === "position" &&
       ["x","z"].includes(el.dataset.axis) && !extraLight(selectedRoot)) {
-    snapRootToSurface(selectedRoot, siteRoot, {
-      allowFallback: !siteSourceFile,
+    snapRootToSurface(selectedRoot, physicalSiteForPlacement(), {
+      allowFallback: siteNeedsReferenceGround(),
       offset: toFinite($("ground-offset").value, 0, -20, 50)
     });
   }
@@ -3583,6 +3587,23 @@ $("site-preset").addEventListener("change", e => {
 $("site-view-apply").addEventListener("click",applySitePreview);
 $("site-view-reset").addEventListener("click",resetSitePreviewUI);
 $("site-navigation-performance").addEventListener("change",setupNavigationPerformance);
+let conversionChecklistText="";
+$("format-advisor-file").addEventListener("change",event=>{
+  const file=event.target.files[0];event.target.value="";
+  if(!file)return;
+  const guide=formatAdvice(file.name);
+  conversionChecklistText=adviceText(file);
+  $("format-advisor-result").textContent=
+    "지원 구분: "+({"direct":"현재 직접 불러오기","preview":"현재 제한적 미리보기","convert":"별도 변환 필요","unknown":"별도 확인 필요"}[guide.support])+"\n"+
+    conversionChecklistText;
+  $("format-advisor-copy").disabled=false;
+});
+$("format-advisor-copy").addEventListener("click",async()=>{
+  if(!conversionChecklistText)return;
+  try{await navigator.clipboard.writeText(conversionChecklistText);
+      notify("변환 체크리스트를 복사했습니다.");}
+  catch{notify("클립보드 복사에 실패했습니다. 안내 내용을 직접 선택해 복사하세요.");}
+});
 async function handleUniversalSelection(files,isSite){
   if(!files?.length)return;
   try{
@@ -4003,8 +4024,8 @@ transform.addEventListener("mouseUp", () => {
       !extraLight(selectedRoot)) {
     const linked=selectedRoot===artRoot?linkedPlinths():[];
     const target=linked[0]||selectedRoot;
-    const result=snapRootToSurface(target,siteRoot,{
-      allowFallback:!siteSourceFile,
+    const result=snapRootToSurface(target,physicalSiteForPlacement(),{
+      allowFallback:siteNeedsReferenceGround(),
       offset:toFinite($("ground-offset").value,0,-20,50)
     });
     if(result&&linked.length){
