@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 3.9.5 · STUDIO REFINEMENT</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 4.0 · WORKSPACE & PROJECT MANAGER</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
     <div class="top-actions">
       <div class="workspace-mode-switch" role="group" aria-label="3D 스튜디오 작업 화면 모드">
         <button id="workspace-quick" type="button" aria-pressed="true">⚡ QUICK</button>
@@ -239,7 +239,15 @@
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </section>
     <aside class="sidepanel right">
-      <div class="panel-head"><span class="eyebrow">02 / INSPECTOR</span><h1>🧰 조작 패널</h1><p>레이어와 선택한 객체를 관리합니다.</p></div>
+      <div class="panel-head"><span class="eyebrow">02 / INSPECTOR · v4.0</span><h1>🧰 조작 패널</h1><p>5개 작업 그룹에서 필요한 기능만 찾아보세요.</p></div>
+      <nav class="inspector-category-nav" id="inspector-category-nav" aria-label="조작 패널 작업 그룹">
+        <button type="button" data-inspector-category="modeling" aria-pressed="false">🧭 객체 편집</button>
+        <button type="button" data-inspector-category="assets" aria-pressed="false">🌳 현장 · 에셋</button>
+        <button type="button" data-inspector-category="appearance" aria-pressed="false">☀️ 재질 · 라이팅</button>
+        <button type="button" data-inspector-category="camera" aria-pressed="false">📷 카메라 · 렌더</button>
+        <button type="button" data-inspector-category="projects" aria-pressed="false">💾 프로젝트 관리</button>
+      </nav>
+      <p class="hint inspector-category-status" id="inspector-category-status">분류를 누르면 관련 패널만 표시됩니다. 다시 누르면 전체를 볼 수 있습니다.</p>
       <section class="section layer-manager" id="layer-manager">
         <div class="section-title"><h2>🗺️ SCENE LAYERS / 레이어</h2><span class="tag">v0.6</span></div>
         <p class="hint">눈: 표시·숨김 / 자물쇠: 편집 선택 잠금. 원본 현장 메시의 형상과 좌표는 항상 보호됩니다.</p>
@@ -753,6 +761,12 @@
           <div><span>시점 3</span><button type="button" data-camera-save="3">저장</button><button type="button" data-camera-load="3" disabled>불러오기</button></div>
         </div>
         <p id="camera-bookmarks-status" class="hint" aria-live="polite">시점 0/3 저장됨</p>
+        <div class="camera-tour-tools">
+          <button id="camera-tour-prev" class="outline" type="button">◀ 이전 시점</button>
+          <button id="camera-tour-next" class="outline" type="button">다음 시점 ▶</button>
+        </div>
+        <label class="toggle"><input id="camera-smooth" type="checkbox" checked> 저장한 시점 사이 부드럽게 이동</label>
+        <p class="hint">저장된 카메라 시점 사이를 이동합니다. 모델 위치·재질·MASTER 승인 상태는 변경하지 않습니다.</p>
         <label for="render-aspect">렌더 이미지 비율</label>
         <select id="render-aspect">
           <option value="viewport" selected>현재 화면 비율</option>
@@ -949,6 +963,15 @@
       </section>
       <section class="section" id="workspace-backup-panel">
         <h2>💾 프로젝트 저장</h2>
+        <div class="browser-vault-panel">
+          <h3>🗂️ 이 브라우저에 프로젝트 저장</h3>
+          <p class="hint">작품·현장 원본을 포함한 ZIP을 이 브라우저의 IndexedDB에 저장합니다. 서버 업로드·팀 공유·자동 동기화는 하지 않습니다. 브라우저 데이터 삭제 시 사라질 수 있으니 ZIP으로도 백업하세요.</p>
+          <button id="vault-save" class="primary full" type="button">💾 현재 프로젝트 브라우저에 저장</button>
+          <label for="vault-list">저장된 프로젝트</label>
+          <select id="vault-list"><option value="">저장된 프로젝트 없음</option></select>
+          <div class="inline"><button id="vault-load" class="outline full" type="button" disabled>📂 선택 프로젝트 열기</button><button id="vault-delete" class="outline full" type="button" disabled>삭제</button></div>
+          <p id="vault-status" class="hint" aria-live="polite">브라우저 저장소 준비 중</p>
+        </div>
         <button id="export-project" class="primary full" type="button">전체 프로젝트 ZIP 저장 (모델 포함)</button>
         <p class="hint">v3.7은 중복 ZIP 저장을 차단하고, 대용량 프로젝트의 원본 파일·설정 크기를 확인합니다. 프로젝트 ZIP 실제 용량은 압축 후 결정됩니다.</p>
         <label class="file-button secondary" for="import-project">+ 전체 프로젝트 ZIP 불러오기</label>
@@ -977,6 +1000,15 @@
     if(!heading)continue;
     const fold=document.createElement("details");
     fold.className="inspector-fold";
+    const groupMap={
+      "layer-manager":"modeling","workspace-transform-panel":"modeling","precision-placement":"modeling","precision-modeling":"modeling",
+      "site-visibility-studio":"assets","workspace-assets-panel":"assets",
+      "render-materials":"appearance",
+      "workspace-camera-panel":"camera","master-render-panel":"camera","visual-workflow-panel":"camera",
+      "workspace-backup-panel":"projects","proposal-export-panel":"projects","team-collaboration-panel":"projects","revision-diff-panel":"projects","spatial-review-panel":"projects"
+    };
+    const isLighting=!!section.querySelector("#shadows");
+    fold.dataset.inspectorGroup=isLighting?"appearance":(groupMap[section.id]||"projects");
     // v3.9.5 inspector groups are closed on first load.
     const label=document.createElement("summary");label.textContent=heading.textContent.trim();
     section.before(fold);fold.append(label,section);
