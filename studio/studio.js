@@ -35,7 +35,7 @@ import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precis
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
 import { inspectImportedSite, validSiteAlignment } from "./site-import.js";
-import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape, upgradeGroundLight } from "./extras.js";
+import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape, upgradeGroundLight, applySpatialFinish } from "./extras.js";
 import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
   validPlacementReference,validatePlinthDimensions} from "./dimensioning.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
@@ -52,6 +52,8 @@ import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel}
 import {PROJECT_MODE_DEFAULT,validProjectMode,projectModeConfig,
   recommendedAssetKinds,starterLayout,validateModeStarter} from "./project-modes.js";
 import {EXTRA_TYPES} from "./extras.js";
+import {SPATIAL_LOOKS,SPATIAL_SHOTS,looksForMode,spatialShotPose,
+  validSpatialState,validSpatialFinish} from "./spatial-visuals.js";
 import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
   visualReadiness,visualPackageManifest} from "./visual-workflow.js";
 import {createVisualOptionStage} from "./visual-option-render.js";
@@ -200,6 +202,7 @@ let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
 let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
 let artworkMaterialState={preset:"original",color:"#d0d6db"};
 let currentProjectMode=PROJECT_MODE_DEFAULT;
+let spatialVisualization={look:null,shot:null};
 const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048, inch: .0254 });
 const MAX_UNDO = 40;
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -348,6 +351,119 @@ function refreshContextPalette(){
     "개 에셋 · "+(category==="recommended"?"현재 프로젝트 맞춤 추천":"전체 카탈로그 필터")+
     " · 추가된 3D 객체는 모드 변경 시 숨겨지거나 삭제되지 않습니다.";
 }
+// v3.6 scene-safe visualization workflow. Only camera, lighting or opted-in
+// built-in spatial fixture finish changes. Site and artwork sources never change.
+function refreshSpatialLookOptions(){
+  const picker=$("spatial-look");
+  if(!picker)return;
+  const previous=picker.value;
+  const options=looksForMode(currentProjectMode);
+  picker.replaceChildren(...options.map(item=>new Option(item.label,item.id)));
+  const preferred=spatialVisualization.look;
+  picker.value=options.some(x=>x.id===preferred)?preferred:
+    options.some(x=>x.id===previous)?previous:options[0]?.id||"";
+  $("spatial-look-status").textContent=
+    "현재 유형: "+projectModeConfig(currentProjectMode).title+
+    " · 룩 적용 시 작품·현장 메시 및 기존 재질은 유지됩니다.";
+}
+function applySpatialLookPreset(){
+  if(approvedMaster)return notify("MASTER LOCK 상태에서는 조명을 변경하지 않습니다. 새 Revision에서 적용하세요.");
+  const id=$("spatial-look").value,look=SPATIAL_LOOKS[id];
+  if(!look || look.mode!==currentProjectMode)return notify("프로젝트 유형에 맞는 룩을 선택하세요.");
+  $("light-preset").value=look.lightPreset;
+  for(const [id,value] of Object.entries({
+    "sun-azimuth":look.azimuth,"sun-elevation":look.elevation,
+    "sun-strength":look.sun,ambient:look.ambient,exposure:look.exposure
+  }))$(id).value=String(value);
+  $("shadows").checked=look.shadows;
+  $("visual-shadows").value=look.shadowProfile;
+  $("visual-tone").value=look.toneCurve;
+  $("visual-sky").value=look.sky;
+  $("env-mode").value=look.environmentMode;
+  $("env-strength").value=String(look.environmentIntensity);
+  spatialVisualization.look=id;
+  document.querySelectorAll("[data-render-look]").forEach(b=>{
+    b.classList.remove("is-active");b.setAttribute("aria-pressed","false");
+  });
+  updateLight();applyEnvironment();checkVisualQuality();
+  $("spatial-look-status").textContent=look.label+
+    " 적용 · 조명/톤/그림자/환경 반사 변경 · 모델 형상/재질 불변";
+  notify("공간 시각화 룩: "+look.label);
+}
+function spatialBounds(shot){
+  const interest=SPATIAL_SHOTS[shot]?.subject||"overall";
+  let objects=[];
+  if(interest==="selected"&&selectedRoot?.visible)objects=[selectedRoot];
+  else if(interest==="hero" && artRoot.visible && artFileName!=="Sample Artwork")
+    objects=[artRoot];
+  else {
+    objects=[
+      ...extrasRoot.children.filter(x=>x.visible&&x.userData.layerHidden!==true),
+      ...(artRoot.visible && artFileName!=="Sample Artwork"?[artRoot]:[])
+    ];
+  }
+  if(!objects.length && artRoot.visible)objects=[artRoot];
+  if(!objects.length && siteRoot.visible)objects=[siteRoot];
+  const bounds=new THREE.Box3();
+  for(const root of objects){
+    const b=new THREE.Box3().setFromObject(root);
+    if(!b.isEmpty())bounds.union(b);
+  }
+  if(bounds.isEmpty())throw Error("프레이밍할 배치 모델이 없습니다.");
+  return bounds;
+}
+function applySpatialShotPreset(){
+  const shot=$("spatial-shot").value,recipe=SPATIAL_SHOTS[shot];
+  if(!recipe)return notify("공간 카메라 구도를 선택하세요.");
+  try{
+    const bounds=spatialBounds(shot);
+    const center=bounds.getCenter(new THREE.Vector3());
+    const dimensions=bounds.getSize(new THREE.Vector3());
+    camera.setFocalLength(recipe.focal);
+    camera.aspect=Math.max(.25,viewport.clientWidth/Math.max(1,viewport.clientHeight));
+    camera.updateProjectionMatrix();
+    const pose=spatialShotPose(shot,{center:center.toArray(),size:dimensions.toArray()},
+      {aspect:camera.aspect,cameraFov:camera.fov});
+    camera.position.fromArray(pose.position);
+    orbit.target.fromArray(pose.target);
+    camera.near=pose.near;camera.far=pose.far;
+    orbit.maxDistance=Math.max(800,pose.distance*3);
+    camera.updateProjectionMatrix();orbit.update();updateNavigationSpeed();
+    $("camera-focal").value=String(Math.round(camera.getFocalLength()));
+    $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
+    spatialVisualization.shot=shot;
+    $("spatial-shot-status").textContent=pose.label+
+      " · "+pose.focal+"mm · 카메라 거리 "+pose.distance.toFixed(1)+
+      "m · 모델 위치·크기·재질 변경 없음";
+    notify("공간 카메라: "+pose.label);
+  }catch(error){notify("카메라 적용 실패: "+error.message);}
+}
+function syncSpatialFinishUI(){
+  const panel=$("spatial-finish-panel");
+  if(!panel)return;
+  const root=selectedRoot;
+  const valid=root?.parent===extrasRoot&&root.userData.schematicSpatialAsset===true;
+  panel.hidden=!valid;
+  $("spatial-finish-apply").disabled=!valid||approvedMaster||!selectedCanEdit();
+  if(!valid)return;
+  const finish=root.userData.spatialFinish||"original";
+  $("spatial-finish").value=finish;
+  $("spatial-finish-color").value=root.userData.spatialFinishColor||"#ff3b30";
+  $("spatial-finish-status").textContent=root.name+
+    " · 별도 제작된 개념 에셋에만 렌더 마감 적용 가능";
+}
+function applySelectedSpatialFinish(){
+  if(approvedMaster||!selectedCanEdit()||!selectedRoot?.userData?.schematicSpatialAsset)
+    return notify("편집 가능한 공간 개념 에셋을 먼저 선택해 주세요.");
+  const finish=$("spatial-finish").value,color=$("spatial-finish-color").value;
+  if(!validSpatialFinish(finish,color))return notify("지원하지 않는 마감입니다.");
+  const before=editSnapshot();
+  if(!applySpatialFinish(selectedRoot,finish,color))return;
+  commit(before);
+  syncSpatialFinishUI();
+  notify("공간 에셋 마감 적용 · "+selectedRoot.name+" · 원본 작품·현장·GLB 불변");
+}
+
 function applyProjectMode(mode,{restoring=false,announce=true}={}){
   if(!validProjectMode(mode))throw Error("지원하지 않는 프로젝트 유형입니다.");
   if(!restoring&&approvedMaster){
@@ -357,6 +473,7 @@ function applyProjectMode(mode,{restoring=false,announce=true}={}){
   currentProjectMode=mode;
   $("project-mode").value=mode;
   if(!restoring){
+    spatialVisualization.look=null;
     $("context-search").value="";
     $("context-category").value="recommended";
   }
@@ -369,6 +486,7 @@ function applyProjectMode(mode,{restoring=false,announce=true}={}){
   }));
   $("mode-starter-add").textContent="+"+cfg.icon+" "+cfg.templateLabel+" (예시)";
   $("project-mode-tag").textContent=cfg.label;
+  refreshSpatialLookOptions();
   syncModeSampleUI();
   document.title="AXOO — "+cfg.label+" 3D Studio";
   refreshContextPalette();
@@ -634,6 +752,8 @@ function duplicateEditable(){
   const sourceID=original.userData?.assetId||null;
   const before=editSnapshot();
   const root=makeExtra(kind,nextExtraId++,original.userData.appearanceVersion||2,sourceID,assetLibrary,artRoot);
+  if(original.userData.schematicSpatialAsset)
+    applySpatialFinish(root,original.userData.spatialFinish||"original",original.userData.spatialFinishColor||"#ff3b30");
   root.position.copy(original.position).add(new THREE.Vector3(2,0,0));
   root.rotation.copy(original.rotation);
   root.scale.copy(original.scale);
@@ -831,6 +951,7 @@ function snapshotVisualVariant(slot){
     camera:{position:camera.position.toArray(),target:orbit.target.toArray(),fov:camera.fov},
     lighting:Object.fromEntries(["sun-azimuth","sun-elevation","sun-strength","ambient","exposure"].map(id=>[id,Number($(id).value)])),
     lightPreset:$("light-preset").value,shadows:$("shadows").checked,
+    spatialVisualization:{...spatialVisualization},
     render:currentRenderConfig(),placementReference:currentPlacementReference()
   };
 }
@@ -838,7 +959,8 @@ function validStoredVisualVariants(value){
   return validVariants(value) && Object.values(value).every(v=>
     validTransform(v.scene.artwork) && validateExtras(v.scene.extras) &&
     validateLayerState(v.scene.layers) && validMaterialConfig(v.scene.material) &&
-    validRenderConfig(v.render) && validPlacementReference(v.placementReference) &&
+    validRenderConfig(v.render) && validSpatialState(v.spatialVisualization) &&
+    validPlacementReference(v.placementReference) &&
     (v.sourcePreset===undefined||["empty","plaza","courtyard","promenade"].includes(v.sourcePreset)) &&
     (v.sourceLibrary===undefined||validLibraryManifest(v.sourceLibrary)) &&
     typeof v.shadows==="boolean");
@@ -879,6 +1001,9 @@ function loadVisualOption(slot){
   $("light-preset").value=v.lightPreset;
   $("shadows").checked=v.shadows;
   restoreRenderConfig(v.render);
+  spatialVisualization=v.spatialVisualization?structuredClone(v.spatialVisualization):{look:null,shot:null};
+  refreshSpatialLookOptions();
+  $("spatial-shot").value=spatialVisualization.shot||"hero";
   camera.position.fromArray(v.camera.position);
   orbit.target.fromArray(v.camera.target);
   camera.fov=v.camera.fov;
@@ -1960,7 +2085,7 @@ function syncLock() {
   else if (gizmoRequested && selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
   ["library-place","library-asset-file","library-asset-category","extra-target-height","extra-fit-height",
     "site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color", "ground-light-upgrade",
-    "project-mode","mode-starter-add",
+    "project-mode","mode-starter-add","spatial-look-apply","spatial-finish-apply",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
     "plan-pick-center", "plan-visible", "map-file", "map-width", "plan-x", "plan-z",
     "plan-rotation", "plan-elevation", "plan-opacity"]
@@ -1987,6 +2112,7 @@ function syncLock() {
   refreshLayers({redrawSite:true});
   updateUndoButtons();
   updateMultiArtStatus();
+  syncSpatialFinishUI();
   syncModeSampleUI();
   if(proposalBridge)proposalBridge.refresh();
   if(collaborationBridge)collaborationBridge.refresh();
@@ -2007,6 +2133,7 @@ function updateInspector(force = false) {
   syncContextHeightUI();
   updateArtworkDimensionReadout();
   refreshPlinthControls();
+  syncSpatialFinishUI();
   $("coords").textContent = ["X", "Y", "Z"].map((k, i) => k + " " + state.p[i].toFixed(2)).join(" · ");
   $("object-name").textContent = selectedRoot.name;
   const light = selectedRoot === artRoot ? null : extraLight(selectedRoot);
@@ -2691,6 +2818,7 @@ function sceneConfig() {
     schema: "axoo-public-art-3d-studio-v1",
     projectName: $("project-name").value,
     projectMode:currentProjectMode,
+    spatialVisualization:{...spatialVisualization},
     library:libraryManifest(assetLibrary),
     sourceManifest:{schema:"axoo-source-manifest-v1",localOnly:true,
       site:siteSourceFile?{name:siteSourceFile.name,format:siteSourceFile.name.split(".").pop().toLowerCase(),byteSize:siteSourceFile.size}:null,
@@ -2733,6 +2861,7 @@ function validateProjectConfig(data) {
   if (!data || data.schema !== "axoo-public-art-3d-studio-v1" || !data.site || !data.artwork ||
       !validTransform(data.artwork.transform) || !data.lighting || !data.camera ||
       (data.projectMode!==undefined&&!validProjectMode(data.projectMode)) ||
+      !validSpatialState(data.spatialVisualization) ||
       !isTriple(data.camera.position) || !isTriple(data.camera.target) ||
       typeof data.artwork.source !== "string" || typeof data.site.file !== "string" ||
       !validCompanions(data.site.resources,data.site.file) ||
@@ -2858,6 +2987,9 @@ function importSceneConfig(data) {
   const originalApproval=approvedMaster;
   approvedMaster=false;
   restoreRenderConfig(data.render);
+  spatialVisualization=data.spatialVisualization?structuredClone(data.spatialVisualization):{look:null,shot:null};
+  refreshSpatialLookOptions();
+  $("spatial-shot").value=spatialVisualization.shot||"hero";
   approvedMaster=originalApproval;
   if(data.render?.environmentMode==="hdr" && !hdrTexture){
     $("env-filename").textContent="재업로드 필요: "+data.render.environmentFile;
@@ -3327,7 +3459,11 @@ async function exportVisualOptions(){
       warnings:review.warnings
     });
     zip.file("00-visual-comparison.png",await createVisualOptionsSheet(images),{base64:true});
-    zip.file("visual-metadata.json",JSON.stringify(manifest,null,2));
+    zip.file("visual-metadata.json",JSON.stringify({
+      ...manifest,projectMode:currentProjectMode,
+      spatialLooks:Object.fromEntries(slots.map(slot=>
+        [slot,visualVariants[slot].spatialVisualization||{look:null,shot:null}]))
+    },null,2));
     const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:4}});
     download(safeFileName()+"-A_B_C-visuals.zip",blob);
     $("visual-options-export-status").textContent=
@@ -3817,6 +3953,7 @@ document.querySelectorAll("[data-render-look]").forEach(button=>
     if(approvedMaster)return notify("승인된 MASTER에서는 조명 룩을 변경할 수 없습니다. 잠금을 해제해 주세요.");
     const look=ARCHVIZ_LOOKS[button.dataset.renderLook];
     if(!look)return;
+    spatialVisualization.look=null;
     $("light-preset").value=look.lightPreset;
     const values={
       "sun-azimuth":look.azimuth,"sun-elevation":look.elevation,
@@ -3842,6 +3979,7 @@ $("light-preset").addEventListener("change", e => {
   document.querySelectorAll("[data-render-look]").forEach(b=>{
     b.classList.remove("is-active");b.setAttribute("aria-pressed","false");
   });
+  spatialVisualization.look=null;
   const presets = {
     clear: {az:45, el:45, sun:2.4, ambient:.65, exposure:1},
     cloudy: {az:50,el:58,sun:.85,ambient:1.1,exposure:1.05},
@@ -3856,6 +3994,9 @@ $("light-preset").addEventListener("change", e => {
 });
 document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener("click", () => setPlacement(el.dataset.addExtra)));
 $("project-mode").addEventListener("change",event=>applyProjectMode(event.target.value));
+$("spatial-look-apply").addEventListener("click",applySpatialLookPreset);
+$("spatial-shot-apply").addEventListener("click",applySpatialShotPreset);
+$("spatial-finish-apply").addEventListener("click",applySelectedSpatialFinish);
 $("mode-starter-add").addEventListener("click",applyModeStarter);
 $("mode-sample-toggle").addEventListener("click",()=>{
   if(approvedMaster||$("mode-sample-toggle").hidden)return;
@@ -4001,6 +4142,7 @@ $("undo").addEventListener("click", undo);
 $("redo").addEventListener("click", redo);
 ["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure", "shadows"]
   .forEach(id => $(id).addEventListener("input", () => {
+    spatialVisualization.look=null;
     $("light-preset").value = "custom";
     updateLight();
   }));

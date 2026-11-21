@@ -3,6 +3,7 @@ import { instantiateLibraryAsset } from "./assets.js";
 import { addBlackNameplate } from "./nameplate-asset.js";
 import {NEW_PLANT_VARIANTS,addPlantVariant} from "./plant-variants.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
+import {SPATIAL_FINISHES,validSpatialFinish} from "./spatial-visuals.js";
 
 // Procedural planting is intentionally schematic rather than a claim of true
 // botanical/photogrammetry accuracy. All extras are independent editables.
@@ -536,6 +537,37 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   else lightFixture(root,kind,appearanceVersion);
   return root;
 }
+const spatialMaterialCache=new WeakMap();
+export function applySpatialFinish(root,finish="original",color="#ff3b30"){
+  if(!root?.userData?.schematicSpatialAsset)return false;
+  if(!validSpatialFinish(finish,color))throw Error("공간 에셋 마감 설정이 올바르지 않습니다.");
+  // Keep original independent procedural materials intact; never touch imported GLB.
+  let cache=spatialMaterialCache.get(root);
+  if(!cache){
+    const base=[];
+    root.traverse(node=>{if(node.isMesh)base.push([node,node.material]);});
+    cache={base,applied:[]};
+    spatialMaterialCache.set(root,cache);
+  }
+  for(const [node,material] of cache.base)node.material=material;
+  cache.applied.forEach(material=>material.dispose());
+  cache.applied=[];
+  const look=SPATIAL_FINISHES[finish];
+  if(finish!=="original"){
+    const chosen=finish==="brand-accent"?color:look.color;
+    for(const [node,material] of cache.base){
+      const copy=material.clone();
+      copy.color.set(chosen);
+      copy.metalness=look.metalness;
+      copy.roughness=look.roughness;
+      node.material=copy;
+      cache.applied.push(copy);
+    }
+  }
+  root.userData.spatialFinish=finish;
+  root.userData.spatialFinishColor=color;
+  return true;
+}
 export function extraLight(root) {
   if(!root)return null;
   return root.children.find(item=>item.isLight)||null;
@@ -552,6 +584,7 @@ export function serializeExtras(container) {
       selectionLocked:root.userData.layerLocked === true,
       ...(root.userData.groupId?{groupId:root.userData.groupId}:{}),
       ...(root.userData.extraKind==="plinth"?{finish:root.userData.plinthFinish||"concrete",shape:root.userData.plinthShape||"box",followArtwork:root.userData.followArtwork===true}:{}),
+      ...(root.userData.schematicSpatialAsset&&root.userData.spatialFinish&&root.userData.spatialFinish!=="original"?{spatialFinish:root.userData.spatialFinish,spatialFinishColor:root.userData.spatialFinishColor||"#ff3b30"}:{}),
       transform:{
         p:root.position.toArray(),
         r:root.rotation.toArray().slice(0,3),
@@ -571,6 +604,8 @@ export function validateExtras(extras) {
     if(x.kind==="plinth" && x.shape!==undefined && !["box","round"].includes(x.shape))return false;
     if(x.kind==="plinth" && x.finish!==undefined && !Object.hasOwn(PLINTH_MATERIALS,x.finish))return false;
     if(x.followArtwork!==undefined && (x.kind!=="plinth" || typeof x.followArtwork!=="boolean"))return false;
+    if(x.spatialFinish!==undefined && (!SPATIAL_FIXTURES.has(x.kind)||!validSpatialFinish(x.spatialFinish,x.spatialFinishColor)))return false;
+    if(x.spatialFinishColor!==undefined && (!SPATIAL_FIXTURES.has(x.kind)||!validSpatialFinish(x.spatialFinish||"original",x.spatialFinishColor)))return false;
     if(x.hidden !== undefined && typeof x.hidden !== "boolean")return false;
     if(x.selectionLocked !== undefined && typeof x.selectionLocked !== "boolean")return false;
     if(x.groupId!==undefined && (!Number.isSafeInteger(x.groupId)||x.groupId<1))return false;
@@ -596,6 +631,7 @@ export function restoreExtras(container,entries,library=null,artRoot=null) {
     root.position.fromArray(x.transform.p);
     root.rotation.set(...x.transform.r);
     root.scale.fromArray(x.transform.s);
+    if(x.spatialFinish)applySpatialFinish(root,x.spatialFinish,x.spatialFinishColor||"#ff3b30");
     if(x.kind==="plinth"){
       applyPlinthShape(root,x.shape||"box");
       applyPlinthFinish(root,x.finish||"concrete");
