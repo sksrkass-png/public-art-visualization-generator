@@ -351,6 +351,119 @@ function refreshContextPalette(){
     "개 에셋 · "+(category==="recommended"?"현재 프로젝트 맞춤 추천":"전체 카탈로그 필터")+
     " · 추가된 3D 객체는 모드 변경 시 숨겨지거나 삭제되지 않습니다.";
 }
+// v3.6 scene-safe visualization workflow. Only camera, lighting or opted-in
+// built-in spatial fixture finish changes. Site and artwork sources never change.
+function refreshSpatialLookOptions(){
+  const picker=$("spatial-look");
+  if(!picker)return;
+  const previous=picker.value;
+  const options=looksForMode(currentProjectMode);
+  picker.replaceChildren(...options.map(item=>new Option(item.label,item.id)));
+  const preferred=spatialVisualization.look;
+  picker.value=options.some(x=>x.id===preferred)?preferred:
+    options.some(x=>x.id===previous)?previous:options[0]?.id||"";
+  $("spatial-look-status").textContent=
+    "현재 유형: "+projectModeConfig(currentProjectMode).title+
+    " · 룩 적용 시 작품·현장 메시 및 기존 재질은 유지됩니다.";
+}
+function applySpatialLookPreset(){
+  if(approvedMaster)return notify("MASTER LOCK 상태에서는 조명을 변경하지 않습니다. 새 Revision에서 적용하세요.");
+  const id=$("spatial-look").value,look=SPATIAL_LOOKS[id];
+  if(!look || look.mode!==currentProjectMode)return notify("프로젝트 유형에 맞는 룩을 선택하세요.");
+  $("light-preset").value=look.lightPreset;
+  for(const [id,value] of Object.entries({
+    "sun-azimuth":look.azimuth,"sun-elevation":look.elevation,
+    "sun-strength":look.sun,ambient:look.ambient,exposure:look.exposure
+  }))$(id).value=String(value);
+  $("shadows").checked=look.shadows;
+  $("visual-shadows").value=look.shadowProfile;
+  $("visual-tone").value=look.toneCurve;
+  $("visual-sky").value=look.sky;
+  $("env-mode").value=look.environmentMode;
+  $("env-strength").value=String(look.environmentIntensity);
+  spatialVisualization.look=id;
+  document.querySelectorAll("[data-render-look]").forEach(b=>{
+    b.classList.remove("is-active");b.setAttribute("aria-pressed","false");
+  });
+  updateLight();applyEnvironment();checkVisualQuality();
+  $("spatial-look-status").textContent=look.label+
+    " 적용 · 조명/톤/그림자/환경 반사 변경 · 모델 형상/재질 불변";
+  notify("공간 시각화 룩: "+look.label);
+}
+function spatialBounds(shot){
+  const interest=SPATIAL_SHOTS[shot]?.subject||"overall";
+  let objects=[];
+  if(interest==="selected"&&selectedRoot?.visible)objects=[selectedRoot];
+  else if(interest==="hero" && artRoot.visible && artFileName!=="Sample Artwork")
+    objects=[artRoot];
+  else {
+    objects=[
+      ...extrasRoot.children.filter(x=>x.visible&&x.userData.layerHidden!==true),
+      ...(artRoot.visible && artFileName!=="Sample Artwork"?[artRoot]:[])
+    ];
+  }
+  if(!objects.length && artRoot.visible)objects=[artRoot];
+  if(!objects.length && siteRoot.visible)objects=[siteRoot];
+  const bounds=new THREE.Box3();
+  for(const root of objects){
+    const b=new THREE.Box3().setFromObject(root);
+    if(!b.isEmpty())bounds.union(b);
+  }
+  if(bounds.isEmpty())throw Error("프레이밍할 배치 모델이 없습니다.");
+  return bounds;
+}
+function applySpatialShotPreset(){
+  const shot=$("spatial-shot").value,recipe=SPATIAL_SHOTS[shot];
+  if(!recipe)return notify("공간 카메라 구도를 선택하세요.");
+  try{
+    const bounds=spatialBounds(shot);
+    const center=bounds.getCenter(new THREE.Vector3());
+    const dimensions=bounds.getSize(new THREE.Vector3());
+    camera.setFocalLength(recipe.focal);
+    camera.aspect=Math.max(.25,viewport.clientWidth/Math.max(1,viewport.clientHeight));
+    camera.updateProjectionMatrix();
+    const pose=spatialShotPose(shot,{center:center.toArray(),size:dimensions.toArray()},
+      {aspect:camera.aspect,cameraFov:camera.fov});
+    camera.position.fromArray(pose.position);
+    orbit.target.fromArray(pose.target);
+    camera.near=pose.near;camera.far=pose.far;
+    orbit.maxDistance=Math.max(800,pose.distance*3);
+    camera.updateProjectionMatrix();orbit.update();updateNavigationSpeed();
+    $("camera-focal").value=String(Math.round(camera.getFocalLength()));
+    $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
+    spatialVisualization.shot=shot;
+    $("spatial-shot-status").textContent=pose.label+
+      " · "+pose.focal+"mm · 카메라 거리 "+pose.distance.toFixed(1)+
+      "m · 모델 위치·크기·재질 변경 없음";
+    notify("공간 카메라: "+pose.label);
+  }catch(error){notify("카메라 적용 실패: "+error.message);}
+}
+function syncSpatialFinishUI(){
+  const panel=$("spatial-finish-panel");
+  if(!panel)return;
+  const root=selectedRoot;
+  const valid=root?.parent===extrasRoot&&root.userData.schematicSpatialAsset===true;
+  panel.hidden=!valid;
+  $("spatial-finish-apply").disabled=!valid||approvedMaster||!selectedCanEdit();
+  if(!valid)return;
+  const finish=root.userData.spatialFinish||"original";
+  $("spatial-finish").value=finish;
+  $("spatial-finish-color").value=root.userData.spatialFinishColor||"#ff3b30";
+  $("spatial-finish-status").textContent=root.name+
+    " · 별도 제작된 개념 에셋에만 렌더 마감 적용 가능";
+}
+function applySelectedSpatialFinish(){
+  if(approvedMaster||!selectedCanEdit()||!selectedRoot?.userData?.schematicSpatialAsset)
+    return notify("편집 가능한 공간 개념 에셋을 먼저 선택해 주세요.");
+  const finish=$("spatial-finish").value,color=$("spatial-finish-color").value;
+  if(!validSpatialFinish(finish,color))return notify("지원하지 않는 마감입니다.");
+  const before=editSnapshot();
+  if(!applySpatialFinish(selectedRoot,finish,color))return;
+  commit(before);
+  syncSpatialFinishUI();
+  notify("공간 에셋 마감 적용 · "+selectedRoot.name+" · 원본 작품·현장·GLB 불변");
+}
+
 function applyProjectMode(mode,{restoring=false,announce=true}={}){
   if(!validProjectMode(mode))throw Error("지원하지 않는 프로젝트 유형입니다.");
   if(!restoring&&approvedMaster){
@@ -3869,6 +3982,9 @@ $("light-preset").addEventListener("change", e => {
 });
 document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener("click", () => setPlacement(el.dataset.addExtra)));
 $("project-mode").addEventListener("change",event=>applyProjectMode(event.target.value));
+$("spatial-look-apply").addEventListener("click",applySpatialLookPreset);
+$("spatial-shot-apply").addEventListener("click",applySpatialShotPreset);
+$("spatial-finish-apply").addEventListener("click",applySelectedSpatialFinish);
 $("mode-starter-add").addEventListener("click",applyModeStarter);
 $("mode-sample-toggle").addEventListener("click",()=>{
   if(approvedMaster||$("mode-sample-toggle").hidden)return;
