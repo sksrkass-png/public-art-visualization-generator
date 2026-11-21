@@ -277,3 +277,29 @@ Static checks and mocked pure tests cover lighting recipe bounds, all spatial ca
 ### QA
 - `node --test tests/studio-v3.8-materials.test.cjs` covers both new reflection maps, seam checks, material parameter validation, backward compatibility, rendering stage integration and MASTER source protections.
 - Actual Chrome/Edge WebGL reflections, site HDR realism and full loaded Rhino/OBJ/GLB material fidelity should be assessed visually with real source art assets before a client/competition submission. This release does not claim real reflected site geometry or physically measured polish.
+
+
+## AXOO STUDIO v3.9 — Workspace UX (2026-11)
+
+### ⚡ Quick / 🛠 Advanced workspace
+- A two-button mode switch in the Studio header allows **QUICK** (core inspector folds open, other specialist folds individually accessible) versus **ADVANCED** (all right-hand inspector folds expanded). These modes change only interface presentation: **no change to source artwork, building geometry, layer state, scale, camera, ZIP metadata, or approved MASTER**.
+- Five **workspace jump** links near the top of the left panel: Project, Assets, Material, Camera, Full Project Backup. Navigating to a right-hand inspector opens its containing fold before scrolling into view.
+- The mode choice persists **only in this browser's localStorage** under a new v3.9 user-interface key; failed/blocked localStorage falls back gracefully. The legacy `?panels=open` link still enters Advanced mode for the current page. The saved ZIP/JSON project format is unchanged.
+
+### 🌿 Visual asset cards and local favorites
+- Each existing built-in asset palette button is presented as a legible **category pictogram preview card**, with a separate star toggle. These visuals are symbolic 2D preview icons **not a rendered photograph/thumbnail of its actual GLB geometry**. All original asset IDs, native procedural shapes, number of independent placeable objects, category/search filters, and click-to-repeat placement remain intact.
+- User may select **☆ 즐겨찾기만 보기**, which switches to the all-assets catalog before applying the saved-star filter. Favorite data are stored only in localStorage and cleaned against known catalog item IDs; at most 100 valid favorite IDs. A browser with blocked localStorage retains favorites for the current tab only. No external assets, network requests, or account/paid backends.
+- Existing uploaded custom GLB user library, up to 12 source models, stays untouched. Starred built-in catalog items do not change the editable scene or add geometry.
+
+### 📐 Multi-select, alignment, and equal-gap placement
+- The established **ADVANCED MODELING** panel gains searchable checkbox multi-selection, **검색 결과 선택**, **선택 해제**, selected count, **X/Z axis**, align by **start / center / end world-AABB edges**, and **equal edge-to-edge spacing**. The 3D viewport also supports Ctrl+left-click (Windows) and ⌘+left-click (macOS) on independently placed editable extras to toggle multi-selection.
+- Alignment uses the **union of selected object world-space bounds**: each object translates only along the chosen X or Z axis so its chosen boundary or center matches the common target. Equal-gap placement requires three or more objects and preserves the outermost placement boundaries. If total object extents exceed available span (overlap too large), equal-gap is refused rather than allowing negative gaps.
+- Only **independent extras** that are still present, visible/editable and on unlocked layers may be transformed. The imported site/building and primary sculptural source are **never accepted** as batch targets. MASTER LOCK blocks all batch transforms. No automatic editing of unselected peers, no changes to imported mesh vertices, Y elevation, rotation, scale, source materials, or preapproved artwork position.
+- Every successful batch action is one **undoable `editSnapshot` / `commit`** transaction. Existing separately managed logical groups still work for manual move of group peers. Batch alignment itself moves only the explicitly checked root IDs, to avoid hidden/unselected group mutations. No automatic ground-snap or real clearance guarantee; verify site and spacing physically before architectural submission.
+- The multi-selection checkbox list searches all placed extras even if there are more than the original 100 recently visible; when no query is entered, **검색 결과 선택** selects the most recent 100 as a safety/convenience default. A non-empty query can select all matching editable objects, while up to 150 are displayed at once to protect the inspector from very large DOM renders.
+
+### Compatibility / testing
+- No changes to `axoo-public-art-portable-v1` ZIP/JSON project schema, `artworkMaterial`, scene extras serialization, camera history, A/B/C visual variants, or MASTER snapshots. The current local-storage UI preferences are not included in portable project ZIPs; sending a ZIP to another machine gives it that machine's own preferred layout.
+- Added `studio/workspace-ux.js` (pure batch geometry, favorite whitelist, symbolic preview classification) and `tests/studio-v3.9-workspace.test.cjs`. Tests include X/Z positioning by min/center/max, equal gap, locked/missing object rejection, bookmark safety, input validation, local-only state, stable DOM IDs and unchanged MASTER/project schema. **17/17 isolated JavaScript regression cases passed** during implementation.
+- Expanded the GitHub validation workflow to syntax-check v3.7–v3.9 modules and run v3.7, v3.8 and v3.9 test suites. The old v3.7 suite now checks a generic v3.x Studio label, not the release's old exact version.
+- This is a **free static browser UI update**, not shared cloud saving or account login. Actual desktop Chrome/Edge pointer interactions, layout on small screens and real imported model alignment should be smoke-tested with source assets before field deployment.
