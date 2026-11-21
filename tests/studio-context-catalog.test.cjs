@@ -4,7 +4,8 @@ const scope={Object,String,Number,Math,Array,Set,Error};
 vm.runInNewContext(src.replace(/\bexport\s+/g,"")+
   "\nthis.api={CONTEXT_CATALOG,CONTEXT_CATEGORIES,filterContextCatalog,uniformHeightScale,dimensionsLabel};",scope);
 const {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel}=scope.api;
-assert.equal(CONTEXT_CATALOG.length,33,"built-in palette must contain 33 searchable entries");
+assert.ok(CONTEXT_CATALOG.length>=33,"built-in palette must retain the existing 33+ searchable entries");
+assert.equal(new Set(CONTEXT_CATALOG.map(a=>a.kind)).size,CONTEXT_CATALOG.length,"catalog asset kinds must be unique");
 for(const kind of ["tree-birch","grass-patch","lawn-tile","walkway-tile","black-nameplate","car-sedan","bollard"]){
   assert.equal(CONTEXT_CATALOG.filter(a=>a.kind===kind).length,1,kind+" catalog entry");
 }

@@ -257,7 +257,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await fileInput.setInputFiles({
       name: "unsupported.skp", mimeType: "application/octet-stream", buffer: Buffer.from("not-supported")
     });
-    await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("SKP/IFC"),
+    await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("3D 모델 파일은 정확히 한 개"),
       null, { timeout: 10000 });
     assert.equal(await page.locator("#site-filename").textContent(), "test-site.obj");
 
@@ -287,6 +287,9 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     // Switch to the original demonstration plaza for legacy v0.4 free placement.
     // v0.5 separately tests grounding against a surveyed horizontal site mesh.
     await page.locator("#site-preset").selectOption("plaza");
+    // v3.5+ defaults to project recommendations; switch to the full catalog
+    // before exercising older built-in assets outside that recommendation list.
+    await page.locator("#context-category").selectOption("all");
     // Add two distinct foliage presets, a shrub, and two physically working lights.
     const canvas = page.locator("#viewport canvas");
     await page.locator('[data-view="aerial"]').click();
@@ -888,7 +891,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       document.querySelector("#library-asset-select")?.options.length===1 &&
       document.querySelector("#library-asset-select")?.value==="lib1",
       null,{timeout:20000});
-    assert.match(await page.locator("#library-status").textContent(),/등록 1 \/ 6/);
+    assert.match(await page.locator("#library-status").textContent(),/등록 1 \/ 12/);
     await page.locator("#library-place").click();
     await page.mouse.click(rect.x+rect.width*.65,rect.y+rect.height*.82);
     await page.waitForFunction(n=>document.querySelectorAll("#extra-list button").length===n,
@@ -929,7 +932,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       document.querySelector("#library-asset-select")?.value==="lib1" &&
       document.querySelector("#site-status")?.textContent==="예시 공간",
       baselineCount+5,{timeout:40000});
-    assert.match(await page.locator("#library-status").textContent(),/등록 1 \/ 6/);
+    assert.match(await page.locator("#library-status").textContent(),/등록 1 \/ 12/);
     await page.locator("#extra-list button").last().click();
     assert.match(await page.locator("#object-name").textContent(),/licensed-urban-seat/);
 
@@ -1690,13 +1693,15 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       {waitUntil:"domcontentloaded",timeout:60000});
     const contextCanvas=contextPage.locator("#viewport canvas");
     await contextCanvas.waitFor({timeout:30000});
-    await contextPage.waitForFunction(()=>document.querySelector("#context-search-count")?.textContent.includes("33 / 33"));
+    // New project modes default to recommended assets; the historical test needs all entries.
+    await contextPage.locator("#context-category").selectOption("all");
+    await contextPage.waitForFunction(()=>document.querySelector("#context-search-count")?.textContent.includes("40 / 40"));
     assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').isVisible(),true);
     await contextPage.locator("#context-category").selectOption("street");
     await contextPage.locator("#context-search").fill("승용차");
     assert.equal(await contextPage.locator('[data-add-extra="grass-patch"]').isVisible(),false);
     assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').isVisible(),true);
-    assert.match(await contextPage.locator("#context-search-count").textContent(),/1 \/ 33/);
+    assert.match(await contextPage.locator("#context-search-count").textContent(),/1 \/ 40/);
     await contextPage.locator('[data-view="aerial"]').click();
     const cb=await contextCanvas.boundingBox();
     assert.ok(cb);
@@ -1804,12 +1809,12 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       "cherry blossoms should use shared instanced GPU geometry");
     await plantPage.locator("#context-category").selectOption("planting");
     await plantPage.locator("#context-search").fill("벚꽃");
-    assert.match(await plantPage.locator("#context-search-count").textContent(),/3 \/ 33/);
+    assert.match(await plantPage.locator("#context-search-count").textContent(),/3 \/ 40/);
     assert.equal(await plantPage.locator("#plant-variants").evaluate(el=>el.open),true,
       "search automatically expands additional botanical variants");
     assert.equal(await plantPage.locator('[data-add-extra="tree-cherry-c"]').isVisible(),true);
     await plantPage.locator("#context-search").fill("단풍");
-    assert.match(await plantPage.locator("#context-search-count").textContent(),/3 \/ 33/);
+    assert.match(await plantPage.locator("#context-search-count").textContent(),/3 \/ 40/);
     await plantPage.locator('[data-view="aerial"]').click();
     const pt=await plantCanvas.boundingBox();
     const plantAt=async(x,y)=>plantPage.mouse.click(pt.x+pt.width*x,pt.y+pt.height*y);

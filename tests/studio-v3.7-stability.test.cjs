@@ -82,7 +82,7 @@ test("source wiring keeps original archive and MASTER guards",()=>{
   assert.match(code,/if\(archiveExportInProgress\)return notify/);
   assert.match(code,/checkedArchiveEntry\(zip, "project\.json", PROJECT_METADATA_LIMIT, true\)/);
   assert.match(code,/if\(document\.hidden\|\|gpuContextLost\)return/);
-  assert.match(html,/VERSION 3\.7 · STABILITY & PERFORMANCE/);
+  assert.match(html,/VERSION 3\.\d+ ·/);
   assert.match(html,/id="stability-audit-run"/);
   assert.match(html,/id="gpu-recovery-status"/);
 });

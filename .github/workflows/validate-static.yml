@@ -49,6 +49,9 @@ jobs:
           node --check studio/production-qa.js
           node --check studio/visual-workflow.js
           node --check studio/visual-option-render.js
+          node --check studio/workspace-ux.js
+          node --check studio/reflection-environments.js
+          node --check studio/stability-qa.js
       - name: Run JSON import regression tests
         run: |
           node tests/json-import.test.cjs
@@ -69,3 +72,6 @@ jobs:
           node tests/studio-camera-bookmarks.test.cjs
           node tests/studio-production-qa.test.cjs
           node tests/studio-visual-workflow.test.cjs
+          node --test tests/studio-v3.7-stability.test.cjs
+          node --test tests/studio-v3.8-materials.test.cjs
+          node --test tests/studio-v3.9-workspace.test.cjs

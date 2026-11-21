@@ -34,10 +34,12 @@ for (const form of ["site-file", "art-file", "map-file", "map-width", "uniform-s
 assert.match(js, /new TransformControls/, "mouse translation/rotation/scale gizmo required");
 assert.match(js, /new OrbitControls/, "camera orbit/pan/zoom required");
 assert.match(js, /new GLTFLoader/, "GLB/GLTF scene import required");
-assert.match(js, /new OBJLoader/, "OBJ artwork import required");
+assert.match(js, /loadOBJWithMaterials\(/, "OBJ/MTL artwork import required");
+assert.match(js,/from "\.\/obj-materials\.js"/,"source-preserving local OBJ/MTL importer is used");
+assert.match(html,/\.obj(?:,|")/,"OBJ model input extension remains allowed");
 assert.match(js, /new STLLoader/, "STL artwork import required");
 for (const [ext, loader] of [
-  ["obj", "OBJLoader"], ["fbx", "FBXLoader"], ["stl", "STLLoader"],
+  ["fbx", "FBXLoader"], ["stl", "STLLoader"],
   ["ply", "PLYLoader"], ["dae", "ColladaLoader"], ["3ds", "TDSLoader"]
 ]) {
   assert.match(js, new RegExp("new " + loader), "site " + ext + " loader required");
@@ -137,12 +139,15 @@ assert.match(js,/integrity\.json/,"checksum must be saved in full project ZIP");
 assert.match(js,/verifyIntegrityManifest\(zip\)/,"checksum must be checked on ZIP import");
 for(const id of ["site-import-inspector","site-center-origin","site-preflight-summary",
   "site-preflight-export"])assert.ok(unique.has(id),"v1.1 site diagnostic UI missing: "+id);
-for(const symbol of ["decodeSiteBundle","inspectImportedSite","validSiteAlignment"])
-  assert.ok(js.includes(symbol),"v1.1 site import functions not wired: "+symbol);
+for(const symbol of ["decodeModel","inspectImportedSite","validSiteAlignment"])
+  assert.ok(js.includes(symbol),"universal site import functions not wired: "+symbol);
 assert.match(js,/centerOrigin:\$\("site-center-origin"\)\.checked/,"site center preference persisted to project");
 const preflightSource=fs.readFileSync(path.join(base,"studio/site-import.js"),"utf8");
-for(const token of ["decodeSiteBundle","resourceName","inspectImportedSite","GLTFLoader","MAX_UNPACKED"])
-  assert.ok(preflightSource.includes(token),"v1.1 bundled glTF import guard absent: "+token);
+for(const token of ["decodeSiteBundle","inspectImportedSite","validSiteAlignment","offsetForCenter"])
+  assert.ok(preflightSource.includes(token),"site inspection/legacy adapter absent: "+token);
+const universalImportSource=fs.readFileSync(path.join(base,"studio/import-bundle.js"),"utf8");
+for(const token of ["decodeLinkedGLTF","MODEL_MAX","RESOURCE_MAX","safePath","unzipModel","GLTFLoader"])
+  assert.ok(universalImportSource.includes(token),"v3.3 validated universal bundle import absent: "+token);
 for(const id of ["asset-library-panel","library-asset-file","library-asset-category",
  "library-asset-select","library-place","library-status"])
  assert.ok(unique.has(id),"v1.2 asset browser control missing: "+id);
@@ -153,7 +158,7 @@ const assetsModule=fs.readFileSync(path.join(base,"studio/assets.js"),"utf8");
 for(const marker of ["parseLibraryGLB","instantiateLibraryAsset","validLibraryManifest","MAX_LIBRARY_TRIANGLES"])
  assert.ok(assetsModule.includes(marker),"v1.2 custom GLB module missing: "+marker);
 const extrasModule=fs.readFileSync(path.join(base,"studio/extras.js"),"utf8");
-for(const marker of ["tree-autumn","person-standing","park-bench","round-planter","custom-glb"])
+for(const marker of ["tree-autumn","person-man","person-woman","park-bench","round-planter","custom-glb"])
  assert.ok(extrasModule.includes(marker),"v1.2 scene asset missing: "+marker);
 const integrity=fs.readFileSync(path.join(base,"studio/integrity.js"),"utf8");
 assert.ok(integrity.includes("assets/library/"),"checksums for external GLB sources required");

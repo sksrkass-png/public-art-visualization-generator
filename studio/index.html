@@ -18,8 +18,12 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 3.8 · MATERIAL & REFLECTION</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 3.9 · WORKSPACE UX</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
     <div class="top-actions">
+      <div class="workspace-mode-switch" role="group" aria-label="3D 스튜디오 작업 화면 모드">
+        <button id="workspace-quick" type="button" aria-pressed="true">⚡ QUICK</button>
+        <button id="workspace-advanced" type="button" aria-pressed="false">🛠️ ADVANCED</button>
+      </div>
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <span id="gpu-recovery-status" class="gpu-recovery-status" role="status" aria-live="polite" hidden>⚠ GPU 연결 복구 필요 · ZIP 백업 권장</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -29,6 +33,14 @@
   <main class="workspace">
     <aside class="sidepanel left">
       <div class="panel-head"><span class="eyebrow">01 / SCENE SETUP</span><h1>🏛️ 공간과 작품</h1><p>공공미술 · 팝업 · 전시 · 공간 브랜딩을 하나의 스튜디오에서 기획하세요.</p></div>
+      <nav class="workspace-shortcuts" aria-label="주요 작업 바로가기">
+        <button type="button" data-workspace-jump="project">🗂️ 프로젝트</button>
+        <button type="button" data-workspace-jump="assets">🌿 에셋</button>
+        <button type="button" data-workspace-jump="material">🪞 재질</button>
+        <button type="button" data-workspace-jump="camera">📷 카메라</button>
+        <button type="button" data-workspace-jump="backup">💾 백업</button>
+      </nav>
+      <p class="hint" id="workspace-mode-status" aria-live="polite">QUICK · 자주 사용하는 도구 위주로 패널을 정리합니다. ADVANCED에서 전체 도구가 열립니다.</p>
       <div class="project-quick-save">
         <p class="hint">프로젝트 이름으로 모델과 배치를 묶어 관리합니다.</p>
         <div class="inline">
@@ -37,7 +49,7 @@
         </div>
         <p class="hint">모델 파일까지 복원하려면 JSON이 아닌 ZIP으로 저장하세요. 저장 파일은 로컬에서 보관합니다.</p>
       </div>
-      <section class="section">
+      <section class="section" id="workspace-project-panel">
         <h2>🗂️ 프로젝트</h2>
         <label for="project-name">프로젝트 이름</label>
         <input id="project-name" type="text" value="새 공공미술 시안" maxlength="100">
@@ -294,7 +306,7 @@
         <p id="site-view-stat" class="hint" aria-live="polite">대형 모델 탐색을 위한 화면 표시 전용 설정입니다.</p>
         <p class="hint">원본 건축·조경 메시와 재질을 보존합니다. 이 가림 효과는 PNG·MASTER 8컷·GLB 출력에 포함되지 않습니다. 단면은 건물 메시의 수학적 잘림 표시일 뿐 실제 단면 내부를 새로 모델링하지 않습니다.</p>
       </section>
-      <section class="section">
+      <section class="section" id="workspace-transform-panel">
         <div class="section-title"><h2>🎯 선택 객체 Transform</h2><span id="object-state" class="tag">편집 가능</span></div>
         <p class="hint">작품·공간 에셋·조명을 화면에서 클릭해 선택하고 이동(G)·회전(R)·크기(S)를 조정하세요.</p>
         <button class="outline full" id="select-artwork" type="button">작품 선택</button>
@@ -380,10 +392,30 @@
         <button id="precision-duplicate" class="outline full" type="button">선택한 작품·오브제 복제 (X +2m)</button>
         <fieldset class="precision-group-fieldset">
           <legend>그룹 지정 · 이동은 함께, 회전과 크기는 개별</legend>
+          <p class="hint">Ctrl/⌘+클릭으로 3D 배치 객체를 다중 선택하거나 아래 목록의 체크박스를 선택하세요. 작품 원본·현장 모델은 일괄 이동 대상이 아닙니다.</p>
+          <input id="precision-multi-search" type="search" placeholder="다중 선택할 객체 찾기 · 이름/번호" aria-label="다중 선택 객체 검색">
+          <div class="inline batch-select-actions">
+            <button id="precision-select-visible" class="outline full" type="button">검색 결과 선택</button>
+            <button id="precision-clear-selection" class="outline full" type="button">선택 해제</button>
+          </div>
+          <p id="precision-selected-count" class="hint" aria-live="polite">다중 선택 0개</p>
           <div id="precision-group-list" class="precision-group-list"></div>
           <div class="inline"><button id="precision-group" class="outline full" type="button">선택 객체 그룹 묶기</button><button id="precision-ungroup" class="outline full" type="button">선택 객체 그룹 해제</button></div>
         </fieldset>
         <p class="hint">그룹 이동은 대표 객체의 위치 XYZ를 변경하거나 이동 기즈모를 놓으면 적용됩니다. 원본 건물은 그룹에 포함할 수 없습니다.</p>
+        <div class="workspace-batch-panel">
+          <h3>📐 v3.9 · 여러 객체 정렬·등간격 배치</h3>
+          <p class="hint">배치된 독립 객체만 X/Z 방향으로 이동합니다. 각 객체의 월드 경계박스 기준이며, 회전·배율·Y높이·원본 형상은 변경하지 않습니다. 등간격은 3개 이상이 필요합니다.</p>
+          <div class="workspace-batch-options">
+            <div><label for="workspace-batch-axis">정렬 방향</label><select id="workspace-batch-axis"><option value="x">X · 가로</option><option value="z">Z · 세로(깊이)</option></select></div>
+            <div><label for="workspace-batch-anchor">정렬 기준</label><select id="workspace-batch-anchor"><option value="center">중심</option><option value="min">시작 경계</option><option value="max">끝 경계</option></select></div>
+          </div>
+          <div class="inline">
+            <button id="workspace-align" type="button" class="outline full" disabled>선택 객체 정렬</button>
+            <button id="workspace-distribute" type="button" class="outline full" disabled>선택 객체 등간격</button>
+          </div>
+          <p id="workspace-batch-status" class="hint" aria-live="polite">체크박스 또는 Ctrl/⌘+클릭으로 이동할 객체를 선택하세요.</p>
+        </div>
         <h3>📏 정밀 간격 측정</h3>
         <button id="measure-site-start" class="outline full" type="button">현장 두 점 클릭해 거리 측정</button>
         <button id="measure-site-clear" class="outline full" type="button">측정점 초기화</button>
@@ -428,7 +460,7 @@
         <p id="visual-options-export-status" class="hint" aria-live="polite">저장된 슬롯마다 원본 모델을 복제한 별도 렌더 씬에서 이미지를 생성합니다. 편집 중인 작품 위치와 승인 MASTER에는 영향을 주지 않습니다.</p>
         <p class="hint">비교 이미지는 브라우저 WebGL PBR 기반이며, 인증된 CAD 간섭검사·Blender 경로 추적·AI 실사화가 아닙니다. MASTER 8컷은 기존 승인 절차대로 출력합니다.</p>
       </section>
-      <section class="section">
+      <section class="section" id="workspace-assets-panel">
         <h2>🧱 공간·현장 에셋 라이브러리 <span class="tag">v3.5</span></h2>
         <p class="hint">현재 프로젝트 유형에 알맞은 환경·공간 에셋을 추천합니다. 모든 배치 객체는 별도 선택·이동·회전·복제·삭제할 수 있으며 현장 원본 메시를 변경하지 않습니다.</p>
         <label for="context-search">에셋 검색</label>
@@ -447,7 +479,12 @@
           <option value="display">진열·디스플레이</option>
           <option value="media">미디어·체험</option>
         </select>
+        <div class="workspace-asset-filter">
+          <button id="context-favorites-only" type="button" class="outline" aria-pressed="false">☆ 즐겨찾기만 보기</button>
+          <span id="context-favorites-count">즐겨찾기 0개</span>
+        </div>
         <p id="context-search-count" class="hint" aria-live="polite">에셋 검색 준비 중</p>
+        <p class="hint">에셋 카드의 ☆를 누르면 이 브라우저에만 즐겨찾기로 저장됩니다. 미리보기는 분류별 개념 아이콘이며 3D 원본 썸네일은 아닙니다.</p>
         <p id="asset-placement-status" class="hint" aria-live="polite">에셋 버튼 선택 → 현장 반복 클릭으로 연속 배치 · 같은 버튼 다시 누르면 OFF · Esc로 종료</p>
         <div class="asset-palette">
           <button type="button" data-add-extra="tree-round">🌳 활엽수 A · 둥근형</button>
@@ -652,7 +689,7 @@
         <p id="material-status" class="hint" aria-live="polite">원본 파일의 재질과 텍스처를 그대로 유지 중입니다.</p>
         <p class="hint">작품에만 별도 렌더 재질을 명시적으로 적용합니다. 재질 편집 전후의 모델 형상·위치·개수·기단·현장 모델과 원본 파일은 변경하지 않으며, MASTER LOCK 승인 후 수정할 수 없습니다. 반사 환경 모드는 전체 씬의 조명/환경에 영향을 줍니다.</p>
       </section>
-      <section class="section">
+      <section class="section" id="workspace-camera-panel">
         <h2>📷 카메라 / 시점</h2>
         <label for="nav-speed">마우스 탐색 속도 <output id="nav-speed-value">3.4×</output></label>
         <input type="range" id="nav-speed" min=".5" max="5" step=".1" value="3.4">
@@ -906,7 +943,7 @@
         <p id="spatial-status" class="hint" aria-live="polite">작성자·의견을 입력한 뒤 승인 MASTER의 표면을 클릭하세요.</p>
         <p class="hint">핀 위치는 해당 MASTER 당시의 3D 월드 좌표(m)입니다. 다음 Revision에서는 이전 핀을 표시하지 않고 기록만 보존합니다. 전체 프로젝트 ZIP과 설정 JSON에 함께 저장되며, 구조 안전·현장 실측·작성자 신원 검증을 대신하지 않습니다.</p>
       </section>
-      <section class="section">
+      <section class="section" id="workspace-backup-panel">
         <h2>💾 프로젝트 저장</h2>
         <button id="export-project" class="primary full" type="button">전체 프로젝트 ZIP 저장 (모델 포함)</button>
         <p class="hint">v3.7은 중복 ZIP 저장을 차단하고, 대용량 프로젝트의 원본 파일·설정 크기를 확인합니다. 프로젝트 ZIP 실제 용량은 압축 후 결정됩니다.</p>
