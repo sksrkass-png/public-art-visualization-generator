@@ -537,30 +537,31 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   else lightFixture(root,kind,appearanceVersion);
   return root;
 }
+const spatialMaterialCache=new WeakMap();
 export function applySpatialFinish(root,finish="original",color="#ff3b30"){
   if(!root?.userData?.schematicSpatialAsset)return false;
   if(!validSpatialFinish(finish,color))throw Error("공간 에셋 마감 설정이 올바르지 않습니다.");
   // Keep original independent procedural materials intact; never touch imported GLB.
-  let base=root.userData.__spatialBase;
-  if(!base){
-    base=[];
+  let cache=spatialMaterialCache.get(root);
+  if(!cache){
+    const base=[];
     root.traverse(node=>{if(node.isMesh)base.push([node,node.material]);});
-    root.userData.__spatialBase=base;
+    cache={base,applied:[]};
+    spatialMaterialCache.set(root,cache);
   }
-  const previous=root.userData.__spatialAppliedMaterials || [];
-  for(const [node,material] of base)node.material=material;
-  previous.forEach(material=>material.dispose());
-  root.userData.__spatialAppliedMaterials=[];
+  for(const [node,material] of cache.base)node.material=material;
+  cache.applied.forEach(material=>material.dispose());
+  cache.applied=[];
   const look=SPATIAL_FINISHES[finish];
   if(finish!=="original"){
     const chosen=finish==="brand-accent"?color:look.color;
-    for(const [node,material] of base){
+    for(const [node,material] of cache.base){
       const copy=material.clone();
       copy.color.set(chosen);
       copy.metalness=look.metalness;
       copy.roughness=look.roughness;
       node.material=copy;
-      root.userData.__spatialAppliedMaterials.push(copy);
+      cache.applied.push(copy);
     }
   }
   root.userData.spatialFinish=finish;
