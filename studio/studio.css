@@ -533,7 +533,7 @@ html[data-studio-workspace="quick"] .sidepanel.right .inspector-fold:not([open])
 /* v4.0 inspector workgroups and browser-local projects. */
 .inspector-category-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:12px 12px 5px}
 .inspector-category-nav button{border:1px solid #d8dfe2;background:#f5f6f6;border-radius:9px;min-height:36px;padding:6px 8px;text-align:left;color:#333b41;font-size:11px;font-weight:700;cursor:pointer}
-.inspector-category-nav button:last-child{grid-column:1/-1}
+.inspector-category-nav button:first-child{grid-column:1/-1;text-align:center;font-size:12px;min-height:39px}
 .inspector-category-nav button[aria-pressed="true"]{background:#1b252e;color:#fff;border-color:#1b252e}
 .inspector-category-status{margin:3px 13px 12px!important}
 .sidepanel.right .inspector-fold[hidden]{display:none!important}
