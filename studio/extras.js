@@ -9,7 +9,8 @@ import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "tree-autumn",
   ...NEW_PLANT_VARIANTS,
   "person-standing", "person-man", "person-woman", "shrub-flower", "park-bench", "round-planter",
-  "tree-birch", "grass-patch", "lawn-tile", "walkway-tile", "black-nameplate", "car-sedan", "bollard", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth"]);
+  "tree-birch", "grass-patch", "lawn-tile", "walkway-tile", "black-nameplate", "car-sedan", "bollard", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth",
+  "modular-wall","retail-shelf","display-podium","brand-counter","media-screen","signage-totem","experience-kiosk"]);
 
 // Reuse GPU geometry/materials for hundreds of repeated botanical props.
 // Clone the hierarchy only: each placed root retains its own transform,
@@ -421,6 +422,45 @@ export function upgradeGroundLight(root){
   if(oldColor)light.color.copy(oldColor);
   return root;
 }
+// v3.5 - simple schematic spatial/retail fixtures, no third-party IP.
+// Geometry origin at floor. These are conceptual placeholders, not fabrication drawings.
+const SPATIAL_FIXTURES=new Set(["modular-wall","retail-shelf","display-podium",
+  "brand-counter","media-screen","signage-totem","experience-kiosk"]);
+function spatialBox(root,w,h,d,x,y,z,color,roughness=.72,metalness=0){
+  const object=mesh(new THREE.BoxGeometry(w,h,d),color,roughness,metalness);
+  object.position.set(x,y,z);root.add(object);return object;
+}
+function makeSpatialFixture(root,kind){
+  root.userData.schematicSpatialAsset=true;
+  root.userData.sourceUnit="m";
+  if(kind==="modular-wall"){
+    spatialBox(root,3,2.6,.15,0,1.3,0,0xe4e4df,.87);
+    spatialBox(root,3,.07,.22,0,.035,0,0x7f8487,.38,.65);
+  }else if(kind==="retail-shelf"){
+    for(const x of [-.95,.95])spatialBox(root,.065,2,.5,x,1,0,0x565c62,.35,.6);
+    for(const y of [.22,.75,1.28,1.8])spatialBox(root,2,.055,.54,0,y,0,0xd7cfc3,.72);
+    spatialBox(root,2,.08,.58,0,.04,0,0x5b6065,.5,.4);
+  }else if(kind==="display-podium"){
+    spatialBox(root,1,.95,1,0,.475,0,0xe7e6e1,.83);
+    spatialBox(root,1.05,.045,1.05,0,.973,0,0xfcfcfa,.55);
+  }else if(kind==="brand-counter"){
+    spatialBox(root,2.4,1.05,.72,0,.525,0,0xe6e3de,.8);
+    spatialBox(root,2.55,.055,.85,0,1.08,0,0x787c79,.32,.18);
+    spatialBox(root,1.92,.5,.012,0,.63,.37,0x9aa0a3,.73);
+  }else if(kind==="media-screen"){
+    spatialBox(root,3.15,2.08,.14,0,1.13,0,0x393b3c,.35,.42);
+    spatialBox(root,2.96,1.82,.013,0,1.13,.079,0x16242b,.3,.16);
+    spatialBox(root,3.35,.085,.45,0,.042,0,0x777c7d,.5,.35);
+  }else if(kind==="signage-totem"){
+    spatialBox(root,.85,2.25,.23,0,1.125,0,0x252a30,.44,.32);
+    spatialBox(root,.72,1.7,.016,0,1.23,.125,0xf4f1eb,.85);
+    spatialBox(root,.88,.07,.26,0,.035,0,0x787b7c,.36,.55);
+  }else if(kind==="experience-kiosk"){
+    spatialBox(root,.72,1.43,.52,0,.715,0,0xd5d8d9,.65,.15);
+    spatialBox(root,.59,.76,.013,0,1.06,.268,0x273e45,.24,.1);
+    spatialBox(root,.75,.07,.55,0,.035,0,0x545b60,.45,.42);
+  }
+}
 export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,artRoot=null) {
   if(!EXTRA_TYPES.includes(kind))throw Error("Unknown decorative object kind");
   const root=new THREE.Group();
@@ -452,8 +492,13 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
     "lawn-tile":"3×3m 잔디밭", "walkway-tile":"3×3m 콘크리트 보도", "black-nameplate":"검정 명판",
     "car-sedan":"승용차", "bollard":"안전 볼라드",
     "custom-glb":"사용자 GLB", "artwork-copy":"작품 복제",
-    "point-light":"포인트 조명","spot-light":"스폿 조명","plinth":"기단" })[kind]+" #"+id;
+    "point-light":"포인트 조명","spot-light":"스폿 조명","plinth":"기단",
+    "modular-wall":"모듈 가벽 3m","retail-shelf":"리테일 진열대 2m",
+    "display-podium":"전시 디스플레이 좌대","brand-counter":"브랜드 운영 카운터",
+    "media-screen":"미디어 스크린 3.15m","signage-totem":"사이니지 토템",
+    "experience-kiosk":"체험용 키오스크" })[kind]+" #"+id;
   if(PLANT_TEMPLATE_KINDS.has(kind))addCachedPlant(root,kind,appearanceVersion);
+  else if(SPATIAL_FIXTURES.has(kind))makeSpatialFixture(root,kind);
   else if(kind==="person-man")personScaled(root,1.75,0x394956);
   else if(kind==="person-woman")personScaled(root,1.6,0xb4847c);
   else if(kind==="person-standing")standingPerson(root);
