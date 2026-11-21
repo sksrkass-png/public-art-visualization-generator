@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 3.9 · WORKSPACE UX</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 3.9.5 · STUDIO REFINEMENT</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
     <div class="top-actions">
       <div class="workspace-mode-switch" role="group" aria-label="3D 스튜디오 작업 화면 모드">
         <button id="workspace-quick" type="button" aria-pressed="true">⚡ QUICK</button>
@@ -41,7 +41,9 @@
         <button type="button" data-workspace-jump="backup">💾 백업</button>
       </nav>
       <p class="hint" id="workspace-mode-status" aria-live="polite">QUICK · 자주 사용하는 도구 위주로 패널을 정리합니다. ADVANCED에서 전체 도구가 열립니다.</p>
-      <div class="project-quick-save">
+      <section class="section" id="workspace-project-panel">
+        <h2>🗂️ 프로젝트</h2>
+      <div class="project-quick-save" id="quick-project-tools">
         <p class="hint">프로젝트 이름으로 모델과 배치를 묶어 관리합니다.</p>
         <div class="inline">
           <button id="project-quick-save" class="primary full" type="button">💾 이름으로 프로젝트 ZIP 저장</button>
@@ -49,8 +51,7 @@
         </div>
         <p class="hint">모델 파일까지 복원하려면 JSON이 아닌 ZIP으로 저장하세요. 저장 파일은 로컬에서 보관합니다.</p>
       </div>
-      <section class="section" id="workspace-project-panel">
-        <h2>🗂️ 프로젝트</h2>
+
         <label for="project-name">프로젝트 이름</label>
         <input id="project-name" type="text" value="새 공공미술 시안" maxlength="100">
         <label for="project-mode">프로젝트 유형</label>
@@ -61,7 +62,7 @@
           <option value="spatial-branding">📍 공간 브랜딩 / SPATIAL BRANDING</option>
         </select>
         <div class="project-mode-card">
-          <div class="project-mode-title" id="project-mode-heading">🗿 공공미술 설치 제안</div>
+          <div class="project-mode-title" id="project-mode-heading" hidden>🗿 공공미술 설치 제안</div>
           <p class="hint" id="project-mode-guide">프로젝트에 필요한 3D 에셋을 추천합니다.</p>
           <details class="mode-checks"><summary>프로젝트 유형별 실무 체크리스트</summary><ul class="mode-checklist" id="project-mode-checks"></ul></details>
           <button type="button" class="outline full" id="mode-starter-add">+ 예시 레이아웃 배치</button>
@@ -70,7 +71,7 @@
         </div>
         <p class="hint">좌표 및 거리 기준은 m(미터), Y축은 높이입니다. 승인된 MASTER LOCK에서는 프로젝트 유형과 공간 편집이 잠깁니다.</p>
       </section>
-      <details class="production-audit section" id="production-audit">
+      <details class="production-audit section studio-deprecated-panel" id="production-audit" hidden>
         <summary>✅ v3.0 · 실전 프로젝트 점검</summary>
         <p class="hint">작품·현장 파일, 모델 복잡도, 승인 MASTER, GPU PNG 출력 조건을 읽기 전용으로 점검합니다.</p>
         <button type="button" id="production-audit-run" class="outline full">현재 프로젝트 점검 실행</button>
@@ -90,7 +91,7 @@
           <option value="plaza">광장 — 예시 매스</option>
           <option value="courtyard">아파트 중정 — 예시 매스</option>
           <option value="promenade">보행가로 — 예시 매스</option>
-          <option value="empty">빈 작업 공간</option>
+          <option value="empty" selected>빈 작업 공간</option>
         </select>
         <div class="universal-import" id="site-dropzone" aria-label="현장 모델 파일 드래그앤드롭">
           <label class="file-button" for="site-file"><span>+ 현장 3D 모델 · 여러 파일 선택</span><small>GLB · GLTF · OBJ · FBX · 3DM · DXF(2D) · STL · PLY · DAE · 3DS · ZIP</small></label>
@@ -200,15 +201,14 @@
           <p id="dimension-status" class="hint" aria-live="polite">비율 유지 모드는 선택한 기준 축의 실제 길이에 맞춥니다. 회전된 작품의 축별 스케일 보정은 지원하지 않습니다.</p>
         </div>
       </section>
-      <section class="section format-bridge-panel" id="format-bridge-panel">
-        <div class="section-title"><h2>🧩 FORMAT BRIDGE / CAD·BIM 변환 안내</h2><span class="tag">v3.4</span></div>
+      <details class="section format-bridge-panel" id="format-bridge-panel"><summary>🧩 FORMAT BRIDGE / CAD·BIM 변환 안내</summary><div class="format-bridge-body">
         <p class="hint">SketchUp · Blender · AutoCAD · Revit · IFC · Rhino · STEP 등 파일의 현황과 권장 변환 경로를 확인합니다. 이 기능은 <strong>파일을 변환하지 않고 안내만 제공</strong>합니다.</p>
         <label class="file-button secondary" for="format-advisor-file"><span>+ 원본 파일 선택해 변환 가이드 확인</span><small>SKP · BLEND · DWG · DXF · 3DM · RVT · IFC · STEP · IGES · USD · 3MF</small></label>
         <input id="format-advisor-file" class="sr-only" type="file" accept=".skp,.blend,.dwg,.dxf,.3dm,.rvt,.ifc,.step,.stp,.iges,.igs,.usd,.usdz,.3mf,.fbx,.glb,.gltf,.obj">
         <p class="hint">선택한 파일의 이름과 크기만 확인합니다. 파일 내용을 읽거나 외부 서버로 업로드하지 않습니다.</p>
         <pre class="format-bridge-result" id="format-advisor-result" aria-live="polite">형식을 확인할 파일을 선택하세요.</pre>
         <button type="button" id="format-advisor-copy" class="outline full" disabled>변환 체크리스트 복사</button>
-      </section>
+      </div></details>
       <div class="notice">현장 프리셋은 <strong>조작 확인용 예시 공간</strong>입니다. 실제 설계의 배치·입면·조경을 재현하려면 실측 현장 모델(예: GLB·FBX·OBJ) 또는 배치도 원본이 필요합니다.</div>
     </aside>
     <section class="viewer-shell" aria-label="3D 편집 뷰포트">
@@ -224,8 +224,8 @@
         </div>
         <div class="toolgroup">
           <label class="toggle"><input id="snap" type="checkbox"> 스냅 0.5m</label>
-          <label class="toggle"><input id="grid" type="checkbox" checked> 그리드</label>
-          <label class="toggle"><input id="sun-helper" type="checkbox" checked> 태양 위치</label>
+          <label class="toggle"><input id="grid" type="checkbox"> 그리드</label>
+          <label class="toggle"><input id="sun-helper" type="checkbox"> 태양 위치</label>
         </div>
       </div>
       <div id="viewport" tabindex="0" aria-label="마우스 왼쪽 드래그로 화면 회전, 오른쪽으로 이동, 휠로 확대 및 축소">
@@ -461,7 +461,7 @@
         <p class="hint">비교 이미지는 브라우저 WebGL PBR 기반이며, 인증된 CAD 간섭검사·Blender 경로 추적·AI 실사화가 아닙니다. MASTER 8컷은 기존 승인 절차대로 출력합니다.</p>
       </section>
       <section class="section" id="workspace-assets-panel">
-        <h2>🧱 공간·현장 에셋 라이브러리 <span class="tag">v3.5</span></h2>
+        <h2>🌳 공간·현장 에셋 라이브러리 <span class="tag">v3.9.5</span></h2>
         <p class="hint">현재 프로젝트 유형에 알맞은 환경·공간 에셋을 추천합니다. 모든 배치 객체는 별도 선택·이동·회전·복제·삭제할 수 있으며 현장 원본 메시를 변경하지 않습니다.</p>
         <label for="context-search">에셋 검색</label>
         <input id="context-search" type="search" placeholder="예: 전시 가벽, 진열대, 미디어 스크린, 사이니지, 수목" autocomplete="off">
@@ -469,15 +469,15 @@
         <select id="context-category">
           <option value="recommended" selected>✨ 현재 프로젝트 추천</option>
           <option value="all">전체 에셋</option>
-          <option value="planting">수목·잔디</option>
-          <option value="people">인물</option>
-          <option value="street">거리 가구·차량</option>
-          <option value="lighting">조명</option>
-          <option value="surface">바닥·포장</option>
-          <option value="signage">명판·사이니지</option>
-          <option value="architecture">가벽·공간 구조물</option>
-          <option value="display">진열·디스플레이</option>
-          <option value="media">미디어·체험</option>
+          <option value="planting">🌳 수목·잔디</option>
+          <option value="people">🚶 인물</option>
+          <option value="street">🪑 거리 가구·차량</option>
+          <option value="lighting">💡 조명</option>
+          <option value="surface">🧱 바닥·포장</option>
+          <option value="signage">📍 명판·사이니지</option>
+          <option value="architecture">🏛️ 가벽·공간 구조물</option>
+          <option value="display">🛍️ 진열·디스플레이</option>
+          <option value="media">📺 미디어·체험</option>
         </select>
         <div class="workspace-asset-filter">
           <button id="context-favorites-only" type="button" class="outline" aria-pressed="false">☆ 즐겨찾기만 보기</button>
@@ -487,6 +487,10 @@
         <p class="hint">에셋 카드의 ☆를 누르면 이 브라우저에만 즐겨찾기로 저장됩니다. 미리보기는 분류별 개념 아이콘이며 3D 원본 썸네일은 아닙니다.</p>
         <p id="asset-placement-status" class="hint" aria-live="polite">에셋 버튼 선택 → 현장 반복 클릭으로 연속 배치 · 같은 버튼 다시 누르면 OFF · Esc로 종료</p>
         <div class="asset-palette">
+          <button type="button" data-add-extra="tree-natural">🌳 자연 수형 · 비대칭 가지</button>
+          <button type="button" data-add-extra="tree-grove">🌲 자연 수형 · 다간 가지</button>
+          <button type="button" data-add-extra="spot-light">🔦 하향 스포트라이트</button>
+          <button type="button" data-add-extra="person-standing">🧍 관람객 실루엣</button>
           <button type="button" data-add-extra="tree-round">🌳 활엽수 A · 둥근형</button>
           <button type="button" data-add-extra="tree-cone">🌲 침엽수 A · 원추형</button>
           <button type="button" data-add-extra="tree-birch">🌳 자작나무 A · 단일 줄기</button>
@@ -600,7 +604,7 @@
         </div>
       </section>
       <section class="section">
-        <div class="section-title"><h2>💡 라이팅 / 조명</h2><span class="tag">v2.8</span></div>
+        <div class="section-title"><h2>☀️ 태양 / 라이팅 / 그림자 · 환경광 / HDRI</h2><span class="tag">v3.9.5</span></div>
         <div class="spatial-visual-tools">
           <div class="section-title"><h3>✨ v3.6 · 프로젝트 시각화 프리셋</h3><span class="tag">SPATIAL LOOKS</span></div>
           <p class="hint">현재 프로젝트 유형에 맞는 조명·톤·그림자·환경 반사를 일괄 적용합니다. 작품·현장 원본의 형상과 재질은 변경하지 않습니다.</p>
@@ -639,7 +643,7 @@
         <p class="hint">작품 실제 경계에 맞춰 그림자 프러스텀을 자동 조정하고, 은은한 반사광으로 음영을 살립니다. 원본 건축·조형물 메시·재질·크기는 수정하지 않습니다. MASTER LOCK을 해제해야 프리셋을 변경할 수 있습니다.</p>
       </section>
       <section class="section" id="render-look">
-        <h2>🌌 환경광 / HDRI</h2>
+        <h2>🌌 환경광 · HDRI · 반사</h2>
         <label for="env-mode">환경 반사 모드</label>
         <select id="env-mode">
           <option value="neutral" selected>스튜디오 · 균형 잡힌 반사</option>
@@ -767,8 +771,8 @@
         <p class="hint">렌더 시 그리드·조작 기즈모·태양 위치·구도 가이드는 제외됩니다. GPU 한계를 넘는 설정은 자동 축소합니다. Blender Cycles나 이미지 생성 AI 실사화는 아닙니다.</p>
       </section>
       <section class="section" id="master-render-panel">
-        <div class="section-title"><h2>🎞️ MASTER 8-VIEW RENDER</h2><span class="tag">v2.9</span></div>
-        <p class="hint">승인한 MASTER VIEW를 기준으로 8개 시점을 자동 생성합니다. 렌더 중 현장·작품·재질·레이어는 수정하지 않으며 원래 카메라로 복귀합니다.</p>
+        <div class="section-title"><h2>📷 MASTER 시점 이동 / 8-VIEW 출력</h2><span class="tag">v3.9.5</span></div>
+        <p class="hint">카메라 시점을 저장·불러오려면 위 카메라 패널을 이용하세요. 8컷 일괄 출력은 MASTER 승인 후 활성화됩니다. 승인한 MASTER VIEW를 기준으로 8개 시점을 자동 생성합니다. 렌더 중 현장·작품·재질·레이어는 수정하지 않으며 원래 카메라로 복귀합니다.</p>
         <div class="batch-view-grid" aria-label="8개 표준 렌더 시점">
           <span>01 Main Perspective</span><span>02 Eye Level</span>
           <span>03 Left 3/4</span><span>04 Right 3/4</span>
@@ -803,7 +807,7 @@
         <p id="batch-status" class="hint" aria-live="polite">먼저 MASTER VIEW를 승인하면 일괄 출력할 수 있습니다.</p>
         <p class="hint">ZIP에는 8개 PNG, 촬영 메타데이터, 기준 시안 검수 정보와 선택한 경우 컨택트 시트가 포함됩니다. 3D 원본까지 보관하려면 아래 전체 프로젝트 ZIP을 사용하세요.</p>
       </section>
-      <section class="section" id="render-review">
+      <section class="section studio-deprecated-panel" id="render-review" hidden>
         <div class="section-title"><h2>🔬 REALISM REVIEW / 실사화 검수</h2><span class="tag">v0.9</span></div>
         <p class="hint">승인된 MASTER 8컷 ZIP을 기준으로 외부에서 만든 실사화 후보 PNG/JPG를 비교합니다. 이 스튜디오에서 AI 이미지를 직접 생성하는 기능은 아닙니다.</p>
         <label class="file-button secondary" for="review-batch-file">+ MASTER 8컷 렌더 ZIP 불러오기</label>
@@ -848,7 +852,7 @@
         <p id="review-status" class="hint" aria-live="polite">현재 MASTER 승인 이후 기준 8컷 렌더 ZIP을 불러오세요.</p>
         <p class="hint">체크리스트 승인은 사용자 확인 기록이지 AI의 형상 정확도 보증이 아닙니다. 8컷 중 미승인 이미지가 있으면 ZIP은 DRAFT로 표시됩니다.</p>
       </section>
-      <section class="section" id="release-readiness">
+      <section class="section studio-deprecated-panel" id="release-readiness" hidden>
         <div class="section-title"><h2>✅ PROJECT QA / 실무 준비 검수</h2><span class="tag" id="readiness-badge">추가 검토 필요</span></div>
         <p class="hint">실제 현장·작품 파일, 승인 MASTER, 도면·원본 검수를 점검합니다. 사내 제안서 검토를 위한 준비 확인이며 법적·구조적 승인과 구분됩니다.</p>
         <div class="readiness-checks">
@@ -964,13 +968,16 @@
   if(new URLSearchParams(location.search).get("panels")==="open"){
     document.documentElement.classList.add("studio-advanced-mode");
   }
+  const lightingSection=document.getElementById("shadows")?.closest("section.section");
+  const environmentSection=document.getElementById("render-look");
+  if(lightingSection&&environmentSection){environmentSection.classList.add("environment-subpanel");lightingSection.appendChild(environmentSection);}
   // Compact, independently collapsible inspector panels without replacing their controls.
   for(const section of document.querySelectorAll(".sidepanel.right > section.section")){
     const heading=section.querySelector("h2");
     if(!heading)continue;
     const fold=document.createElement("details");
     fold.className="inspector-fold";
-    if(new URLSearchParams(location.search).get("panels")==="open" || section.id==="site-visibility-studio" || section.classList.contains("layer-manager"))fold.open=true;
+    // v3.9.5 inspector groups are closed on first load.
     const label=document.createElement("summary");label.textContent=heading.textContent.trim();
     section.before(fold);fold.append(label,section);
   }
