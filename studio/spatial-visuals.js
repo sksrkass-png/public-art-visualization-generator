@@ -57,7 +57,7 @@ export function spatialShotPose(shot,box,{aspect=16/9,cameraFov=45}={}){
     box.size.some(v=>v<0)||aspect<=0||aspect>10||cameraFov<10||cameraFov>120)
    throw Error("카메라에 사용할 공간 경계가 유효하지 않습니다.");
  const p=SPATIAL_SHOTS[shot],radius=Math.max(.5,Math.hypot(...box.size)/2);
- const vFov=2*Math.atan(Math.tan(cameraFov*Math.PI/360)*35/p.focal); // approximate after lens change
+ const vFov=cameraFov*Math.PI/180; // live camera FOV, measured after setFocalLength()
  const half=Math.min(vFov,2*Math.atan(Math.tan(vFov/2)*aspect))/2;
  const distance=Math.max(2.5,radius/Math.sin(Math.max(.13,half)) * p.distance);
  const az=p.azimuth*Math.PI/180,el=p.elevation*Math.PI/180;
