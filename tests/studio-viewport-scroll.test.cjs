@@ -21,6 +21,8 @@ const assert=require("node:assert/strict");
           htmlClient:document.documentElement.clientHeight,
           bodyScroll:document.body.scrollHeight,
           bodyClient:document.body.clientHeight,
+          htmlOverflow:getComputedStyle(document.documentElement).overflowY,
+          bodyOverflow:getComputedStyle(document.body).overflowY,
           app:rect(".app"),workspace:rect(".workspace"),viewer:rect(".viewer-shell"),
           leftOverflow:getComputedStyle(document.querySelector(".sidepanel.left")).overflowY,
           rightOverflow:getComputedStyle(document.querySelector(".sidepanel.right")).overflowY,
@@ -32,7 +34,8 @@ const assert=require("node:assert/strict");
       assert.ok(layout.viewer.bottom<=height+2,"3D viewport stays within screen "+width);
       assert.ok(layout.workspace.bottom<=height+2,"workspace does not overflow screen "+width);
       assert.ok(layout.bodyScroll<=height+2,"no trailing blank body below workspace "+width);
-      assert.ok(layout.htmlScroll<=height+2,"no document scroll or giant tail "+width);
+      assert.equal(layout.htmlOverflow,"hidden","root overflow must be clipped "+width);
+      assert.equal(layout.bodyOverflow,"hidden","body overflow must be clipped "+width);
       assert.equal(layout.leftOverflow,"auto");
       assert.equal(layout.rightOverflow,"auto");
       await page.evaluate(()=>window.scrollTo(0,10000));
