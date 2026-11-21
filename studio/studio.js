@@ -4336,10 +4336,13 @@ $("context-favorites-only").addEventListener("click",()=>{
   if(favoritesOnly)$("context-category").value="all";
   refreshFavoriteBadges();refreshContextPalette();
 });
-document.querySelectorAll("[data-favorite-kind]").forEach(button=>button.addEventListener("click",()=>{
+// Cards are decorated during final startup; delegated events work for every card.
+$("workspace-assets-panel").addEventListener("click",event=>{
+  const button=event.target.closest("[data-favorite-kind]");
+  if(!button)return;
   favoriteKinds=new Set(toggleAssetFavorite([...favoriteKinds],button.dataset.favoriteKind,catalogKinds));
   saveWorkspacePreference();refreshFavoriteBadges();refreshContextPalette();
-}));
+});
 $("context-search").addEventListener("input",refreshContextPalette);
 $("context-category").addEventListener("change",refreshContextPalette);
 $("extra-list-search").addEventListener("input",updateExtrasStatus);
