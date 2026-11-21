@@ -72,3 +72,6 @@ jobs:
           node tests/studio-camera-bookmarks.test.cjs
           node tests/studio-production-qa.test.cjs
           node tests/studio-visual-workflow.test.cjs
+          node --test tests/studio-v3.7-stability.test.cjs
+          node --test tests/studio-v3.8-materials.test.cjs
+          node --test tests/studio-v3.9-workspace.test.cjs
