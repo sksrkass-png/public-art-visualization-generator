@@ -151,7 +151,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.locator('[data-view="rear"]').click();
     await page.locator("#restore-master-camera").click();
     const archiveDownloadEvent = page.waitForEvent("download", { timeout: 60000 });
-    await page.locator("#export-project").click();
+    await page.locator("#project-quick-save").click();
     const archiveDownload = await archiveDownloadEvent;
     assert.match(archiveDownload.suggestedFilename(), /\.zip$/);
     const archivePath = await archiveDownload.path();
@@ -249,7 +249,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await fileInput.setInputFiles(objFile);
     await page.waitForFunction(() => document.querySelector("#site-filename")?.textContent === "test-site.obj");
     const zipDownload = page.waitForEvent("download", { timeout: 45000 });
-    await page.locator("#export-project").click();
+    await page.locator("#project-quick-save").click();
     const portable = fs.readFileSync(await (await zipDownload).path());
     await page.locator("#site-preset").selectOption("empty");
     await page.locator("#import-project").setInputFiles({
@@ -354,7 +354,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     // Light and foliage transforms persist through full project ZIP recovery.
     await page.locator("#select-artwork").click();
     const extraZipEvent = page.waitForEvent("download", {timeout:60000});
-    await page.locator("#export-project").click();
+    await page.locator("#project-quick-save").click();
     const extraZip = fs.readFileSync(await (await extraZipEvent).path());
     await page.locator("#site-preset").selectOption("empty");
     assert.equal(await page.locator("#fallback-ground").isVisible(),true);
@@ -454,7 +454,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(await page.locator("#plan-opacity-value").textContent(),"45%");
     assert.equal(await page.locator("#fallback-ground").isHidden(),true);
     const planEvent=page.waitForEvent("download",{timeout:60000});
-    await page.locator("#export-project").click();
+    await page.locator("#project-quick-save").click();
     const savedPlanZip=fs.readFileSync(await (await planEvent).path());
 
     // Wipe scene then reopen model+plan alignment; location, geometry and
@@ -534,7 +534,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await firstExtraLocked.check();
     assert.equal(await firstExtraLocked.isChecked(),true);
     const layerZipEvent=page.waitForEvent("download",{timeout:60000});
-    await page.locator("#export-project").click();
+    await page.locator("#project-quick-save").click();
     const layerZip=fs.readFileSync(await (await layerZipEvent).path());
     await page.locator("#site-preset").selectOption("empty");
     await page.locator("#import-project").setInputFiles({
@@ -619,7 +619,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     // Complete portable ZIP must contain both user HDR asset and optional
     // material override settings. Imported file content remains untouched.
     const hdrZipEvent=page.waitForEvent("download",{timeout:60000});
-    await page.locator("#export-project").click();
+    await page.locator("#project-quick-save").click();
     const hdrArchive=fs.readFileSync(await (await hdrZipEvent).path());
     assert.ok(hdrArchive.toString("latin1").includes("assets/environment"),
       "original Radiance HDR binary must be embedded in archive");
@@ -774,7 +774,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     // v1.0: exported full-project ZIP includes SHA-256 for every preserved
     // source file, and a mutated JSON member fails before any scene change.
     const integrityExport=page.waitForEvent("download",{timeout:45000});
-    await page.locator("#export-project").click();
+    await page.locator("#project-quick-save").click();
     const verifiedPath=await (await integrityExport).path();
     const intact=JSON.parse(execFileSync("python3",["-c",
       ["import zipfile,json,hashlib,sys","with zipfile.ZipFile(sys.argv[1]) as z:",
@@ -860,7 +860,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     // New site packages must persist their original external .bin/glTF ZIP
     // through a full project ZIP save, then restore source and origin toggle.
     const bundledProject=page.waitForEvent("download",{timeout:60000});
-    await page.locator("#export-project").click();
+    await page.locator("#project-quick-save").click();
     const bundledProjectBytes=fs.readFileSync(await (await bundledProject).path());
     await page.locator("#site-preset").selectOption("empty");
     assert.equal(await page.locator("#site-center-origin").isChecked(),false);
@@ -919,7 +919,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(await page.locator("#extra-list button").count(),baselineCount+5);
 
     const assetProjectEvent=page.waitForEvent("download",{timeout:60000});
-    await page.locator("#export-project").click();
+    await page.locator("#project-quick-save").click();
     const assetProjectPath=await (await assetProjectEvent).path();
     const assetAudit=JSON.parse(execFileSync("python3",["-c",[
       "import json,sys,zipfile,hashlib",
@@ -1023,7 +1023,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.locator("#master-lock").click();
     assert.equal(await page.locator("#precision-duplicate").isDisabled(),true);
     const multiZIPEvent=page.waitForEvent("download",{timeout:60000});
-    await page.locator("#export-project").click();
+    await page.locator("#project-quick-save").click();
     const multiZip=fs.readFileSync(await (await multiZIPEvent).path());
     page.once("dialog",dialog=>dialog.accept());
     await page.locator("#master-lock").click();
@@ -1065,7 +1065,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await page.locator('[data-layer-lock="artwork"]').uncheck();
     assert.equal(await page.locator('[data-transform="position"][data-axis="x"]').isDisabled(),false);
     const secondZipEvent=page.waitForEvent("download",{timeout:60000});
-    await page.locator("#export-project").click();
+    await page.locator("#project-quick-save").click();
     const secondPath=await (await secondZipEvent).path();
     const secondAudit=JSON.parse(execFileSync("python3",["-c",[
       "import json,zipfile,sys,hashlib",
@@ -1293,7 +1293,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     delete pinBefore.spatialReview;
     assert.deepEqual(pinAfter,pinBefore,"pin notes must not mutate scene, MASTER, or camera");
     const reviewArchiveEvent=page.waitForEvent("download",{timeout:90000});
-    await page.locator("#export-project").click();
+    await page.locator("#project-quick-save").click();
     const reviewArchivePath=await (await reviewArchiveEvent).path();
     const savedReview=JSON.parse(execFileSync("python3",["-c",[
       "import json,sys,zipfile",
@@ -1424,7 +1424,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(approvedConfig.masterSnapshots[0].extras[0].finish,"metal");
     assert.deepEqual(approvedConfig.masterSnapshots[0].placementReference,approvedConfig.placementReference);
     const zipDL=precisionPage.waitForEvent("download",{timeout:90000});
-    await precisionPage.locator("#export-project").click();
+    await precisionPage.locator("#project-quick-save").click();
     const zipFile=await (await zipDL).path();
     const restorePage=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
     restorePage.on("pageerror",err=>errors.push(err.stack||err.message));
