@@ -376,3 +376,29 @@ Up to **12 distinct user-supplied GLB source models**, each **20 MiB max**, comb
 3. Confirm existing v3.4 portable ZIPs open as Public Art, and new non-default mode ZIPs restore with the exact mode, extra kinds and layer visibility.
 4. Confirm MASTER LOCK prevents layout addition, primary mode changes and sample visibility changes.
 5. Use a real retail/exhibition source GLB to check material fidelity, route width and physical dimensions; schematic templates do not certify structural safety, life safety or building-code compliance.
+
+
+## AXOO Studio v3.6 — Spatial Visualization (2026-11)
+
+### Project-type lighting presets
+- Three lighting looks per Public Art, Pop-up & Retail, Exhibition Design and Spatial Branding: 12 total. Each look sets the existing sun, ambient, exposure, tone mapping, shadow, sky, and environment controls.
+- Source artwork, imported site, real-world geometry and their materials are untouched. MASTER LOCK prevents lighting recipe changes. Applying non-HDRI modes preserves existing uploaded HDRI source bytes but changes selected reflection mode.
+- These are artistic starting points for WebGL rendering rather than a photometric simulation.
+
+### Six spatial camera framing presets
+- Hero, Whole Installation, Visitor Eye Level, Diagonal, Overhead, and Selected Detail. Uses world bounds of actual visible staging objects (artist artwork / separately placed space fixtures). Changes only camera position, look target and focal length; user can refine manually.
+- Whole Installation intentionally prioritizes the composition over a massive full-site city mesh; use the separate full-site camera option for complete-site framing. Visitor eye height is approximate, not measured against finished terrain.
+- Camera changes are available with MASTER LOCK, consistent with existing orbit controls. Model forms, transforms and approval snapshot are not rewritten.
+
+### Selected spatial-fixture finish presets
+- Original, Gallery White, Graphite, Brushed Metal, Warm Timber, Brand Accent hex color.
+- Strictly limited to the seven v3.5 schematic space fixtures. Never applies to imported external GLB, artist model, site meshes, or other planting.
+- Undo/Redo, manual duplicate and scene extras serialization/reimport maintain finish metadata. Original material references are cached privately with a WeakMap, not placed on Three.js userData. Users may restore the original procedural finish at any time.
+
+### A/B/C and archive interoperability
+- The already-existing A/B/C visual variant engine saves actual camera and lighting values. v3.6 also stores the look and camera shot names as optional metadata for each variant.
+- The already-existing isolated A/B/C WebGL PNG plus contact-sheet ZIP export now records project mode and per-variant look/shot identifiers in its JSON metadata. It remains a WebGL render, not generative AI.
+- Scene JSON and full project ZIP use the existing portable schema. Optional spatialVisualization data defaults safely when reading old v3.5 or earlier projects; extra fixture finish metadata is similarly optional. MASTER LOCK, source model limits and 320 MiB portable project ZIP cap are unchanged.
+
+### QA / known limitations
+Static checks and mocked pure tests cover lighting recipe bounds, all spatial camera poses, fixture finish reversibility, scene extra serialization and restoration, backwards compatibility and code wiring. Real-world Chrome/Edge browser rendering, texture fidelity, shadows, actual 3D model and ZIP round-trip QA still require a smoke test with studio files. No real-time cloud collaboration, material texture baking, physically traced rendering, live video playback or AI image generation has been added.
