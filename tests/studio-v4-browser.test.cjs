@@ -10,11 +10,27 @@ const assert=require("node:assert/strict");
     await page.goto("http://127.0.0.1:8787/studio/?panels=open",{waitUntil:"domcontentloaded"});
     await page.locator("#viewport canvas").waitFor({timeout:30000});
     await page.waitForFunction(()=>document.querySelector("#art-filename")?.textContent.includes("Sample Artwork"));
-    assert.equal(await page.locator("[data-inspector-category]").count(),5);
+    assert.equal(await page.locator("[data-inspector-category]").count(),6);
+    assert.equal(await page.locator('[data-inspector-category="all"]').getAttribute("aria-pressed"),"true",
+      "All must be the default inspector filter");
+    assert.equal(await page.locator("#export-project").isVisible(),false,
+      "duplicate right-side ZIP save button must remain hidden");
+    assert.equal(await page.locator("#project-quick-save").isVisible(),true,
+      "left project ZIP save stays visible");
+    const leftZipDl=page.waitForEvent("download",{timeout:60000});
+    await page.locator("#project-quick-save").click();
+    const leftZip=await leftZipDl;
+    assert.ok(leftZip.suggestedFilename().endsWith("-project.zip"),
+      "left project save must still export complete ZIP");
+    assert.equal(await page.locator('[data-inspector-category="all"]').getAttribute("aria-pressed"),"true");
     await page.locator('[data-inspector-category="camera"]').click();
     assert.ok(await page.locator('details.inspector-fold[hidden]').count()>4);
     assert.equal(await page.locator('#workspace-camera-panel').isVisible(),true);
-    await page.locator('[data-inspector-category="camera"]').click();
+    assert.equal(await page.locator('[data-inspector-category="all"]').getAttribute("aria-pressed"),"false");
+    await page.locator('[data-inspector-category="all"]').click();
+    assert.equal(await page.locator('[data-inspector-category="all"]').getAttribute("aria-pressed"),"true");
+    assert.equal(await page.locator('details.inspector-fold[hidden]').count(),0,
+      "All category restores all inspector fold options");
     await page.locator("#workspace-camera-panel").locator("xpath=..").evaluate(el=>el.open=true);
     await page.locator('[data-camera-save="1"]').click();
     await page.locator('[data-view="rear"]').click();
