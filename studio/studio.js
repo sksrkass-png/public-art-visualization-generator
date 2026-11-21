@@ -369,21 +369,28 @@ function renderSiteLayerRows(entries) {
 // v3.9: UI preferences are kept only on this browser; never written into
 // source artwork, MASTER snapshots or full project JSON/ZIP.
 function selectInspectorCategory(category){
-  selectedInspectorCategory=selectedInspectorCategory===category?null:category;
+  // All is the explicit first-run default. Selecting the active group again
+  // returns to All; neither route touches artwork, source geometry or MASTER.
+  selectedInspectorCategory=category==="all"||selectedInspectorCategory===category?null:category;
   for(const fold of document.querySelectorAll(".sidepanel.right > details.inspector-fold")){
     const show=!selectedInspectorCategory||fold.dataset.inspectorGroup===selectedInspectorCategory;
     fold.hidden=!show;
     if(!show)fold.open=false;
   }
-  document.querySelectorAll("[data-inspector-category]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.inspectorCategory===selectedInspectorCategory)));
+  document.querySelectorAll("[data-inspector-category]").forEach(button=>{
+    const active=selectedInspectorCategory===null
+      ?button.dataset.inspectorCategory==="all"
+      :button.dataset.inspectorCategory===selectedInspectorCategory;
+    button.setAttribute("aria-pressed",String(active));
+  });
   $("inspector-category-status").textContent=selectedInspectorCategory
-    ?"선택한 작업 그룹의 도구만 표시합니다. 같은 그룹을 다시 누르면 전체 패널이 보입니다."
-    :"분류를 누르면 관련 패널만 표시됩니다. 다시 누르면 전체를 볼 수 있습니다.";
+    ?"선택한 작업 그룹의 도구만 표시합니다. 전체보기로 모든 패널을 다시 확인할 수 있습니다."
+    :"전체보기 · 모든 조작 패널을 표시합니다. 필요한 카테고리를 선택해 좁혀보세요.";
 }
 function applyWorkspaceMode(mode,{save=true,expand=true}={}){
   if(!validWorkspaceMode(mode))return;
   workspaceMode=mode;
-  if(selectedInspectorCategory)selectInspectorCategory(selectedInspectorCategory);
+  // Switching QUICK / ADVANCED must preserve the selected inspector group.
   document.documentElement.classList.toggle("studio-advanced-mode",mode==="advanced");
   document.documentElement.dataset.studioWorkspace=mode;
   for(const button of [["workspace-quick","quick"],["workspace-advanced","advanced"]]){
