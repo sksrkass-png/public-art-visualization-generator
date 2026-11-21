@@ -369,9 +369,21 @@ function applyProjectMode(mode,{restoring=false,announce=true}={}){
   }));
   $("mode-starter-add").textContent="+"+cfg.icon+" "+cfg.templateLabel+" (예시)";
   $("project-mode-tag").textContent=cfg.label;
+  syncModeSampleUI();
   document.title="AXOO — "+cfg.label+" 3D Studio";
   refreshContextPalette();
   if(announce)notify(cfg.title+" 모드로 전환 · 기존 모델과 작품, 배치, MASTER 이력은 변경하지 않았습니다.");
+}
+function syncModeSampleUI(){
+  const button=$("mode-sample-toggle");
+  if(!button)return;
+  const isOnlySample=artFileName==="Sample Artwork" &&
+    !extrasRoot.children.some(root=>root.userData.extraKind==="artwork-copy" ||
+      (root.userData.extraKind==="custom-glb" && root.userData.assetCategory==="artwork"));
+  button.hidden=currentProjectMode==="public-art"||!isOnlySample;
+  button.disabled=approvedMaster;
+  button.textContent=layerState.groups.artwork.visible?
+    "👁️ 기본 샘플 조형물 숨기기":"👁️ 기본 샘플 조형물 다시 표시";
 }
 function applyModeStarter(){
   if(approvedMaster)return notify("MASTER LOCK을 해제한 후 예시 공간 에셋을 추가하세요.");
@@ -1013,6 +1025,7 @@ function setLayerGroupVisible(key, value) {
   if(approvedMaster || !LAYER_KEYS.includes(key))return;
   const before=editSnapshot();
   layerState.groups[key].visible=value;
+  syncModeSampleUI();
   refreshLayers({redrawSite:false});
   updateExtrasStatus();
   commit(before);
@@ -1492,6 +1505,7 @@ function setArtwork(object, name, options = {}) {
   renderMasterHistory();
   $("art-filename").textContent = "현재: " + name;
   $("art-status").textContent = name === "Sample Artwork" ? "샘플" : "가져온 작품";
+  syncModeSampleUI();
   if(name==="Sample Artwork"){
     if($("art-import-diagnostics"))$("art-import-diagnostics").textContent="샘플 조형물 · 실제 작품 파일 필요";
     importProgress(false,"샘플 조형물 선택됨",0);
@@ -1973,6 +1987,7 @@ function syncLock() {
   refreshLayers({redrawSite:true});
   updateUndoButtons();
   updateMultiArtStatus();
+  syncModeSampleUI();
   if(proposalBridge)proposalBridge.refresh();
   if(collaborationBridge)collaborationBridge.refresh();
   if(revisionBridge)revisionBridge.refresh();
@@ -2815,6 +2830,7 @@ function importSceneConfig(data) {
     normalizeSiteAnnotations(layerState,siteRoot);
   }
   refreshLayers({redrawSite:true});
+  syncModeSampleUI();
   // Avoid Math.max(...ids): a large planting plan can exceed JS argument limits.
   nextExtraId = extrasRoot.children.reduce((max,root)=>
     Math.max(max,root.userData.extraId+1),1);
@@ -3841,6 +3857,10 @@ $("light-preset").addEventListener("change", e => {
 document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener("click", () => setPlacement(el.dataset.addExtra)));
 $("project-mode").addEventListener("change",event=>applyProjectMode(event.target.value));
 $("mode-starter-add").addEventListener("click",applyModeStarter);
+$("mode-sample-toggle").addEventListener("click",()=>{
+  if(approvedMaster||$("mode-sample-toggle").hidden)return;
+  setLayerGroupVisible("artwork",!layerState.groups.artwork.visible);
+});
 $("context-search").addEventListener("input",refreshContextPalette);
 $("context-category").addEventListener("change",refreshContextPalette);
 $("extra-list-search").addEventListener("input",updateExtrasStatus);
