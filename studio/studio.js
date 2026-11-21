@@ -4784,7 +4784,8 @@ refreshMasterPreviewUI();
 decorateAssetCards();
 applyWorkspaceMode(
   new URLSearchParams(window.location.search).get("panels")==="open"
-    ?"advanced":workspaceMode,{save:false,expand:false});
+    ?"advanced":workspaceMode,{save:false,
+      expand:new URLSearchParams(window.location.search).get("panels")==="open"});
 applyProjectMode(PROJECT_MODE_DEFAULT,{restoring:true,announce:false});
 syncContextHeightUI();
 checkVisualQuality();
