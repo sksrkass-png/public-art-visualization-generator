@@ -47,6 +47,8 @@ import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js
 import {isCanvasClick,navigationSpeeds,CLICK_TOLERANCE_PX} from "./navigation-ux.js";
 import {CAMERA_SLOTS,validCameraBookmarks,bookmarkCamera,savedCameraCount} from "./camera-bookmarks.js";
 import {sceneFootprint,productionReport,verifyPngCapture,assertRendererAvailable} from "./production-qa.js";
+import {archiveBudget,sceneHealth,readableBytes,PROJECT_ZIP_LIMIT,PROJECT_METADATA_LIMIT}
+  from "./stability-qa.js";
 import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity,SKY_COLORS,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR} from "./render-looks.js";
 import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel} from "./context-catalog.js";
 import {PROJECT_MODE_DEFAULT,validProjectMode,projectModeConfig,
@@ -202,6 +204,8 @@ let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
 let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
 let artworkMaterialState={preset:"original",color:"#d0d6db"};
 let currentProjectMode=PROJECT_MODE_DEFAULT;
+let archiveExportInProgress=false;
+let gpuContextLost=false;
 let spatialVisualization={look:null,shot:null};
 const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048, inch: .0254 });
 const MAX_UNDO = 40;
@@ -2722,6 +2726,7 @@ async function importModel(file, isSite, resources = [], paths = [], sourcePath 
     await new Promise(resolve=>requestAnimationFrame(resolve));
     importProgress(isSite, "② 3D 구조·재질 해석 중 (고용량 모델은 오래 걸릴 수 있습니다)", 45);
     const model = await decodeModel(file, isSite, resources, paths, sourcePath);
+    if (approvedMaster || op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
     importProgress(isSite, "③ 메시·실측·렌더 메모리 점검 중", 75);
     if(!isSite && extrasRoot.children.some(o=>o.userData.extraKind==="artwork-copy"))
       throw Error("작품 복제본이 남아 있습니다. 복제본을 삭제한 뒤 원본 작품을 교체하세요.");
@@ -2747,7 +2752,7 @@ async function importModel(file, isSite, resources = [], paths = [], sourcePath 
       $("site-status").textContent = model.userData.cadReferenceOnly ? "DXF 2D 참조" : "실제 모델";
       $("site-preset").value = "empty";
       const hints=importHints(/\.zip$/i.test(file.name) ? sourcePath.split(".").pop().toLowerCase() : file.name.split(".").pop().toLowerCase());
-      $("site-unit").value=["m","mm","cm","ft"].includes(model.userData?.cadUnit) ? model.userData.cadUnit : hints.unit;
+      $("site-unit").value=["m","mm","cm","ft","inch"].includes(model.userData?.cadUnit) ? model.userData.cadUnit : hints.unit;
       $("site-up").value=hints.up;
       applySiteUnits(); syncGroundAvailability();
       setShadows(siteRoot);
@@ -3018,17 +3023,25 @@ function importSceneConfig(data) {
 // The portable project ZIP stores the actual original bytes, not just filenames.
 // Built-in sample meshes and scene presets remain reproducible from the application.
 const PROJECT_ARCHIVE_SCHEMA = "axoo-public-art-portable-v1";
-const MAX_ZIP_BYTES = 320 * 1024 * 1024;
+const MAX_ZIP_BYTES = PROJECT_ZIP_LIMIT;
 const MAX_MODEL_BYTES = 120 * 1024 * 1024;
 const MAX_MAP_BYTES = 20 * 1024 * 1024;
 async function exportProjectArchive() {
+  if(archiveExportInProgress)return notify("프로젝트 ZIP을 생성 중입니다. 중복 저장을 차단했습니다.");
+  archiveExportInProgress=true;
+  $("export-project").disabled=true;
+  $("project-quick-save").disabled=true;
   try {
     const zip = new JSZip();
     const data = sceneConfig();
     data.archiveSchema = PROJECT_ARCHIVE_SCHEMA;
     // The source asset names are preserved in JSON. Fixed ZIP keys eliminate
     // path traversal and prevent the archive from assuming a user's directory.
-    zip.file("project.json", JSON.stringify(data, null, 2));
+    const metadata=JSON.stringify(data,null,2);
+    const metadataBytes=new Blob([metadata],{type:"application/json"}).size;
+    if(metadataBytes>PROJECT_METADATA_LIMIT)
+      throw Error("설정 JSON 8MB 초과 · 개별 오브제/검수 기록을 줄이거나 시안을 나누어 저장하세요.");
+    zip.file("project.json", metadata);
     if (siteSourceFile) zip.file("assets/site", siteSourceFile);
     for(let i=0;i<siteSourceResources.length;i++)
       zip.file("assets/site-resources/"+i,siteSourceResources[i]);
@@ -3051,6 +3064,9 @@ async function exportProjectArchive() {
     console.error(err);
     notify("프로젝트 저장 실패: " + (err.message || "메모리 용량 확인 필요"));
   } finally {
+    archiveExportInProgress=false;
+    $("export-project").disabled=false;
+    $("project-quick-save").disabled=false;
     $("save-status").textContent = "브라우저에서 로컬 처리";
   }
 }
@@ -3088,6 +3104,7 @@ async function recoverModelCompanions(zip,items,role){
 async function importProjectArchive(file) {
   if (!file) return;
   if (approvedMaster) return notify("MASTER LOCK을 해제한 뒤 프로젝트 ZIP을 불러오세요.");
+  if (archiveExportInProgress) return notify("기존 프로젝트 ZIP 저장 중에는 가져오기를 시작할 수 없습니다.");
   if (file.size > MAX_ZIP_BYTES) return notify("ZIP 파일은 320MB 이하여야 합니다.");
   const op = ++activeProjectOperation;
   $("save-status").textContent = "프로젝트 파일 검증 중…";
@@ -3099,9 +3116,9 @@ async function importProjectArchive(file) {
     $("save-status").textContent=integrityResult.verified
       ? "ZIP 모든 파일 SHA-256 검사 통과"
       : "구형 ZIP · 무결성 정보가 없어 호환 모드로 읽습니다.";
-    const metaEntry = checkedArchiveEntry(zip, "project.json", 1024 * 1024, true);
+    const metaEntry = checkedArchiveEntry(zip, "project.json", PROJECT_METADATA_LIMIT, true);
     const metadata = await metaEntry.async("string");
-    if (metadata.length > 1024 * 1024) throw new Error("프로젝트 설정 정보가 너무 큽니다.");
+    if (new Blob([metadata]).size > PROJECT_METADATA_LIMIT) throw new Error("프로젝트 설정 JSON은 8MB 이하여야 합니다.");
     const data = JSON.parse(metadata);
     validateProjectConfig(data);
     const loadedLibrary=new Map();
