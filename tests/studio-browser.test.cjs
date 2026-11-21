@@ -1632,6 +1632,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await visualPage.goto("http://127.0.0.1:8787/studio/?panels=open",
       {waitUntil:"domcontentloaded",timeout:60000});
     await visualPage.locator("#viewport canvas").waitFor({timeout:30000});
+    await visualPage.locator("#site-preset").selectOption("plaza");
     await visualPage.locator("#installation-clearance").fill("1.5");
     await visualPage.locator("#installation-check").click();
     assert.match(await visualPage.locator("#installation-check-status").textContent(),/예비 검사/);
