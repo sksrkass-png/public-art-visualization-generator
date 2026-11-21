@@ -33,11 +33,17 @@ async function storeOperation(mode,perform){
 }
 export async function listLocalProjects(){
   const entries=await storeOperation("readonly",(store,set)=>{
-    const req=store.getAll();
-    req.onsuccess=()=>set(req.result);
+    const metadata=[];
+    const req=store.openCursor();
+    req.onsuccess=()=>{
+      const cursor=req.result;
+      if(!cursor){set(metadata);return;}
+      const {id,name,updatedAt,size}=cursor.value;
+      metadata.push({id,name,updatedAt,size});
+      cursor.continue();
+    };
   });
-  return (entries||[]).map(({id,name,updatedAt,size})=>({id,name,updatedAt,size}))
-    .sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
+  return (entries||[]).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
 }
 export function validVaultName(name){
   return typeof name==="string"&&name.trim().length>0&&name.trim().length<=100;
