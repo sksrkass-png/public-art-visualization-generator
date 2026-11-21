@@ -249,3 +249,31 @@ Static checks and mocked pure tests cover lighting recipe bounds, all spatial ca
 - Added the standalone Node test suite at `tests/studio-v3.7-stability.test.cjs` for density/ZIP budget, GPU-state diagnosis, >120-item A/B/C validation, basic source/MASTER wiring and packed-XYZ site scanning. Run from repo root: `node --test tests/studio-v3.7-stability.test.cjs`.
 - Source logic and pure helper checks are done; **do not claim** real Windows/macOS Chrome/Edge model loading, big-memory rendering, project ZIP round-trip and MASTER 8-view visual inspection are completed until tested with actual Rhino, OBJ, glTF and 3D sculpture/site assets.
 - The browser still relies on Three.js/CDN libraries for initial loading. There is **no paid server, cloud storage, real-time editing, automatic online backup or background saving**, and the existing **320 MiB ZIP** and **120 MiB per primary model** limits remain.
+
+
+## AXOO STUDIO v3.8 — Material & Reflection Studio (2026-11)
+
+**Goal:** provide manually approved, reversible high-quality metal finish controls and remove conspicuous square studio panels / bubble-like reflection artifacts from mirror-polished stainless material previews. No server, cloud subscription or uploaded texture dependencies.
+
+### Smooth gradient reflection environments — non-photographic and source-safe
+- Two new optional environment modes: **🪞 Smooth Mirror (smooth-studio)** and **🌤️ Soft Outdoor (outdoor-soft)**. Both use lightweight deterministic, seamless 256 × 128 procedural equirectangular gradients; reflection highlights are broad and continuous, **not a room full of cuboids, panels or bubble shapes**. Generated locally in the browser by `studio/reflection-environments.js` and lazily cached per mode.
+- Existing **neutral, bright, overcast, user-uploaded HDRI** options remain compatible. **Nothing is silently changed on opening old scenes.** For smooth mirror work, explicitly select the new Smooth Mirror environment from the right-hand Environment / HDRI panel; adjust global environment intensity as required.
+- These textures are visual **reflection proxies**, not physically correct reflections of the building, landscaping, pedestrians or sky at a real site. For genuinely site-matching reflections supply an approved panorama/HDRI (or render with a physically accurate workflow). The normal renderer remains **Three.js WebGL PBR**, not path tracing or AI photorealistic synthesis. The environment map may affect all reflective materials in the scene without changing their source mesh/material properties.
+- A/B/C separate render scenes reproduce the selected procedural environment via a reusable resolver. The approved MASTER eight-view exporter already restores the saved environment mode and uses the same render environment. Project JSON and source-file ZIP save the mode string with existing schema and integrity checks.
+
+### Four precise artwork material controls (explicit opt-in)
+- Under **작품 재질 / 명시적 변경** select a preset, then choose **roughness** (0.01–1), **metalness** (0–1), **material reflection multiplier** (0–3), and **hairline anisotropy** (0–1). Sliders do not modify the model until the user presses **선택한 작품 재질 적용**.
+- Preset-appropriate defaults: **Mirror Stainless** roughness 0.065, metalness 1.0, anisotropy 0; **Brushed Stainless** roughness 0.28, metalness 1.0, anisotropy 0.45. A reset button restores the selected preset's suggested values **in the UI only**, and does not apply until the user presses the material-apply button. The existing **restore original material** action returns untouched source materials, including supplied texture maps.
+- Explicit override is made only on **artwork preview meshes**, not imported site, surrounding planting, plan, other GLBs, sculptures' shape/scale/placement, or the original files. Material overrides are copied onto artwork instances via the established source material sync, and are stored with Undo/Redo, A/B/C variants, scene JSON and portable ZIP.
+- Older pre-v3.8 `artworkMaterial: {preset, color}` objects remain valid: missing `tuning` simply uses original material preset defaults. New tuning objects are validated for finite values and the four allowed keys. Approved **MASTER LOCK** blocks editing the material and reflection environment; camera orbit/exports are unaffected. Changing finish after approval requires unlocking and approving a new revision.
+
+### User workflow
+1. Back up existing approved project via whole-project ZIP.
+2. With MASTER unlocked choose **미러 스테인리스** and in **환경광 / HDRI** select **스무스 미러**.
+3. For a near mirror look, keep roughness around 0.03–0.09, metalness 1.0, reflection 0.8–1.4, anisotropy 0. For a satin brushed look, start around roughness 0.28, metalness 1.0 and anisotropy 0.45.
+4. Click **선택한 작품 재질 적용**, review the render at several angles, and only then approve the next MASTER Revision.
+5. Use existing A/B/C comparison, 8-view captures and portable ZIP backup to preserve the selected appearance.
+
+### QA
+- `node --test tests/studio-v3.8-materials.test.cjs` covers both new reflection maps, seam checks, material parameter validation, backward compatibility, rendering stage integration and MASTER source protections.
+- Actual Chrome/Edge WebGL reflections, site HDR realism and full loaded Rhino/OBJ/GLB material fidelity should be assessed visually with real source art assets before a client/competition submission. This release does not claim real reflected site geometry or physically measured polish.
