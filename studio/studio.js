@@ -52,6 +52,9 @@ import {archiveBudget,sceneHealth,readableBytes,PROJECT_ZIP_LIMIT,PROJECT_METADA
   from "./stability-qa.js";
 import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity,SKY_COLORS,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR} from "./render-looks.js";
 import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel} from "./context-catalog.js";
+import {validWorkspaceMode,cleanAssetFavorites,toggleAssetFavorite,
+  alignBatch,distributeBatch,findSelectableBatchRoots,assetPreviewType,ASSET_PREVIEW_EMOJIS}
+  from "./workspace-ux.js";
 import {PROJECT_MODE_DEFAULT,validProjectMode,projectModeConfig,
   recommendedAssetKinds,starterLayout,validateModeStarter} from "./project-modes.js";
 import {EXTRA_TYPES} from "./extras.js";
@@ -190,6 +193,26 @@ let masterSnapshots = [], sourceDimensions = null;
 let selectedMode = "translate";
 let selectedRoot = artRoot, placementMode = null, nextExtraId = 1;
 const groupChecked=new Set();
+const UI_LOCAL_KEY="axoo-studio-workspace-v3.9";
+const catalogKinds=CONTEXT_CATALOG.map(item=>item.kind);
+function readWorkspacePreference(){
+  try{
+    const raw=JSON.parse(window.localStorage.getItem(UI_LOCAL_KEY)||"{}");
+    return {
+      mode:validWorkspaceMode(raw.mode)?raw.mode:"quick",
+      favorites:cleanAssetFavorites(raw.favorites,catalogKinds)
+    };
+  }catch{return {mode:"quick",favorites:[]};}
+}
+const workspacePreferences=readWorkspacePreference();
+let workspaceMode=workspacePreferences.mode;
+let favoriteKinds=new Set(workspacePreferences.favorites);
+let favoritesOnly=false;
+function saveWorkspacePreference(){
+  try{window.localStorage.setItem(UI_LOCAL_KEY,JSON.stringify({
+    mode:workspaceMode,favorites:cleanAssetFavorites([...favoriteKinds],catalogKinds)
+  }));}catch{/* Private browsing / blocked localStorage: UI remains usable in this tab. */}
+}
 let nextGroupId=1,measuredPoints=[],lastCollisionReport=null,lastDistanceReport=null;
 const visualVariants={};
 const cameraBookmarks={};
@@ -340,6 +363,147 @@ function renderSiteLayerRows(entries) {
     ? matched.length+"개 중 80개 표시 · 검색어를 입력하면 원하는 메시를 찾을 수 있습니다."
     : (matched.length ? matched.length+"개 목록 · 분류 후 위 레이어 표시를 조절하세요." : "일치하는 메시 없음");
 }
+// v3.9: UI preferences are kept only on this browser; never written into
+// source artwork, MASTER snapshots or full project JSON/ZIP.
+function applyWorkspaceMode(mode,{save=true}={}){
+  if(!validWorkspaceMode(mode))return;
+  workspaceMode=mode;
+  document.documentElement.classList.toggle("studio-advanced-mode",mode==="advanced");
+  document.documentElement.dataset.studioWorkspace=mode;
+  for(const button of [["workspace-quick","quick"],["workspace-advanced","advanced"]]){
+    const [id,key]=button;
+    $(id).setAttribute("aria-pressed",String(mode===key));
+  }
+  for(const fold of document.querySelectorAll(".sidepanel.right > details.inspector-fold")){
+    const section=fold.querySelector("section");
+    const essential=section?.classList.contains("layer-manager") ||
+      ["render-materials","workspace-camera-panel"].includes(section?.id);
+    fold.open=mode==="advanced"||essential;
+  }
+  $("workspace-mode-status").textContent=mode==="quick"
+    ?"⚡ QUICK · 핵심 패널만 펼쳤습니다. 아래 패널 제목을 누르면 개별 도구도 볼 수 있습니다."
+    :"🛠️ ADVANCED · 전문 모델링·검수·렌더 패널을 모두 펼쳤습니다.";
+  if(save)saveWorkspacePreference();
+}
+function workspaceJump(target){
+  const map={project:"workspace-project-panel",assets:"workspace-assets-panel",
+    material:"render-materials",camera:"workspace-camera-panel",backup:"workspace-backup-panel"};
+  const section=$(map[target]||"workspace-project-panel");
+  if(!section)return;
+  const fold=section.closest("details.inspector-fold");
+  if(fold)fold.open=true;
+  section.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function decorateAssetCards(){
+  for(const button of document.querySelectorAll("[data-add-extra]")){
+    if(button.closest(".workspace-asset-card"))continue;
+    const kind=button.dataset.addExtra;
+    const asset=CONTEXT_CATALOG.find(x=>x.kind===kind);
+    if(!asset)continue;
+    const card=document.createElement("div");
+    card.className="workspace-asset-card";
+    card.dataset.kind=kind;
+    const visualType=assetPreviewType(kind,asset.category);
+    card.dataset.previewType=visualType;
+    const preview=document.createElement("span");
+    preview.className="workspace-asset-preview";
+    preview.setAttribute("aria-hidden","true");
+    preview.textContent=ASSET_PREVIEW_EMOJIS[visualType]||"◇";
+    const title=document.createElement("span");
+    title.className="workspace-asset-label";
+    title.textContent=asset.label;
+    const favorite=document.createElement("button");
+    favorite.type="button";
+    favorite.className="workspace-favorite-toggle";
+    favorite.dataset.favoriteKind=kind;
+    favorite.setAttribute("aria-label",asset.label+" 즐겨찾기 전환");
+    favorite.title="이 브라우저 즐겨찾기에 등록/해제 · 프로젝트 원본과 무관";
+    button.before(card);
+    button.replaceChildren(preview,title);
+    button.classList.add("workspace-asset-action");
+    card.append(button,favorite);
+  }
+  refreshFavoriteBadges();
+}
+function refreshFavoriteBadges(){
+  for(const button of document.querySelectorAll("[data-favorite-kind]")){
+    const yes=favoriteKinds.has(button.dataset.favoriteKind);
+    button.textContent=yes?"★":"☆";
+    button.setAttribute("aria-pressed",String(yes));
+  }
+  $("context-favorites-count").textContent="즐겨찾기 "+favoriteKinds.size+"개";
+  $("context-favorites-only").textContent=favoritesOnly?"★ 즐겨찾기 필터 해제":"☆ 즐겨찾기만 보기";
+  $("context-favorites-only").setAttribute("aria-pressed",String(favoritesOnly));
+}
+function batchSearchMatches(){
+  const query=$("precision-multi-search").value.trim().toLocaleLowerCase("ko-KR");
+  if(query)return extrasRoot.children.filter(root=>
+    root.name.toLocaleLowerCase("ko-KR").includes(query)||
+    String(root.userData.extraId).includes(query));
+  return extrasRoot.children.slice(-100);
+}
+function refreshBatchStatus(){
+  const count=groupChecked.size;
+  $("precision-selected-count").textContent="다중 선택 "+count+"개 · Ctrl/⌘+클릭으로 추가/해제"+
+    (approvedMaster?" · MASTER LOCK":"");
+  $("workspace-align").disabled=approvedMaster||count<2;
+  $("workspace-distribute").disabled=approvedMaster||count<3;
+  $("precision-select-visible").disabled=approvedMaster;
+  $("precision-clear-selection").disabled=count===0;
+}
+function toggleBatchRoot(root){
+  if(approvedMaster||root?.parent!==extrasRoot||
+     !canEditObject(root,artRoot,layerState,approvedMaster))
+    return notify("작품 원본·현장·잠긴 객체는 다중 편집할 수 없습니다.");
+  const id=root.userData.extraId;
+  if(groupChecked.has(id))groupChecked.delete(id);
+  else groupChecked.add(id);
+  refreshPrecisionUI();
+  notify("다중 선택 "+groupChecked.size+"개 · 체크박스 또는 Ctrl/⌘+클릭");
+}
+function chooseBatchSearchResults(){
+  if(approvedMaster)return notify("MASTER LOCK에서는 여러 객체를 수정할 수 없습니다.");
+  const matches=batchSearchMatches().filter(root=>
+    canEditObject(root,artRoot,layerState,approvedMaster));
+  for(const root of matches)groupChecked.add(root.userData.extraId);
+  refreshPrecisionUI();
+  notify("배치 객체 "+matches.length+"개 추가 선택 · 잠긴 원본 현장/작품은 제외");
+}
+function runBatchTransform(action){
+  if(approvedMaster)return notify("MASTER LOCK을 먼저 해제하고 새 Revision에서 배치하세요.");
+  try{
+    const roots=findSelectableBatchRoots(extrasRoot.children,groupChecked,
+      root=>canEditObject(root,artRoot,layerState,approvedMaster));
+    const axis=$("workspace-batch-axis").value,anchor=$("workspace-batch-anchor").value;
+    const items=roots.map(root=>{
+      const box=new THREE.Box3().setFromObject(root);
+      if(box.isEmpty())throw Error("선택한 객체의 크기를 계산할 수 없습니다.");
+      return {id:root.userData.extraId,min:box.min.toArray(),max:box.max.toArray(),
+        position:root.position.toArray()};
+    });
+    const result=action==="distribute"?distributeBatch(items,axis):null;
+    const moves=action==="distribute"?result.moves:alignBatch(items,axis,anchor);
+    const byId=new Map(roots.map(root=>[root.userData.extraId,root]));
+    if(moves.every(move=>Math.abs(move.delta)<1e-9)){
+      $("workspace-batch-status").textContent="이미 요청한 간격·정렬 상태입니다. 변경하지 않았습니다.";
+      return;
+    }
+    const before=editSnapshot();
+    for(const move of moves)byId.get(move.id).position[axis]+=move.delta;
+    commit(before);
+    updateInspector(true);updateExtrasStatus();refreshSelectionOutline();
+    const description=action==="distribute"?
+      "등간격 "+axis.toUpperCase()+" · 실제 경계 간격 "+result.gapM.toFixed(3)+"m":
+      "정렬 "+axis.toUpperCase()+" / "+({min:"시작",center:"중심",max:"끝"}[anchor]);
+    $("workspace-batch-status").textContent="✓ "+description+" · "+moves.length+
+      "개 객체 이동 · Y/회전/배율/원본 형상 불변 · Ctrl+Z 실행 취소 가능";
+    notify("여러 객체 "+moves.length+"개 "+(action==="distribute"?"등간격 배치":"정렬")+" 완료");
+  }catch(error){
+    $("workspace-batch-status").textContent="⚠ "+error.message;
+    notify(error.message);
+  }
+}
+
 function refreshContextPalette(){
   const query=$("context-search").value;
   const category=$("context-category").value;
@@ -347,7 +511,11 @@ function refreshContextPalette(){
   const matched=new Set(filterContextCatalog(query,allowed?"all":category)
     .filter(item=>!allowed||allowed.has(item.kind)).map(a=>a.kind));
   document.querySelectorAll("[data-add-extra]").forEach(button=>{
-    button.hidden=!matched.has(button.dataset.addExtra);
+    const visible=matched.has(button.dataset.addExtra)&&
+      (!favoritesOnly||favoriteKinds.has(button.dataset.addExtra));
+    button.hidden=!visible;
+    const card=button.closest(".workspace-asset-card");
+    if(card)card.hidden=!visible;
   });
   // A compact 14-variant subsection avoids a huge default inspector. An
   // explicit search auto-expands matching B/C variants so results aren't hidden.
@@ -359,8 +527,9 @@ function refreshContextPalette(){
     if(matchesVariants && query.trim())variants.open=true;
   }
   syncAssetPlacementUI();
-  $("context-search-count").textContent=matched.size+" / "+CONTEXT_CATALOG.length+
-    "개 에셋 · "+(category==="recommended"?"현재 프로젝트 맞춤 추천":"전체 카탈로그 필터")+
+  const visibleCount=[...document.querySelectorAll("[data-add-extra]")].filter(button=>!button.hidden).length;
+  $("context-search-count").textContent=visibleCount+" / "+CONTEXT_CATALOG.length+
+    "개 에셋"+(favoritesOnly?" · 즐겨찾기 필터":"")+" · "+(category==="recommended"?"현재 프로젝트 맞춤 추천":"전체 카탈로그 필터")+
     " · 추가된 3D 객체는 모드 변경 시 숨겨지거나 삭제되지 않습니다.";
 }
 // v3.6 scene-safe visualization workflow. Only camera, lighting or opted-in
@@ -724,10 +893,12 @@ function renderPrecisionRows(){
   list.replaceChildren();
   // Avoid building thousands of checkbox DOM nodes after every placement.
   // Preserve selected and previously checked distant IDs for grouping.
-  const recent=extrasRoot.children.length>100?extrasRoot.children.slice(-100):extrasRoot.children;
-  const kept=extrasRoot.children.filter(x=>
+  const query=$("precision-multi-search").value.trim();
+  const recent=batchSearchMatches();
+  const kept=query?[]:extrasRoot.children.filter(x=>
     (previous.has(x.userData.extraId)||x===selectedRoot)&&!recent.includes(x));
-  for(const root of [...kept,...recent]){
+  const visible=query?recent.slice(0,150):[...kept,...recent];
+  for(const root of visible){
     const label=document.createElement("label");
     const check=document.createElement("input");
     check.type="checkbox";check.dataset.precisionGroupId=String(root.userData.extraId);
@@ -756,6 +927,7 @@ function refreshPrecisionUI(){
   $("precision-duplicate").disabled=!selectedCanEdit();
   $("precision-group").disabled=approvedMaster || groupChecked.size<2;
   $("precision-ungroup").disabled=approvedMaster || !selectedRoot?.userData?.groupId;
+  refreshBatchStatus();
 }
 function duplicateEditable(){
   if(!selectedCanEdit())return;
@@ -2676,6 +2848,11 @@ function handleSelection(event) {
   if (!first) { clearCanvasSelection(); return; }
   let candidate = first.object;
   while (candidate.parent && candidate.parent !== extrasRoot && candidate.parent !== artRoot) candidate = candidate.parent;
+  if(event.ctrlKey||event.metaKey){
+    if(candidate.parent===extrasRoot)toggleBatchRoot(candidate);
+    else notify("다중 선택은 독립 배치 에셋에만 적용합니다. 작품은 개별 편집하세요.");
+    return;
+  }
   if (candidate.parent === extrasRoot) selectRoot(candidate,true);
   else selectRoot(artRoot,true);
 }
