@@ -9,13 +9,16 @@ import {renderShadowSettings,fillLightIntensity,SKY_COLORS,NIGHT_SKY_COLOR,NIGHT
 // scene's object identities, original geometry, materials and MASTER are untouched.
 export function createVisualOptionStage({
   option,artRoot,siteRoot,floor,sceneEnvironment,neutralEnvironment,hdrEnvironment,library,originalArtMaterials,
-  sourceLightPreset="clear",sourceArtFile="",sourceSiteFile=""
+  sourceLightPreset="clear",sourceArtFile="",sourceSiteFile="",resolveSoftEnvironment=null
 }){
   if(option.sourceArt!==sourceArtFile||option.sourceSite!==sourceSiteFile)
     throw Error("저장 당시 작품·현장 원본과 다릅니다. 같은 원본 파일로 복원하세요.");
   const staged=new THREE.Scene();
+  // Match the live scene's user-selected reflection environment for A/B/C.
+  // This is view-only; live source models/materials are not changed.
   staged.environment=option.render?.environmentMode==="hdr"&&hdrEnvironment?hdrEnvironment:
-    (neutralEnvironment||sceneEnvironment);
+    (resolveSoftEnvironment?.(option.render?.environmentMode)||
+     neutralEnvironment||sceneEnvironment);
   staged.environmentIntensity=(option.render?.envIntensity??1)*
     (option.render?.environmentMode==="bright"?1.35:option.render?.environmentMode==="overcast"?.65:1);
   const kind=option.render?.visual?.sky||"cool";
@@ -42,7 +45,7 @@ export function createVisualOptionStage({
     const original=originalArtMaterials.get(reference)||reference.material;
     if(materialConfig.preset==="original"){copy.material=original;continue;}
     const referenceList=Array.isArray(original)?original:[original];
-    const created=referenceList.map(()=>makeMaterial(materialConfig.preset,materialConfig.color));
+    const created=referenceList.map(()=>makeMaterial(materialConfig.preset,materialConfig.color,materialConfig.tuning||null));
     temporaryMaterials.push(...created);
     copy.material=Array.isArray(original)?created:created[0];
   }

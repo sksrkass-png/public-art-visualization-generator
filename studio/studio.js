@@ -18,7 +18,8 @@ import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import { ART_MATERIALS, validMaterialConfig, validRenderConfig, normalizeRenderConfig,
-  targetSize, makeMaterial } from "./rendering.js";
+  targetSize, makeMaterial,materialTuningForPreset,validMaterialTuning } from "./rendering.js";
+import {REFLECTION_ENVIRONMENTS,createSoftReflectionTexture} from "./reflection-environments.js";
 import { STANDARD_VIEWS, createStandardCameras, captureSceneIntegrity,
   masterConsistency, validateBatchManifest } from "./batch.js";
 import { initVisualReview } from "./review.js";
@@ -200,6 +201,13 @@ const assetLibrary=new Map();
 const siteViewport=createSiteViewportController({renderer,siteRoot,artRoot});
 let nextLibraryId=1,activeLibraryOperation=0;
 const neutralEnvironment=scene.environment;
+const softReflectionTextures=new Map();
+function softEnvironmentFor(mode){
+  if(!Object.hasOwn(REFLECTION_ENVIRONMENTS,mode))return null;
+  if(!softReflectionTextures.has(mode))
+    softReflectionTextures.set(mode,createSoftReflectionTexture(THREE,mode));
+  return softReflectionTextures.get(mode);
+}
 let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
 let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
 let artworkMaterialState={preset:"original",color:"#d0d6db"};
@@ -1522,12 +1530,17 @@ function currentRenderConfig(){
 }
 function applyEnvironment(){
   const mode=$("env-mode").value,strength=safeNumber($("env-strength").value,1,0,3);
-  scene.environment=mode==="hdr" && hdrTexture ? hdrTexture : neutralEnvironment;
+  scene.environment=mode==="hdr" && hdrTexture ? hdrTexture :
+    softEnvironmentFor(mode)||neutralEnvironment;
   scene.environmentIntensity=strength*(mode==="bright"?1.35:mode==="overcast"?.65:1);
   $("env-strength-value").textContent=strength.toFixed(1);
-  $("env-filename").textContent=hdrSourceFile
-    ?"HDRI: "+hdrSourceFile.name+(mode==="hdr"?" · 반사 적용":" · 파일 보관 중")
-    :"HDRI 미설정 · .HDR를 업로드하면 ZIP에 포함됩니다.";
+  const soft=REFLECTION_ENVIRONMENTS[mode];
+  $("env-filename").textContent=soft
+    ? soft.label+" · "+soft.description+
+      (hdrSourceFile?" · 사용자 HDRI 파일 별도 보관 중":"")
+    :hdrSourceFile
+      ?"HDRI: "+hdrSourceFile.name+(mode==="hdr"?" · 반사 적용":" · 파일 보관 중")
+      :"HDRI 미설정 · .HDR를 업로드하면 ZIP에 포함됩니다.";
 }
 async function decodeHDR(file){
   if(!file || !/\.hdr$/i.test(file.name) || file.size>20*1024*1024)
@@ -1541,6 +1554,7 @@ async function decodeHDR(file){
 }
 async function loadHDR(file){
   if(!file)return;
+  if(approvedMaster)return notify("MASTER LOCK 해제 후 HDRI 반사를 변경하세요.");
   const op=++activeHDRIOperation;
   try{
     const texture=await decodeHDR(file);
@@ -1559,6 +1573,28 @@ function clearHDR(){
   hdrTexture=null;hdrSourceFile=null;
   if($("env-mode").value==="hdr")$("env-mode").value="neutral";
   applyEnvironment();
+}
+function readMaterialTuningUI(){
+  const result={
+    roughness:Number($("art-roughness").value),
+    metalness:Number($("art-metalness").value),
+    reflection:Number($("art-reflection").value),
+    anisotropy:Number($("art-anisotropy").value)
+  };
+  if(!validMaterialTuning(result))throw Error("재질 미세 조정 수치가 올바르지 않습니다.");
+  return result;
+}
+function refreshMaterialTuningValues(){
+  for(const id of ["roughness","metalness","reflection","anisotropy"]){
+    const output=$("art-"+id+"-value");
+    if(output)output.textContent=Number($("art-"+id).value).toFixed(2);
+  }
+}
+function syncMaterialTuningUI(config){
+  const tuning=config.tuning||materialTuningForPreset(config.preset);
+  for(const [id,value] of Object.entries(tuning))$("art-"+id).value=String(value);
+  refreshMaterialTuningValues();
+  $("art-material-tuning").dataset.preset=config.preset;
 }
 function restoreOriginalArtworkMaterials(){
   for(const [mesh,original] of originalArtMaterials)mesh.material=original;
@@ -1587,15 +1623,18 @@ function setArtworkMaterial(config,{recordUndo=false}={}){
     if(!mesh.isMesh)return;
     originalArtMaterials.set(mesh,mesh.material);
     const existing=Array.isArray(mesh.material)?mesh.material:[mesh.material];
-    const applied=existing.map(()=>makeMaterial(config.preset,config.color));
+    const applied=existing.map(()=>makeMaterial(config.preset,config.color,config.tuning||null));
     applied.forEach(material=>overrideArtMaterials.add(material));
     mesh.material=Array.isArray(mesh.material)?applied:applied[0];
   });
   $("art-material").value=config.preset;
   $("art-material-color").value=config.color;
+  syncMaterialTuningUI(config);
   $("material-status").textContent=config.preset==="original"
     ?"원본 작품 재질·텍스처 유지 중"
-    :ART_MATERIALS[config.preset].label+" 렌더용 적용 · 원본 파일 보존";
+    :ART_MATERIALS[config.preset].label+" 렌더용 적용 · 원본 파일 보존"+
+      (config.preset==="mirror" && $("env-mode").value!=="smooth-studio"&&$("env-mode").value!=="outdoor-soft"
+        ?" · 사각 스튜디오 반사를 피하려면 반사 모드에서 '스무스 미러'를 선택하세요.":"");
   syncArtworkCopyMaterials();
   if(before)commit(before);
   return true;
@@ -2156,7 +2195,10 @@ function syncLock() {
     "plan-rotation", "plan-elevation", "plan-opacity"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   document.querySelectorAll("[data-add-extra]").forEach(btn => { btn.disabled = approvedMaster; });
-  ["art-material","art-material-color","apply-material","reset-material"].forEach(id=>{$(id).disabled=approvedMaster;});
+  ["art-material","art-material-color","apply-material","reset-material",
+    "art-roughness","art-metalness","art-reflection","art-anisotropy","art-tuning-reset"]
+    .forEach(id=>{$(id).disabled=approvedMaster;});
+  ["env-mode","env-strength","env-file","clear-hdr"].forEach(id=>{$(id).disabled=approvedMaster;});
   updateExtrasStatus();
   syncContextHeightUI();
   refreshVisualSlots();
@@ -3505,6 +3547,7 @@ async function exportVisualOptions(){
       const stage=createVisualOptionStage({
         option,artRoot,siteRoot,floor,sceneEnvironment:scene.environment,
         neutralEnvironment,hdrEnvironment:hdrTexture,
+        resolveSoftEnvironment:softEnvironmentFor,
         library:assetLibrary,originalArtMaterials,
         sourceArtFile:artFileName,sourceSiteFile:siteFileName
       });
@@ -3991,6 +4034,7 @@ $("grid").addEventListener("change", e => { grid.visible = e.target.checked; });
 $("sun-helper").addEventListener("change", e => { sunGuide.visible = e.target.checked; });
 $("nav-speed").addEventListener("input",updateNavigationSpeed);
 $("env-mode").addEventListener("change", () => {
+  if(approvedMaster)return;
   if($("env-mode").value==="hdr"&&!hdrTexture){
     $("env-mode").value="neutral";
     return notify("먼저 Radiance .HDR 환경 이미지를 업로드하세요.");
@@ -4002,13 +4046,28 @@ $("env-file").addEventListener("change",e=>{
   e.target.value="";
 });
 $("clear-hdr").addEventListener("click",()=>{
+  if(approvedMaster)return;
   clearHDR();
   notify("사용자 HDRI 파일이 현재 렌더링 장면에서 해제됐습니다.");
 });
-$("env-strength").addEventListener("input",applyEnvironment);
+$("env-strength").addEventListener("input",()=>{if(!approvedMaster)applyEnvironment();});
 $("apply-material").addEventListener("click",()=>{
   if(approvedMaster)return notify("MASTER LOCK 해제 후 작품 재질을 변경하세요.");
-  setArtworkMaterial({preset:$("art-material").value,color:$("art-material-color").value},{recordUndo:true});
+  const preset=$("art-material").value;
+  setArtworkMaterial({
+    preset,color:$("art-material-color").value,
+    ...(preset==="original"?{}:{tuning:readMaterialTuningUI()})
+  },{recordUndo:true});
+});
+$("art-material").addEventListener("change",()=>{
+  syncMaterialTuningUI({preset:$("art-material").value,color:$("art-material-color").value});
+});
+["art-roughness","art-metalness","art-reflection","art-anisotropy"]
+  .forEach(id=>$(id).addEventListener("input",refreshMaterialTuningValues));
+$("art-tuning-reset").addEventListener("click",()=>{
+  if(approvedMaster)return;
+  syncMaterialTuningUI({preset:$("art-material").value,color:$("art-material-color").value});
+  notify("현재 프리셋 표준 수치로 돌아왔습니다. 재질 적용을 눌러 작품에 반영하세요.");
 });
 $("reset-material").addEventListener("click",()=>{
   if(approvedMaster)return;
