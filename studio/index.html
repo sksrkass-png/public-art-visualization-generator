@@ -256,13 +256,14 @@
     <aside class="sidepanel right">
       <div class="panel-head"><span class="eyebrow">02 / INSPECTOR · v4.0</span><h1>🧰 조작 패널</h1><p>5개 작업 그룹에서 필요한 기능만 찾아보세요.</p></div>
       <nav class="inspector-category-nav" id="inspector-category-nav" aria-label="조작 패널 작업 그룹">
+        <button type="button" data-inspector-category="all" aria-pressed="true">📋 전체보기</button>
         <button type="button" data-inspector-category="modeling" aria-pressed="false">🧭 객체 편집</button>
         <button type="button" data-inspector-category="assets" aria-pressed="false">🌳 현장 · 에셋</button>
         <button type="button" data-inspector-category="appearance" aria-pressed="false">☀️ 재질 · 라이팅</button>
         <button type="button" data-inspector-category="camera" aria-pressed="false">📷 카메라 · 렌더</button>
         <button type="button" data-inspector-category="projects" aria-pressed="false">💾 프로젝트 관리</button>
       </nav>
-      <p class="hint inspector-category-status" id="inspector-category-status">분류를 누르면 관련 패널만 표시됩니다. 다시 누르면 전체를 볼 수 있습니다.</p>
+      <p class="hint inspector-category-status" id="inspector-category-status">전체보기 · 모든 조작 패널을 표시합니다. 필요한 카테고리를 선택해 좁혀보세요.</p>
       <section class="section layer-manager" id="layer-manager">
         <div class="section-title"><h2>🗺️ SCENE LAYERS / 레이어</h2><span class="tag">v0.6</span></div>
         <p class="hint">눈: 표시·숨김 / 자물쇠: 편집 선택 잠금. 원본 현장 메시의 형상과 좌표는 항상 보호됩니다.</p>
@@ -977,7 +978,7 @@
         <p class="hint">핀 위치는 해당 MASTER 당시의 3D 월드 좌표(m)입니다. 다음 Revision에서는 이전 핀을 표시하지 않고 기록만 보존합니다. 전체 프로젝트 ZIP과 설정 JSON에 함께 저장되며, 구조 안전·현장 실측·작성자 신원 검증을 대신하지 않습니다.</p>
       </section>
       <section class="section" id="workspace-backup-panel">
-        <h2>💾 프로젝트 저장</h2>
+        <h2>🗂️ 프로젝트 보관함 · 불러오기</h2>
         <div class="browser-vault-panel">
           <h3>🗂️ 이 브라우저에 프로젝트 저장</h3>
           <p class="hint">작품·현장 원본을 포함한 ZIP을 이 브라우저의 IndexedDB에 저장합니다. 서버 업로드·팀 공유·자동 동기화는 하지 않습니다. 브라우저 데이터 삭제 시 사라질 수 있으니 ZIP으로도 백업하세요.</p>
@@ -988,8 +989,9 @@
           <div class="inline"><button id="vault-load" class="outline full" type="button" disabled>📂 선택 프로젝트 열기</button><button id="vault-delete" class="outline full" type="button" disabled>삭제</button></div>
           <p id="vault-status" class="hint" aria-live="polite">브라우저 저장소 준비 중</p>
         </div>
-        <button id="export-project" class="primary full" type="button">전체 프로젝트 ZIP 저장 (모델 포함)</button>
-        <p class="hint">v3.7은 중복 ZIP 저장을 차단하고, 대용량 프로젝트의 원본 파일·설정 크기를 확인합니다. 프로젝트 ZIP 실제 용량은 압축 후 결정됩니다.</p>
+        <!-- Left project panel already provides the ZIP save action; keep the handler target for legacy scripts/tests. -->
+        <button id="export-project" type="button" hidden aria-hidden="true" tabindex="-1">전체 프로젝트 ZIP 저장 (모델 포함)</button>
+        <p class="hint">ZIP 다운로드는 왼쪽 🗂️ 프로젝트에서 진행할 수 있습니다. 여기서는 브라우저 보관함 및 기존 프로젝트 불러오기·내보내기 기능을 관리합니다.</p>
         <label class="file-button secondary" for="import-project">+ 전체 프로젝트 ZIP 불러오기</label>
         <input id="import-project" class="sr-only" type="file" accept=".zip,application/zip">
         <p class="hint">v1.0은 SHA-256 무결성 정보까지 함께 저장하고 ZIP 복원 전에 손상 여부를 검증합니다. 구형 프로젝트 ZIP도 불러올 수 있습니다. SHA-256은 파일 손상 확인이며 작성자 인증은 아닙니다.</p>
