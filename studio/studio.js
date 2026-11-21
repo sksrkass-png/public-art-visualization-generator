@@ -377,7 +377,7 @@ function applyWorkspaceMode(mode,{save=true}={}){
   for(const fold of document.querySelectorAll(".sidepanel.right > details.inspector-fold")){
     const section=fold.querySelector("section");
     const essential=section?.classList.contains("layer-manager") ||
-      ["render-materials","workspace-camera-panel"].includes(section?.id);
+      ["workspace-transform-panel","render-materials","workspace-camera-panel"].includes(section?.id);
     fold.open=mode==="advanced"||essential;
   }
   $("workspace-mode-status").textContent=mode==="quick"
