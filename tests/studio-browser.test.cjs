@@ -288,6 +288,8 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(await page.locator("#nav-speed-value").textContent(), "4.0×");
     await page.locator("#light-preset").selectOption("golden");
     assert.equal(await page.locator("#sun-elevation").inputValue(), "17");
+    assert.equal(await page.locator("#sun-helper").isChecked(), false);
+    await page.locator("#sun-helper").check();
     assert.equal(await page.locator("#sun-helper").isChecked(), true);
 
     // A vertical-only imported mesh is not a verified ground surface.
