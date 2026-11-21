@@ -1410,6 +1410,67 @@ function currentProductionAudit(){
     output:size,gpuContextLost:!!renderer.getContext()?.isContextLost?.()
   });
 }
+
+let lastStabilityAudit=null;
+function projectSourceBudget(){
+  // Never read/duplicate model bytes for budget estimation.
+  const entries=[];
+  function add(label,file){
+    if(file)entries.push({label,bytes:file.size});
+  }
+  add("site",siteSourceFile);
+  siteSourceResources.forEach((file,i)=>add("site-resource-"+i,file));
+  add("artwork",artSourceFile);
+  artSourceResources.forEach((file,i)=>add("artwork-resource-"+i,file));
+  add("plan",planSourceFile);
+  add("hdri",hdrSourceFile);
+  for(const asset of assetLibrary.values())add("library-"+asset.id,asset.file);
+  const jsonBytes=new Blob([JSON.stringify(sceneConfig(),null,2)],{type:"application/json"}).size;
+  return archiveBudget(entries,jsonBytes,MAX_ZIP_BYTES);
+}
+function runStabilityAudit(){
+  const site=sceneFootprint(siteRoot);
+  const art=sceneFootprint(artRoot);
+  const additional=sceneFootprint(extrasRoot);
+  const info=renderer.info;
+  const budget=projectSourceBudget();
+  const report=sceneHealth({
+    meshes:site.meshes+art.meshes+additional.meshes,
+    triangles:site.triangles+art.triangles+additional.triangles,
+    extras:extrasRoot.children.length,
+    drawCalls:Math.max(0,info.render.calls||0),
+    textureCount:Math.max(0,info.memory.textures||0),
+    geometryCount:Math.max(0,info.memory.geometries||0),
+    archive:budget,
+    gpuLost:gpuContextLost||!!renderer.getContext()?.isContextLost?.()
+  });
+  lastStabilityAudit={
+    schema:"axoo-studio-stability-v3.7",
+    checkedAt:new Date().toISOString(),
+    project:$("project-name").value,
+    mode:currentProjectMode,
+    ...report,
+    gpuMaxTexture:renderer.capabilities.maxTextureSize,
+    notice:"브라우저 순간 상태의 기술적 경고입니다. GPU 실제 메모리·FPS 인증이 아니며 건축/구조 안전 검사가 아닙니다."
+  };
+  $("stability-audit-status").textContent=[
+    "상태: "+({ok:"일반적인 장면 규모",review:"경량화·백업 점검 권장",block:"GPU 복구 확인 필요"}[report.status]),
+    "객체 "+report.counts.extras.toLocaleString()+"개 · 메시 "+report.counts.meshes.toLocaleString()+
+      "개 · 삼각형 "+report.counts.triangles.toLocaleString(),
+    "마지막 렌더 프레임 Draw call "+report.counts.drawCalls.toLocaleString()+
+      " · GPU 등록 지오메트리 "+report.counts.geometryCount+
+      "개 / 텍스처 "+report.counts.textureCount+"개 (실측 메모리 값 아님)",
+    "원본 파일 "+budget.fileCount+"개 · "+readableBytes(budget.rawBytes)+
+      " / ZIP 320MB · 예상 압축률은 알 수 없으며 압축 후 실제 용량만 최종 판정",
+    "설정 JSON "+readableBytes(budget.metadataBytes)+
+      " / "+readableBytes(PROJECT_METADATA_LIMIT),
+    ...report.notices.map(x=>"⚠ "+x.text),
+    "이 점검은 장면을 변경하지 않습니다. 실제 제안 전 ZIP을 저장하고 복원 여부를 확인하세요."
+  ].join("\n");
+  $("stability-audit-export").disabled=false;
+  return lastStabilityAudit;
+}
+
 function runProductionAudit(){
   const report=currentProductionAudit();
   lastProductionAudit=report;
@@ -4169,6 +4230,17 @@ $("focus-site-quick").addEventListener("click",focusImportedSite);
 $("focus").addEventListener("click", fitCamera);
 $("project-quick-save").addEventListener("click",()=>$("export-project").click());
 $("production-audit-run").addEventListener("click",runProductionAudit);
+$("stability-audit-run").addEventListener("click",()=>{
+  try{runStabilityAudit();}catch(error){
+    $("stability-audit-status").textContent="진단 실패: "+error.message;
+    notify("성능 점검 실패: "+error.message);
+  }
+});
+$("stability-audit-export").addEventListener("click",()=>{
+  if(!lastStabilityAudit)return;
+  download(safeFileName()+"-stability-v3.7.json",
+    new Blob([JSON.stringify(lastStabilityAudit,null,2)],{type:"application/json"}));
+});
 $("production-audit-export").addEventListener("click",()=>{
   const report=runProductionAudit();
   download(safeFileName()+"-v3-production-audit.json",
@@ -4391,8 +4463,28 @@ window.addEventListener("resize", resize);
 const resizeObserver = new ResizeObserver(resize);
 resizeObserver.observe(viewport);
 
+renderer.domElement.addEventListener("webglcontextlost",event=>{
+  event.preventDefault(); // Let WebGL attempt resource recovery; source files stay untouched.
+  gpuContextLost=true;
+  $("gpu-recovery-status").hidden=false;
+  $("gpu-recovery-status").textContent="⚠ GPU 연결 중단 · 프로젝트 ZIP을 백업하고 장치 상태를 확인하세요.";
+  notify("그래픽 장치 연결이 끊겼습니다. 프로젝트 원본은 유지되며, 복구 전 렌더링을 중단합니다.");
+});
+renderer.domElement.addEventListener("webglcontextrestored",()=>{
+  gpuContextLost=false;
+  $("gpu-recovery-status").hidden=true;
+  try{updateLight();applyEnvironment();checkVisualQuality();}
+  catch(error){
+    console.warn("WebGL context restoration check failed",error);
+    $("gpu-recovery-status").hidden=false;
+    $("gpu-recovery-status").textContent="⚠ 그래픽 복원 후 렌더링 점검 필요: "+error.message;
+  }
+  notify("GPU 연결 복구 감지 · 렌더 결과를 다시 점검하고 프로젝트 ZIP을 백업하세요.");
+});
 function animate() {
   requestAnimationFrame(animate);
+  // Background tabs and temporarily lost GPU contexts must not issue WebGL draws.
+  if(document.hidden||gpuContextLost)return;
   orbit.update();
   renderer.render(scene, camera);
   drawMeasurementOverlay();
