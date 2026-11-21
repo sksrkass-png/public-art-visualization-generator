@@ -473,6 +473,7 @@ function applyProjectMode(mode,{restoring=false,announce=true}={}){
   currentProjectMode=mode;
   $("project-mode").value=mode;
   if(!restoring){
+    spatialVisualization.look=null;
     $("context-search").value="";
     $("context-category").value="recommended";
   }
@@ -950,6 +951,7 @@ function snapshotVisualVariant(slot){
     camera:{position:camera.position.toArray(),target:orbit.target.toArray(),fov:camera.fov},
     lighting:Object.fromEntries(["sun-azimuth","sun-elevation","sun-strength","ambient","exposure"].map(id=>[id,Number($(id).value)])),
     lightPreset:$("light-preset").value,shadows:$("shadows").checked,
+    spatialVisualization:{...spatialVisualization},
     render:currentRenderConfig(),placementReference:currentPlacementReference()
   };
 }
@@ -957,7 +959,8 @@ function validStoredVisualVariants(value){
   return validVariants(value) && Object.values(value).every(v=>
     validTransform(v.scene.artwork) && validateExtras(v.scene.extras) &&
     validateLayerState(v.scene.layers) && validMaterialConfig(v.scene.material) &&
-    validRenderConfig(v.render) && validPlacementReference(v.placementReference) &&
+    validRenderConfig(v.render) && validSpatialState(v.spatialVisualization) &&
+    validPlacementReference(v.placementReference) &&
     (v.sourcePreset===undefined||["empty","plaza","courtyard","promenade"].includes(v.sourcePreset)) &&
     (v.sourceLibrary===undefined||validLibraryManifest(v.sourceLibrary)) &&
     typeof v.shadows==="boolean");
@@ -998,6 +1001,9 @@ function loadVisualOption(slot){
   $("light-preset").value=v.lightPreset;
   $("shadows").checked=v.shadows;
   restoreRenderConfig(v.render);
+  spatialVisualization=v.spatialVisualization?structuredClone(v.spatialVisualization):{look:null,shot:null};
+  refreshSpatialLookOptions();
+  $("spatial-shot").value=spatialVisualization.shot||"hero";
   camera.position.fromArray(v.camera.position);
   orbit.target.fromArray(v.camera.target);
   camera.fov=v.camera.fov;
@@ -3453,7 +3459,11 @@ async function exportVisualOptions(){
       warnings:review.warnings
     });
     zip.file("00-visual-comparison.png",await createVisualOptionsSheet(images),{base64:true});
-    zip.file("visual-metadata.json",JSON.stringify(manifest,null,2));
+    zip.file("visual-metadata.json",JSON.stringify({
+      ...manifest,projectMode:currentProjectMode,
+      spatialLooks:Object.fromEntries(slots.map(slot=>
+        [slot,visualVariants[slot].spatialVisualization||{look:null,shot:null}]))
+    },null,2));
     const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:4}});
     download(safeFileName()+"-A_B_C-visuals.zip",blob);
     $("visual-options-export-status").textContent=
@@ -3943,6 +3953,7 @@ document.querySelectorAll("[data-render-look]").forEach(button=>
     if(approvedMaster)return notify("승인된 MASTER에서는 조명 룩을 변경할 수 없습니다. 잠금을 해제해 주세요.");
     const look=ARCHVIZ_LOOKS[button.dataset.renderLook];
     if(!look)return;
+    spatialVisualization.look=null;
     $("light-preset").value=look.lightPreset;
     const values={
       "sun-azimuth":look.azimuth,"sun-elevation":look.elevation,
@@ -3968,6 +3979,7 @@ $("light-preset").addEventListener("change", e => {
   document.querySelectorAll("[data-render-look]").forEach(b=>{
     b.classList.remove("is-active");b.setAttribute("aria-pressed","false");
   });
+  spatialVisualization.look=null;
   const presets = {
     clear: {az:45, el:45, sun:2.4, ambient:.65, exposure:1},
     cloudy: {az:50,el:58,sun:.85,ambient:1.1,exposure:1.05},
@@ -4130,6 +4142,7 @@ $("undo").addEventListener("click", undo);
 $("redo").addEventListener("click", redo);
 ["sun-azimuth", "sun-elevation", "sun-strength", "ambient", "exposure", "shadows"]
   .forEach(id => $(id).addEventListener("input", () => {
+    spatialVisualization.look=null;
     $("light-preset").value = "custom";
     updateLight();
   }));
