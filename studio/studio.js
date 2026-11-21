@@ -1534,9 +1534,13 @@ function applyEnvironment(){
     softEnvironmentFor(mode)||neutralEnvironment;
   scene.environmentIntensity=strength*(mode==="bright"?1.35:mode==="overcast"?.65:1);
   $("env-strength-value").textContent=strength.toFixed(1);
-  $("env-filename").textContent=hdrSourceFile
-    ?"HDRI: "+hdrSourceFile.name+(mode==="hdr"?" · 반사 적용":" · 파일 보관 중")
-    :"HDRI 미설정 · .HDR를 업로드하면 ZIP에 포함됩니다.";
+  const soft=REFLECTION_ENVIRONMENTS[mode];
+  $("env-filename").textContent=soft
+    ? soft.label+" · "+soft.description+
+      (hdrSourceFile?" · 사용자 HDRI 파일 별도 보관 중":"")
+    :hdrSourceFile
+      ?"HDRI: "+hdrSourceFile.name+(mode==="hdr"?" · 반사 적용":" · 파일 보관 중")
+      :"HDRI 미설정 · .HDR를 업로드하면 ZIP에 포함됩니다.";
 }
 async function decodeHDR(file){
   if(!file || !/\.hdr$/i.test(file.name) || file.size>20*1024*1024)
@@ -1628,7 +1632,9 @@ function setArtworkMaterial(config,{recordUndo=false}={}){
   syncMaterialTuningUI(config);
   $("material-status").textContent=config.preset==="original"
     ?"원본 작품 재질·텍스처 유지 중"
-    :ART_MATERIALS[config.preset].label+" 렌더용 적용 · 원본 파일 보존";
+    :ART_MATERIALS[config.preset].label+" 렌더용 적용 · 원본 파일 보존"+
+      (config.preset==="mirror" && $("env-mode").value!=="smooth-studio"&&$("env-mode").value!=="outdoor-soft"
+        ?" · 사각 스튜디오 반사를 피하려면 반사 모드에서 '스무스 미러'를 선택하세요.":"");
   syncArtworkCopyMaterials();
   if(before)commit(before);
   return true;
