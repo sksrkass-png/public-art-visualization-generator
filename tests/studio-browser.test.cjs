@@ -287,6 +287,9 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     // Switch to the original demonstration plaza for legacy v0.4 free placement.
     // v0.5 separately tests grounding against a surveyed horizontal site mesh.
     await page.locator("#site-preset").selectOption("plaza");
+    // v3.5+ defaults to project recommendations; switch to the full catalog
+    // before exercising older built-in assets outside that recommendation list.
+    await page.locator("#context-category").selectOption("all");
     // Add two distinct foliage presets, a shrub, and two physically working lights.
     const canvas = page.locator("#viewport canvas");
     await page.locator('[data-view="aerial"]').click();
