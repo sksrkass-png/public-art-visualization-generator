@@ -11,7 +11,7 @@ function pure(file,names,globals={}){
     .replace(/^\s*import\s+[\s\S]*?from\s+["'][^"']+["'];/gm,"")
     .replace(/^export\s+/gm,"");
   return vm.runInNewContext(source+"\n({"+names.join(",")+"})",
-    globals,{timeout:5000});
+    {...globals,structuredClone},{timeout:5000});
 }
 class Colour{constructor(value){this.value=value;}}
 class PhysicalMaterial{constructor(props){Object.assign(this,props);}}
