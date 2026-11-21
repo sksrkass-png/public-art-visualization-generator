@@ -18,7 +18,7 @@ const legacy = fs.readFileSync(path.join(base, "index.html"), "utf8");
 assert.match(js, /from "\.\/layers\.js"/, "v0.6 layer module must be imported");
 assert.match(legacy, /href="studio\/"/, "main application links to studio");
 assert.match(html, /"three":\s*"https:\/\/cdn\.jsdelivr\.net\/npm\/three@0\.186\.1/, "pin exact Three.js version");
-assert.match(html, /type="module" src="\.\/studio\.js"/, "app must be a browser ES module");
+assert.match(html, /type="module" src="\.\/studio\.js(?:\?[^"]+)?"/, "app must be a browser ES module");
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(x => x[1]);
 const unique = new Set(ids);
 assert.equal(ids.length, unique.size, "duplicate HTML IDs are forbidden");
