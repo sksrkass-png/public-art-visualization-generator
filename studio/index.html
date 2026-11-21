@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 3.3 · UNIVERSAL IMPORT</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 3.4 · FORMAT BRIDGE</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -61,8 +61,8 @@
           <option value="empty">빈 작업 공간</option>
         </select>
         <div class="universal-import" id="site-dropzone" aria-label="현장 모델 파일 드래그앤드롭">
-          <label class="file-button" for="site-file"><span>+ 현장 3D 모델 · 여러 파일 선택</span><small>GLB · GLTF · OBJ · FBX · STL · PLY · DAE · 3DS · ZIP</small></label>
-          <input id="site-file" class="sr-only" type="file" multiple accept=".glb,.gltf,.obj,.fbx,.stl,.ply,.dae,.3ds,.zip,.mtl,.bin,.png,.jpg,.jpeg,.webp,.bmp">
+          <label class="file-button" for="site-file"><span>+ 현장 3D 모델 · 여러 파일 선택</span><small>GLB · GLTF · OBJ · FBX · 3DM · DXF(2D) · STL · PLY · DAE · 3DS · ZIP</small></label>
+          <input id="site-file" class="sr-only" type="file" multiple accept=".glb,.gltf,.obj,.fbx,.3dm,.dxf,.stl,.ply,.dae,.3ds,.zip,.mtl,.bin,.png,.jpg,.jpeg,.webp,.bmp">
           <label class="file-button secondary" for="site-folder-file"><span>📁 폴더 전체에서 모델 불러오기</span><small>관련 모델·텍스처 파일 함께 선택</small></label>
           <input id="site-folder-file" class="sr-only" type="file" webkitdirectory directory multiple>
           <p class="hint">OBJ+MTL+이미지 또는 GLTF+BIN+텍스처를 함께 선택하세요. 파일 묶음을 이 영역에 끌어놓을 수도 있습니다.</p>
@@ -87,8 +87,8 @@
           <button id="site-preflight-export" class="outline full" type="button" disabled>현장 진단 JSON 저장</button>
           <p id="site-preflight-summary" class="hint" aria-live="polite">실제 현장 모델을 가져오면 원점·폴리곤·메시 수를 분석합니다.</p>
           <details class="site-conversion-help">
-            <summary>SketchUp · Rhino · Blender · Revit · IFC · DWG 변환 가이드</summary>
-            <p class="hint">SKP/3DM/BLEND/RVT/IFC/DWG 원본은 직접 열 수 없습니다. 사용 중인 전문 소프트웨어에서 GLB 또는 glTF 2.0으로 변환하세요. 외부 텍스처·BIN이 있다면 GLTF 및 관련 파일을 함께 선택하거나 하나의 ZIP으로 묶으세요. 현장 단위와 Y-up 높이축, 건물·수목·바닥이 포함됐는지 확인하세요.</p>
+            <summary>SketchUp · Blender · Revit · IFC · DWG 변환 가이드</summary>
+            <p class="hint">Rhino 3DM은 직접 불러올 수 있고, DXF는 2D 도면 참조로만 표시합니다. SKP/BLEND/RVT/IFC/DWG 원본은 직접 열 수 없습니다. 사용 중인 전문 소프트웨어에서 GLB 또는 glTF 2.0으로 변환하세요. 외부 텍스처·BIN이 있다면 GLTF 및 관련 파일을 함께 선택하거나 하나의 ZIP으로 묶으세요. 현장 단위와 Y-up 높이축, 건물·수목·바닥이 포함됐는지 확인하세요.</p>
           </details>
         </div>
         <div id="fallback-ground" class="fallback-ground"><label for="floor-map">바닥 매핑 (예시 공간 전용)</label>
@@ -126,8 +126,8 @@
       <section class="section">
         <div class="section-title"><h2>🗿 02. 설치 작품</h2><span id="art-status" class="tag">샘플</span></div>
         <div class="universal-import" id="art-dropzone" aria-label="작품 모델 파일 드래그앤드롭">
-          <label class="file-button" for="art-file"><span>+ 작품 3D 모델 · 여러 파일 선택</span><small>GLB · GLTF · OBJ · FBX · STL · PLY · DAE · 3DS · ZIP</small></label>
-          <input id="art-file" class="sr-only" type="file" multiple accept=".glb,.gltf,.obj,.fbx,.stl,.ply,.dae,.3ds,.zip,.mtl,.bin,.png,.jpg,.jpeg,.webp,.bmp">
+          <label class="file-button" for="art-file"><span>+ 작품 3D 모델 · 여러 파일 선택</span><small>GLB · GLTF · OBJ · FBX · 3DM · STL · PLY · DAE · 3DS · ZIP</small></label>
+          <input id="art-file" class="sr-only" type="file" multiple accept=".glb,.gltf,.obj,.fbx,.3dm,.stl,.ply,.dae,.3ds,.zip,.mtl,.bin,.png,.jpg,.jpeg,.webp,.bmp">
           <label class="file-button secondary" for="art-folder-file"><span>📁 폴더 전체에서 작품 불러오기</span><small>OBJ·MTL·텍스처 / GLTF·BIN·이미지</small></label>
           <input id="art-folder-file" class="sr-only" type="file" webkitdirectory directory multiple>
           <p class="hint">원본 작품 파일 1개와 관련 재질 파일을 함께 선택하거나 이 영역에 끌어놓으세요. 외부 URL 자동 다운로드는 하지 않습니다.</p>
@@ -143,7 +143,7 @@
           <p id="multi-art-status" class="hint" aria-live="polite">기본 작품 1개 + 추가 작품 최대 4개. 추가 작품 선택 후 삭제하면 슬롯을 다시 사용할 수 있습니다.</p>
         </div>
         <p id="art-filename" class="asset-caption">현재: 편집 가능한 샘플 조형물</p>
-        <p class="hint">3D 모델 파일은 개별 최대 <strong>120MB</strong>, 외부 재질·텍스처는 총 <strong>80MB</strong>입니다. OBJ+MTL은 기존 개별 40MB·최대 24개 제한을 추가 적용합니다. 여러 파일을 담은 ZIP은 3D 모델 한 개만 포함해야 합니다. SKP·BLEND·3DM·DWG·RVT·IFC는 현재 GLB 등의 형식으로 변환한 뒤 가져오세요.</p>
+        <p class="hint">3D 모델 파일은 개별 최대 <strong>120MB</strong>, 외부 재질·텍스처는 총 <strong>80MB</strong>입니다. OBJ+MTL은 기존 개별 40MB·최대 24개 제한을 추가 적용합니다. 여러 파일을 담은 ZIP은 3D 모델 한 개만 포함해야 합니다. 3DM은 직접 불러올 수 있으며, DXF는 현장 2D 도면 참조만 가능합니다. SKP·BLEND·DWG·RVT·IFC는 GLB 등으로 변환하세요.</p>
         <label for="art-height">작품 실제 높이 (m)</label>
         <div class="inline"><input id="art-height" type="number" min="0.05" max="100" step="0.1" value="3"><button id="apply-height" class="outline" type="button">높이 맞춤</button></div>
         <p class="hint">업로드한 모델의 크기는 <strong>자동 변경하지 않습니다.</strong> GLB/OBJ/FBX/STL의 원본 단위를 확인해야 하며, 단위 확인 후 '높이 맞춤'으로만 변경됩니다.</p>
@@ -167,6 +167,15 @@
           <button id="dimension-apply" class="outline full" type="button">지정 치수로 작품 크기 조정</button>
           <p id="dimension-status" class="hint" aria-live="polite">비율 유지 모드는 선택한 기준 축의 실제 길이에 맞춥니다. 회전된 작품의 축별 스케일 보정은 지원하지 않습니다.</p>
         </div>
+      </section>
+      <section class="section format-bridge-panel" id="format-bridge-panel">
+        <div class="section-title"><h2>🧩 FORMAT BRIDGE / CAD·BIM 변환 안내</h2><span class="tag">v3.4</span></div>
+        <p class="hint">SketchUp · Blender · AutoCAD · Revit · IFC · Rhino · STEP 등 파일의 현황과 권장 변환 경로를 확인합니다. 이 기능은 <strong>파일을 변환하지 않고 안내만 제공</strong>합니다.</p>
+        <label class="file-button secondary" for="format-advisor-file"><span>+ 원본 파일 선택해 변환 가이드 확인</span><small>SKP · BLEND · DWG · DXF · 3DM · RVT · IFC · STEP · IGES · USD · 3MF</small></label>
+        <input id="format-advisor-file" class="sr-only" type="file" accept=".skp,.blend,.dwg,.dxf,.3dm,.rvt,.ifc,.step,.stp,.iges,.igs,.usd,.usdz,.3mf,.fbx,.glb,.gltf,.obj">
+        <p class="hint">선택한 파일의 이름과 크기만 확인합니다. 파일 내용을 읽거나 외부 서버로 업로드하지 않습니다.</p>
+        <pre class="format-bridge-result" id="format-advisor-result" aria-live="polite">형식을 확인할 파일을 선택하세요.</pre>
+        <button type="button" id="format-advisor-copy" class="outline full" disabled>변환 체크리스트 복사</button>
       </section>
       <div class="notice">현장 프리셋은 <strong>조작 확인용 예시 공간</strong>입니다. 실제 설계의 배치·입면·조경을 재현하려면 실측 현장 모델(예: GLB·FBX·OBJ) 또는 배치도 원본이 필요합니다.</div>
     </aside>
