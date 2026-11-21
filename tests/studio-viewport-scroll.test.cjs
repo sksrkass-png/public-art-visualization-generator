@@ -1,4 +1,4 @@
-// v4.0.1 desktop layout regression: no giant document tail below 3D studio.
+// v4.0.2 desktop layout and real pointer wheel regression: no giant document tail below 3D studio.
 const {chromium}=require("playwright");
 const assert=require("node:assert/strict");
 (async()=>{
@@ -40,6 +40,19 @@ const assert=require("node:assert/strict");
       assert.equal(layout.rightOverflow,"auto");
       await page.evaluate(()=>window.scrollTo(0,10000));
       assert.equal(await page.evaluate(()=>window.scrollY),0,"browser page should not scroll "+width);
+      // Scroll the tool list to its end, then keep turning the wheel: this must
+      // never propagate to the document or push the canvas out of view.
+      await page.locator(".sidepanel.left").evaluate(el=>{el.scrollTop=el.scrollHeight;});
+      const leftBox=await page.locator(".sidepanel.left").boundingBox();
+      await page.mouse.move(leftBox.x+Math.min(80,leftBox.width/2),leftBox.y+Math.min(170,leftBox.height/2));
+      await page.mouse.wheel(0,1900);
+      await page.waitForTimeout(130);
+      assert.equal(await page.evaluate(()=>window.scrollY),0,"wheel at sidebar end must not scroll page "+width);
+      const center=await page.locator(".viewer-shell").boundingBox();
+      await page.mouse.move(center.x+center.width/2,center.y+center.height/2);
+      await page.mouse.wheel(0,1550);
+      await page.waitForTimeout(130);
+      assert.equal(await page.evaluate(()=>window.scrollY),0,"wheel over 3D canvas must not scroll page "+width);
     }
     await page.setViewportSize({width:740,height:900});
     await page.waitForTimeout(250);
@@ -48,6 +61,6 @@ const assert=require("node:assert/strict");
     assert.ok(mobile.viewer>=390,"mobile viewer should remain usable");
     assert.ok(["visible","auto"].includes(mobile.overflow),"mobile keeps page scrolling");
     assert.deepEqual(pageErrors,[],"no runtime exceptions");
-    console.log("PASS v4.0.1: fixed desktop viewport without body scrollbar at 801-1440px; responsive mobile preserved");
+    console.log("PASS v4.0.2: fixed desktop viewport without body scrollbar at 801-1440px; responsive mobile preserved");
   }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
