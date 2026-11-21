@@ -903,6 +903,7 @@ function renderPrecisionRows(){
     const check=document.createElement("input");
     check.type="checkbox";check.dataset.precisionGroupId=String(root.userData.extraId);
     check.checked=previous.has(root.userData.extraId);
+    label.classList.toggle("is-batch-selected",check.checked);
     check.disabled=!canEditObject(root,artRoot,layerState,approvedMaster);
     const suffix=root.userData.groupId?" · 그룹 #"+root.userData.groupId:"";
     label.append(check,document.createTextNode(" "+root.name+suffix));
@@ -4369,6 +4370,7 @@ $("precision-group-list").addEventListener("change",e=>{
   const id=Number(e.target?.dataset?.precisionGroupId);
   if(!id || approvedMaster)return;
   if(e.target.checked)groupChecked.add(id);else groupChecked.delete(id);
+  e.target.closest("label")?.classList.toggle("is-batch-selected",e.target.checked);
   $("precision-group").disabled=groupChecked.size<2;
   refreshBatchStatus();
 });
