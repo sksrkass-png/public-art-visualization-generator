@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101113">
-  <title>AXOO — Public Art 3D Studio</title>
+  <title>AXOO — Creative 3D Studio</title>
   <link rel="stylesheet" href="./studio.css">
   <script type="importmap">
   {
@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 3.4 · FORMAT BRIDGE</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 3.5 · MULTI-PROJECT</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -27,7 +27,7 @@
   </header>
   <main class="workspace">
     <aside class="sidepanel left">
-      <div class="panel-head"><span class="eyebrow">01 / SCENE SETUP</span><h1>🏛️ 공간과 작품</h1><p>현장을 선택하고 작품 모델을 배치하세요.</p></div>
+      <div class="panel-head"><span class="eyebrow">01 / SCENE SETUP</span><h1>🏛️ 공간과 작품</h1><p>공공미술 · 팝업 · 전시 · 공간 브랜딩을 하나의 스튜디오에서 기획하세요.</p></div>
       <div class="project-quick-save">
         <p class="hint">프로젝트 이름으로 모델과 배치를 묶어 관리합니다.</p>
         <div class="inline">
@@ -40,7 +40,21 @@
         <h2>🗂️ 프로젝트</h2>
         <label for="project-name">프로젝트 이름</label>
         <input id="project-name" type="text" value="새 공공미술 시안" maxlength="100">
-        <p class="hint">거리 단위는 m(미터), Y축은 높이입니다.</p>
+        <label for="project-mode">프로젝트 유형</label>
+        <select id="project-mode" class="mode-selector">
+          <option value="public-art">🗿 공공미술 / PUBLIC ART</option>
+          <option value="popup-retail">🛍️ 팝업 · 리테일 / POP-UP &amp; RETAIL</option>
+          <option value="exhibition">🏛️ 전시 / EXHIBITION DESIGN</option>
+          <option value="spatial-branding">📍 공간 브랜딩 / SPATIAL BRANDING</option>
+        </select>
+        <div class="project-mode-card">
+          <div class="project-mode-title" id="project-mode-heading">🗿 공공미술 설치 제안</div>
+          <p class="hint" id="project-mode-guide">프로젝트에 필요한 3D 에셋을 추천합니다.</p>
+          <ul class="mode-checklist" id="project-mode-checks"></ul>
+          <button type="button" class="outline full" id="mode-starter-add">+ 예시 레이아웃 배치</button>
+          <p class="hint">유형 전환은 장면을 수정하지 않습니다. 예시 배치 버튼은 현재 공간에 <strong>독립 객체를 추가</strong>합니다. 실제 현장·작품 모델, 그래픽·IP, 제작 설계는 자동 생성하지 않습니다.</p>
+        </div>
+        <p class="hint">좌표 및 거리 기준은 m(미터), Y축은 높이입니다. 승인된 MASTER LOCK에서는 프로젝트 유형과 공간 편집이 잠깁니다.</p>
       </section>
       <details class="production-audit section" id="production-audit">
         <summary>✅ v3.0 · 실전 프로젝트 점검</summary>
@@ -409,12 +423,13 @@
         <p class="hint">비교 이미지는 브라우저 WebGL PBR 기반이며, 인증된 CAD 간섭검사·Blender 경로 추적·AI 실사화가 아닙니다. MASTER 8컷은 기존 승인 절차대로 출력합니다.</p>
       </section>
       <section class="section">
-        <h2>🌳 현장 에셋 라이브러리 <span class="tag">v3.2</span></h2>
-        <p class="hint">수목·인물·거리 가구 외에 3×3m 바닥 타일과 검정 명판을 독립 객체로 배치합니다. 배치한 에셋은 각각 선택·이동·복제할 수 있으며 실제 현장의 원본 마감·조경을 수정하지 않습니다.</p>
+        <h2>🧱 공간·현장 에셋 라이브러리 <span class="tag">v3.5</span></h2>
+        <p class="hint">현재 프로젝트 유형에 알맞은 환경·공간 에셋을 추천합니다. 모든 배치 객체는 별도 선택·이동·회전·복제·삭제할 수 있으며 현장 원본 메시를 변경하지 않습니다.</p>
         <label for="context-search">에셋 검색</label>
-        <input id="context-search" type="search" placeholder="예: 단풍나무, 벚꽃, 덤불, 수관, 차량" autocomplete="off">
+        <input id="context-search" type="search" placeholder="예: 전시 가벽, 진열대, 미디어 스크린, 사이니지, 수목" autocomplete="off">
         <label for="context-category">에셋 분류</label>
         <select id="context-category">
+          <option value="recommended" selected>✨ 현재 프로젝트 추천</option>
           <option value="all">전체 에셋</option>
           <option value="planting">수목·잔디</option>
           <option value="people">인물</option>
@@ -422,6 +437,9 @@
           <option value="lighting">조명</option>
           <option value="surface">바닥·포장</option>
           <option value="signage">명판·사이니지</option>
+          <option value="architecture">가벽·공간 구조물</option>
+          <option value="display">진열·디스플레이</option>
+          <option value="media">미디어·체험</option>
         </select>
         <p id="context-search-count" class="hint" aria-live="polite">에셋 검색 준비 중</p>
         <p id="asset-placement-status" class="hint" aria-live="polite">에셋 버튼 선택 → 현장 반복 클릭으로 연속 배치 · 같은 버튼 다시 누르면 OFF · Esc로 종료</p>
@@ -444,7 +462,14 @@
           <button type="button" data-add-extra="point-light">💡 포인트 조명</button>
           <button type="button" data-add-extra="shrub-flower">🌺 꽃 덤불 A · 기본형</button>
           <button type="button" data-add-extra="black-nameplate">⬛ 검정 명판</button>
-          <p class="hint" style="grid-column:1/-1">⬛ 기본 명판은 첨부 GLB의 300×200×100mm 크기와 표기 문구를 참고한 경량 모델입니다. 원본 형상·텍스처 그대로 사용하려면 아래 📂 내 GLB 에셋 라이브러리에 원본 파일을 등록하세요.</p>
+          <button type="button" data-add-extra="modular-wall">🧱 모듈 가벽 3m</button>
+          <button type="button" data-add-extra="retail-shelf">🛍️ 상품 진열대 2m</button>
+          <button type="button" data-add-extra="display-podium">⬜ 디스플레이 좌대 1m</button>
+          <button type="button" data-add-extra="brand-counter">🗃️ 브랜드 운영 카운터</button>
+          <button type="button" data-add-extra="media-screen">📺 미디어 스크린 3.15m</button>
+          <button type="button" data-add-extra="signage-totem">📍 사이니지 토템 2.25m</button>
+          <button type="button" data-add-extra="experience-kiosk">🖥️ 체험 키오스크 1.43m</button>
+          <p class="hint" style="grid-column:1/-1">🧩 신규 공간 에셋 7종은 무브랜드 실측 개념형입니다. 실제 제품·가구·구조 안전·미디어 작동이나 인허가를 보증하지 않습니다. ⬛ 기본 명판은 첨부 GLB의 300×200×100mm 크기와 표기 문구를 참고한 경량 모델입니다. 원본 형상·텍스처 그대로 사용하려면 아래 📂 내 GLB 에셋 라이브러리에 원본 파일을 등록하세요.</p>
         </div>
         <details id="plant-variants" class="plant-variants">
           <summary>🌿 나무·덤불 B/C 수형 14종 더보기</summary>
