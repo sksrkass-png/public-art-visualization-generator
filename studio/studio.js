@@ -656,7 +656,7 @@ function applyProjectMode(mode,{restoring=false,announce=true}={}){
   if(!restoring){
     spatialVisualization.look=null;
     $("context-search").value="";
-    $("context-category").value="recommended";
+    $("context-category").value=favoritesOnly?"all":"recommended";
   }
   const cfg=projectModeConfig(mode);
   const headline=$("project-mode-heading");
