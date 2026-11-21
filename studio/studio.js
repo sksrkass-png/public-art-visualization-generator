@@ -3116,7 +3116,18 @@ async function exportProjectArchive() {
     const integrity=await makeIntegrityManifest(zip);
     zip.file("integrity.json",JSON.stringify(integrity,null,2));
     $("save-status").textContent = "검증 가능한 프로젝트 패키지 저장 중…";
-    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
+    let lastArchivePercent=-1;
+    const blob = await zip.generateAsync(
+      { type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } },
+      progress=>{
+        // Throttle DOM updates; JSZip may emit thousands of compression events.
+        const next=Math.min(100,Math.max(0,Math.floor(progress.percent/5)*5));
+        if(next!==lastArchivePercent){
+          lastArchivePercent=next;
+          $("save-status").textContent="프로젝트 ZIP 압축 "+next+"% · 원본 보존";
+        }
+      }
+    );
     if(blob.size>MAX_ZIP_BYTES)
       throw Error("ZIP 320MB 복원 한도를 초과했습니다. 현장·작품·에셋 파일을 경량화하세요.");
     download(safeFileName() + "-project.zip", blob);
