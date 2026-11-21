@@ -422,3 +422,14 @@
 /* v3.4 FORMAT BRIDGE — concise, selectable conversion instructions. */
 .format-bridge-panel .file-button{display:block;margin:9px 0 7px}
 .format-bridge-result{font:inherit;line-height:1.6;font-size:11px;white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere;background:#fafafa;border:1px solid #e4e6ea;color:#4d5159;border-radius:6px;padding:12px;max-height:320px;overflow:auto;margin:9px 0}
+
+/* v3.5 — Multi-project mode switcher. Existing scene UI remains source-safe. */
+.project-mode-card{border:1px solid #dfe2e5;padding:11px 12px;margin-top:10px;border-radius:6px;background:#fafafa;display:grid;gap:8px}
+.project-mode-title{font-weight:780;font-size:12px;color:#212326;line-height:1.35}
+.project-mode-card .hint{font-size:11px;line-height:1.5;margin:0;color:#676b72}
+.mode-selector{width:100%;font-weight:650;margin-bottom:1px}
+.mode-checks{border-top:1px solid #e8e8e8;padding-top:7px}
+.mode-checks summary{cursor:pointer;font-size:11px;font-weight:650;color:#555a61;line-height:1.5}
+.mode-checklist{margin:7px 0 3px;padding-left:17px;color:#60656c;display:grid;gap:5px;font-size:11px;line-height:1.45}
+.mode-top-tag{font-weight:700;letter-spacing:.065em}
+@media(max-width:960px){.mode-top-tag{display:none}}
