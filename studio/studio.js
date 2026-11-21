@@ -49,6 +49,9 @@ import {CAMERA_SLOTS,validCameraBookmarks,bookmarkCamera,savedCameraCount} from 
 import {sceneFootprint,productionReport,verifyPngCapture,assertRendererAvailable} from "./production-qa.js";
 import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity,SKY_COLORS,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR} from "./render-looks.js";
 import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel} from "./context-catalog.js";
+import {PROJECT_MODE_DEFAULT,validProjectMode,projectModeConfig,
+  recommendedAssetKinds,starterLayout,validateModeStarter} from "./project-modes.js";
+import {EXTRA_TYPES} from "./extras.js";
 import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
   visualReadiness,visualPackageManifest} from "./visual-workflow.js";
 import {createVisualOptionStage} from "./visual-option-render.js";
@@ -196,6 +199,7 @@ const neutralEnvironment=scene.environment;
 let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
 let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
 let artworkMaterialState={preset:"original",color:"#d0d6db"};
+let currentProjectMode=PROJECT_MODE_DEFAULT;
 const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048, inch: .0254 });
 const MAX_UNDO = 40;
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -323,7 +327,10 @@ function renderSiteLayerRows(entries) {
 }
 function refreshContextPalette(){
   const query=$("context-search").value;
-  const matched=new Set(filterContextCatalog(query,$("context-category").value).map(a=>a.kind));
+  const category=$("context-category").value;
+  const allowed=category==="recommended"?new Set(recommendedAssetKinds(currentProjectMode)):null;
+  const matched=new Set(filterContextCatalog(query,allowed?"all":category)
+    .filter(item=>!allowed||allowed.has(item.kind)).map(a=>a.kind));
   document.querySelectorAll("[data-add-extra]").forEach(button=>{
     button.hidden=!matched.has(button.dataset.addExtra);
   });
@@ -338,7 +345,75 @@ function refreshContextPalette(){
   }
   syncAssetPlacementUI();
   $("context-search-count").textContent=matched.size+" / "+CONTEXT_CATALOG.length+
-    "개 기본 에셋 · B/C 수형은 아래 펼치기 · 장면에 추가한 모델은 필터로 숨겨지지 않습니다.";
+    "개 에셋 · "+(category==="recommended"?"현재 프로젝트 맞춤 추천":"전체 카탈로그 필터")+
+    " · 추가된 3D 객체는 모드 변경 시 숨겨지거나 삭제되지 않습니다.";
+}
+function applyProjectMode(mode,{restoring=false,announce=true}={}){
+  if(!validProjectMode(mode))throw Error("지원하지 않는 프로젝트 유형입니다.");
+  if(!restoring&&approvedMaster){
+    $("project-mode").value=currentProjectMode;
+    return notify("MASTER LOCK을 먼저 해제해야 프로젝트 유형을 변경할 수 있습니다.");
+  }
+  currentProjectMode=mode;
+  $("project-mode").value=mode;
+  if(!restoring){
+    $("context-search").value="";
+    $("context-category").value="recommended";
+  }
+  const cfg=projectModeConfig(mode);
+  const headline=$("project-mode-heading");
+  if(headline)headline.textContent=cfg.icon+" "+cfg.title;
+  $("project-mode-guide").textContent=cfg.description;
+  $("project-mode-checks").replaceChildren(...cfg.checks.map(item=>{
+    const li=document.createElement("li");li.textContent=item;return li;
+  }));
+  $("mode-starter-add").textContent="+"+cfg.icon+" "+cfg.templateLabel+" (예시)";
+  $("project-mode-tag").textContent=cfg.label;
+  document.title="AXOO — "+cfg.label+" 3D Studio";
+  refreshContextPalette();
+  if(announce)notify(cfg.title+" 모드로 전환 · 기존 모델과 작품, 배치, MASTER 이력은 변경하지 않았습니다.");
+}
+function applyModeStarter(){
+  if(approvedMaster)return notify("MASTER LOCK을 해제한 후 예시 공간 에셋을 추가하세요.");
+  const items=starterLayout(currentProjectMode);
+  if(!validateModeStarter(currentProjectMode,EXTRA_TYPES))
+    return notify("모드 템플릿에 유효하지 않은 에셋이 있습니다.");
+  if(layerState.groups.planting.locked||layerState.groups.lighting.locked||
+     !layerState.groups.planting.visible||!layerState.groups.lighting.visible)
+    return notify("환경·조명 레이어 잠금/숨김을 해제한 후 예시 배치를 사용하세요.");
+  if((siteSourceFile||extrasRoot.children.length) &&
+     !window.confirm("이 예시 배치는 기존 작품·현장을 수정하지 않고 별도 오브제를 추가합니다. 현재 현장과 위치가 맞지 않을 수 있습니다. 계속할까요?"))return;
+  const before=editSnapshot();
+  const baseX=orbit.target.x,baseZ=orbit.target.z;
+  const nextIdBefore=nextExtraId;
+  const created=[];
+  try{
+    for(const item of items){
+      const root=makeExtra(item.kind,nextExtraId++,2,null,assetLibrary,artRoot);
+      root.position.set(baseX+item.x,0,baseZ+item.z);
+      root.rotation.y=item.r;
+      extrasRoot.add(root);
+      created.push(root);
+      if(!item.kind.includes("light"))
+        snapRootToSurface(root,physicalSiteForPlacement(),{
+          allowFallback:siteNeedsReferenceGround(),
+          offset:toFinite($("ground-offset").value,0,-20,50)
+        });
+    }
+    stopAssetPlacement();
+    refreshLayers();
+    updateExtrasStatus();
+    selectRoot(created[0]||artRoot);
+    commit(before);
+    notify(projectModeConfig(currentProjectMode).templateLabel+" · "+created.length+
+      "개 독립 에셋 배치 완료. 실제 위치·스케일·동선은 직접 확인하세요.");
+  }catch(error){
+    for(const root of created)extrasRoot.remove(root);
+    nextExtraId=nextIdBefore;
+    refreshLayers();updateExtrasStatus();
+    console.error(error);
+    notify("예시 배치 중단: "+error.message);
+  }
 }
 function syncContextHeightUI(){
   const root=selectedRoot;
@@ -1871,6 +1946,7 @@ function syncLock() {
   else if (gizmoRequested && selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
   ["library-place","library-asset-file","library-asset-category","extra-target-height","extra-fit-height",
     "site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color", "ground-light-upgrade",
+    "project-mode","mode-starter-add",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
     "plan-pick-center", "plan-visible", "map-file", "map-width", "plan-x", "plan-z",
     "plan-rotation", "plan-elevation", "plan-opacity"]
@@ -2599,6 +2675,7 @@ function sceneConfig() {
   return {
     schema: "axoo-public-art-3d-studio-v1",
     projectName: $("project-name").value,
+    projectMode:currentProjectMode,
     library:libraryManifest(assetLibrary),
     sourceManifest:{schema:"axoo-source-manifest-v1",localOnly:true,
       site:siteSourceFile?{name:siteSourceFile.name,format:siteSourceFile.name.split(".").pop().toLowerCase(),byteSize:siteSourceFile.size}:null,
@@ -2640,6 +2717,7 @@ function validTransform(t) {
 function validateProjectConfig(data) {
   if (!data || data.schema !== "axoo-public-art-3d-studio-v1" || !data.site || !data.artwork ||
       !validTransform(data.artwork.transform) || !data.lighting || !data.camera ||
+      (data.projectMode!==undefined&&!validProjectMode(data.projectMode)) ||
       !isTriple(data.camera.position) || !isTriple(data.camera.target) ||
       typeof data.artwork.source !== "string" || typeof data.site.file !== "string" ||
       !validCompanions(data.site.resources,data.site.file) ||
@@ -2689,6 +2767,7 @@ function importSceneConfig(data) {
   if(!data.render?.environmentFile ||
       data.render.environmentFile!==hdrSourceFile?.name)clearHDR();
   $("project-name").value = String(data.projectName || "공공미술 시안").slice(0, 100);
+  applyProjectMode(data.projectMode||PROJECT_MODE_DEFAULT,{restoring:true,announce:false});
   if (data.site.file && data.site.file !== originalSite) {
     buildSite("empty");
     $("site-status").textContent = "현장 파일 필요";
@@ -3760,6 +3839,8 @@ $("light-preset").addEventListener("change", e => {
   updateLight();
 });
 document.querySelectorAll("[data-add-extra]").forEach(el => el.addEventListener("click", () => setPlacement(el.dataset.addExtra)));
+$("project-mode").addEventListener("change",event=>applyProjectMode(event.target.value));
+$("mode-starter-add").addEventListener("click",applyModeStarter);
 $("context-search").addEventListener("input",refreshContextPalette);
 $("context-category").addEventListener("change",refreshContextPalette);
 $("extra-list-search").addEventListener("input",updateExtrasStatus);
@@ -4150,7 +4231,7 @@ fitCamera();
 updateNavigationSpeed();
 refreshCameraBookmarks();
 refreshMasterPreviewUI();
-refreshContextPalette();
+applyProjectMode(PROJECT_MODE_DEFAULT,{restoring:true,announce:false});
 syncContextHeightUI();
 checkVisualQuality();
 resize();
