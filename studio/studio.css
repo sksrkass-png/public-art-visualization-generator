@@ -511,3 +511,7 @@ html[data-studio-workspace="quick"] .sidepanel.right .inspector-fold:not([open])
   .workspace-shortcuts{grid-template-columns:repeat(5,minmax(0,1fr))}
   .workspace-shortcuts button{font-size:9px;padding:8px 2px}
 }
+
+/* v3.9 selected batch rows are UI-only selection highlights; never rendered into output PNG. */
+#precision-group-list label.is-batch-selected{background:#e5eeea!important;border-color:#8ca99d!important;color:#17392e!important;font-weight:750}
+#precision-group-list label.is-batch-selected input[type=checkbox]{accent-color:#294d40}
