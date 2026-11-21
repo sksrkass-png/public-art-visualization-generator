@@ -765,7 +765,7 @@
           <button id="camera-tour-prev" class="outline" type="button">◀ 이전 시점</button>
           <button id="camera-tour-next" class="outline" type="button">다음 시점 ▶</button>
         </div>
-        <label class="toggle"><input id="camera-smooth" type="checkbox" checked> 저장한 시점 사이 부드럽게 이동</label>
+        <label class="toggle"><input id="camera-smooth" type="checkbox"> 저장한 시점 사이 부드럽게 이동</label>
         <p class="hint">저장된 카메라 시점 사이를 이동합니다. 모델 위치·재질·MASTER 승인 상태는 변경하지 않습니다.</p>
         <label for="render-aspect">렌더 이미지 비율</label>
         <select id="render-aspect">
@@ -966,7 +966,8 @@
         <div class="browser-vault-panel">
           <h3>🗂️ 이 브라우저에 프로젝트 저장</h3>
           <p class="hint">작품·현장 원본을 포함한 ZIP을 이 브라우저의 IndexedDB에 저장합니다. 서버 업로드·팀 공유·자동 동기화는 하지 않습니다. 브라우저 데이터 삭제 시 사라질 수 있으니 ZIP으로도 백업하세요.</p>
-          <button id="vault-save" class="primary full" type="button">💾 현재 프로젝트 브라우저에 저장</button>
+          <button id="vault-save" class="primary full" type="button">💾 현재 프로젝트 저장 / 덮어쓰기</button>
+          <button id="vault-save-new" class="outline full" type="button">➕ 새로운 프로젝트로 따로 저장</button>
           <label for="vault-list">저장된 프로젝트</label>
           <select id="vault-list"><option value="">저장된 프로젝트 없음</option></select>
           <div class="inline"><button id="vault-load" class="outline full" type="button" disabled>📂 선택 프로젝트 열기</button><button id="vault-delete" class="outline full" type="button" disabled>삭제</button></div>
