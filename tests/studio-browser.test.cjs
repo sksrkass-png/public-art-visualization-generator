@@ -702,8 +702,8 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(approvedAfter.artwork.locked,true,"master remains approved after render");
 
     // Deprecated panels remain in DOM only for backward-compat regression.
-    await page.locator("#render-review").evaluate(el=>{el.hidden=false;el.classList.remove("studio-deprecated-panel");});
-    await page.locator("#release-readiness").evaluate(el=>{el.hidden=false;el.classList.remove("studio-deprecated-panel");});
+    await page.locator("#render-review").evaluate(el=>{el.hidden=false;el.classList.remove("studio-deprecated-panel");el.closest("details.inspector-fold").open=true;});
+    await page.locator("#release-readiness").evaluate(el=>{el.hidden=false;el.classList.remove("studio-deprecated-panel");el.closest("details.inspector-fold").open=true;});
     // v0.9 review: use the actual v0.8 eight-PNG ZIP as baseline, then
     // a byte-for-byte image as a harmless mock of user-provided enhancement.
     await page.locator("#review-batch-file").setInputFiles({
