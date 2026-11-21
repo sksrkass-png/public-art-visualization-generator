@@ -27,6 +27,7 @@ const assert=require("node:assert/strict");
           panelScrollable:document.querySelector(".sidepanel.left").scrollHeight>=document.querySelector(".sidepanel.left").clientHeight
         };
       });
+      console.log("VIEWPORT_LAYOUT",width,height,JSON.stringify(layout));
       assert.ok(layout.viewer.height>150,"3D viewport should retain useful size "+width);
       assert.ok(layout.viewer.bottom<=height+2,"3D viewport stays within screen "+width);
       assert.ok(layout.workspace.bottom<=height+2,"workspace does not overflow screen "+width);
