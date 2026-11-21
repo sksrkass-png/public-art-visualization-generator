@@ -44,8 +44,9 @@ export function validVariant(candidate){
     !candidate.scene||typeof candidate.scene!=="object"||
     !candidate.lighting||typeof candidate.lighting!=="object" ||
     typeof candidate.render!=="object"||candidate.render===null)return false;
-  if(!candidate.scene.artwork||!Array.isArray(candidate.scene.extras)||
-    candidate.scene.extras.length>120)return false;
+  // The old 120-item A/B/C guard contradicted unlimited scene placement.
+  // Full extras validation in studio.js still checks types, ids and transforms.
+  if(!candidate.scene.artwork||!Array.isArray(candidate.scene.extras))return false;
   if(Object.values(candidate.lighting).some(x=>!finite(x)))return false;
   if(candidate.name!==undefined&&(typeof candidate.name!=="string"||candidate.name.length>40))return false;
   return true;

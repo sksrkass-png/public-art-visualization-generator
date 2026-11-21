@@ -47,6 +47,8 @@ import {cameraFocusSettings,shouldAutoFocusImportedSite} from "./camera-focus.js
 import {isCanvasClick,navigationSpeeds,CLICK_TOLERANCE_PX} from "./navigation-ux.js";
 import {CAMERA_SLOTS,validCameraBookmarks,bookmarkCamera,savedCameraCount} from "./camera-bookmarks.js";
 import {sceneFootprint,productionReport,verifyPngCapture,assertRendererAvailable} from "./production-qa.js";
+import {archiveBudget,sceneHealth,readableBytes,PROJECT_ZIP_LIMIT,PROJECT_METADATA_LIMIT}
+  from "./stability-qa.js";
 import {ARCHVIZ_LOOKS,renderShadowSettings,fillLightIntensity,SKY_COLORS,NIGHT_SKY_COLOR,NIGHT_KEY_COLOR} from "./render-looks.js";
 import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel} from "./context-catalog.js";
 import {PROJECT_MODE_DEFAULT,validProjectMode,projectModeConfig,
@@ -202,6 +204,8 @@ let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
 let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
 let artworkMaterialState={preset:"original",color:"#d0d6db"};
 let currentProjectMode=PROJECT_MODE_DEFAULT;
+let archiveExportInProgress=false;
+let gpuContextLost=false;
 let spatialVisualization={look:null,shot:null};
 const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048, inch: .0254 });
 const MAX_UNDO = 40;
@@ -1406,6 +1410,67 @@ function currentProductionAudit(){
     output:size,gpuContextLost:!!renderer.getContext()?.isContextLost?.()
   });
 }
+
+let lastStabilityAudit=null;
+function projectSourceBudget(){
+  // Never read/duplicate model bytes for budget estimation.
+  const entries=[];
+  function add(label,file){
+    if(file)entries.push({label,bytes:file.size});
+  }
+  add("site",siteSourceFile);
+  siteSourceResources.forEach((file,i)=>add("site-resource-"+i,file));
+  add("artwork",artSourceFile);
+  artSourceResources.forEach((file,i)=>add("artwork-resource-"+i,file));
+  add("plan",planSourceFile);
+  add("hdri",hdrSourceFile);
+  for(const asset of assetLibrary.values())add("library-"+asset.id,asset.file);
+  const jsonBytes=new Blob([JSON.stringify(sceneConfig(),null,2)],{type:"application/json"}).size;
+  return archiveBudget(entries,jsonBytes,MAX_ZIP_BYTES);
+}
+function runStabilityAudit(){
+  const site=sceneFootprint(siteRoot);
+  const art=sceneFootprint(artRoot);
+  const additional=sceneFootprint(extrasRoot);
+  const info=renderer.info;
+  const budget=projectSourceBudget();
+  const report=sceneHealth({
+    meshes:site.meshes+art.meshes+additional.meshes,
+    triangles:site.triangles+art.triangles+additional.triangles,
+    extras:extrasRoot.children.length,
+    drawCalls:Math.max(0,info.render.calls||0),
+    textureCount:Math.max(0,info.memory.textures||0),
+    geometryCount:Math.max(0,info.memory.geometries||0),
+    archive:budget,
+    gpuLost:gpuContextLost||!!renderer.getContext()?.isContextLost?.()
+  });
+  lastStabilityAudit={
+    schema:"axoo-studio-stability-v3.7",
+    checkedAt:new Date().toISOString(),
+    project:$("project-name").value,
+    mode:currentProjectMode,
+    ...report,
+    gpuMaxTexture:renderer.capabilities.maxTextureSize,
+    notice:"브라우저 순간 상태의 기술적 경고입니다. GPU 실제 메모리·FPS 인증이 아니며 건축/구조 안전 검사가 아닙니다."
+  };
+  $("stability-audit-status").textContent=[
+    "상태: "+({ok:"일반적인 장면 규모",review:"경량화·백업 점검 권장",block:"GPU 복구 확인 필요"}[report.status]),
+    "객체 "+report.counts.extras.toLocaleString()+"개 · 메시 "+report.counts.meshes.toLocaleString()+
+      "개 · 삼각형 "+report.counts.triangles.toLocaleString(),
+    "마지막 렌더 프레임 Draw call "+report.counts.drawCalls.toLocaleString()+
+      " · GPU 등록 지오메트리 "+report.counts.geometryCount+
+      "개 / 텍스처 "+report.counts.textureCount+"개 (실측 메모리 값 아님)",
+    "원본 파일 "+budget.fileCount+"개 · "+readableBytes(budget.rawBytes)+
+      " / ZIP 320MB · 예상 압축률은 알 수 없으며 압축 후 실제 용량만 최종 판정",
+    "설정 JSON "+readableBytes(budget.metadataBytes)+
+      " / "+readableBytes(PROJECT_METADATA_LIMIT),
+    ...report.notices.map(x=>"⚠ "+x.text),
+    "이 점검은 장면을 변경하지 않습니다. 실제 제안 전 ZIP을 저장하고 복원 여부를 확인하세요."
+  ].join("\n");
+  $("stability-audit-export").disabled=false;
+  return lastStabilityAudit;
+}
+
 function runProductionAudit(){
   const report=currentProductionAudit();
   lastProductionAudit=report;
@@ -2722,6 +2787,7 @@ async function importModel(file, isSite, resources = [], paths = [], sourcePath 
     await new Promise(resolve=>requestAnimationFrame(resolve));
     importProgress(isSite, "② 3D 구조·재질 해석 중 (고용량 모델은 오래 걸릴 수 있습니다)", 45);
     const model = await decodeModel(file, isSite, resources, paths, sourcePath);
+    if (approvedMaster || op !== (isSite ? activeSiteOperation : activeArtOperation)) return;
     importProgress(isSite, "③ 메시·실측·렌더 메모리 점검 중", 75);
     if(!isSite && extrasRoot.children.some(o=>o.userData.extraKind==="artwork-copy"))
       throw Error("작품 복제본이 남아 있습니다. 복제본을 삭제한 뒤 원본 작품을 교체하세요.");
@@ -2747,7 +2813,7 @@ async function importModel(file, isSite, resources = [], paths = [], sourcePath 
       $("site-status").textContent = model.userData.cadReferenceOnly ? "DXF 2D 참조" : "실제 모델";
       $("site-preset").value = "empty";
       const hints=importHints(/\.zip$/i.test(file.name) ? sourcePath.split(".").pop().toLowerCase() : file.name.split(".").pop().toLowerCase());
-      $("site-unit").value=["m","mm","cm","ft"].includes(model.userData?.cadUnit) ? model.userData.cadUnit : hints.unit;
+      $("site-unit").value=["m","mm","cm","ft","inch"].includes(model.userData?.cadUnit) ? model.userData.cadUnit : hints.unit;
       $("site-up").value=hints.up;
       applySiteUnits(); syncGroundAvailability();
       setShadows(siteRoot);
@@ -3018,17 +3084,25 @@ function importSceneConfig(data) {
 // The portable project ZIP stores the actual original bytes, not just filenames.
 // Built-in sample meshes and scene presets remain reproducible from the application.
 const PROJECT_ARCHIVE_SCHEMA = "axoo-public-art-portable-v1";
-const MAX_ZIP_BYTES = 320 * 1024 * 1024;
+const MAX_ZIP_BYTES = PROJECT_ZIP_LIMIT;
 const MAX_MODEL_BYTES = 120 * 1024 * 1024;
 const MAX_MAP_BYTES = 20 * 1024 * 1024;
 async function exportProjectArchive() {
+  if(archiveExportInProgress)return notify("프로젝트 ZIP을 생성 중입니다. 중복 저장을 차단했습니다.");
+  archiveExportInProgress=true;
+  $("export-project").disabled=true;
+  $("project-quick-save").disabled=true;
   try {
     const zip = new JSZip();
     const data = sceneConfig();
     data.archiveSchema = PROJECT_ARCHIVE_SCHEMA;
     // The source asset names are preserved in JSON. Fixed ZIP keys eliminate
     // path traversal and prevent the archive from assuming a user's directory.
-    zip.file("project.json", JSON.stringify(data, null, 2));
+    const metadata=JSON.stringify(data,null,2);
+    const metadataBytes=new Blob([metadata],{type:"application/json"}).size;
+    if(metadataBytes>PROJECT_METADATA_LIMIT)
+      throw Error("설정 JSON 8MB 초과 · 개별 오브제/검수 기록을 줄이거나 시안을 나누어 저장하세요.");
+    zip.file("project.json", metadata);
     if (siteSourceFile) zip.file("assets/site", siteSourceFile);
     for(let i=0;i<siteSourceResources.length;i++)
       zip.file("assets/site-resources/"+i,siteSourceResources[i]);
@@ -3042,7 +3116,18 @@ async function exportProjectArchive() {
     const integrity=await makeIntegrityManifest(zip);
     zip.file("integrity.json",JSON.stringify(integrity,null,2));
     $("save-status").textContent = "검증 가능한 프로젝트 패키지 저장 중…";
-    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } });
+    let lastArchivePercent=-1;
+    const blob = await zip.generateAsync(
+      { type: "blob", compression: "DEFLATE", compressionOptions: { level: 2 } },
+      progress=>{
+        // Throttle DOM updates; JSZip may emit thousands of compression events.
+        const next=Math.min(100,Math.max(0,Math.floor(progress.percent/5)*5));
+        if(next!==lastArchivePercent){
+          lastArchivePercent=next;
+          $("save-status").textContent="프로젝트 ZIP 압축 "+next+"% · 원본 보존";
+        }
+      }
+    );
     if(blob.size>MAX_ZIP_BYTES)
       throw Error("ZIP 320MB 복원 한도를 초과했습니다. 현장·작품·에셋 파일을 경량화하세요.");
     download(safeFileName() + "-project.zip", blob);
@@ -3051,6 +3136,9 @@ async function exportProjectArchive() {
     console.error(err);
     notify("프로젝트 저장 실패: " + (err.message || "메모리 용량 확인 필요"));
   } finally {
+    archiveExportInProgress=false;
+    $("export-project").disabled=false;
+    $("project-quick-save").disabled=false;
     $("save-status").textContent = "브라우저에서 로컬 처리";
   }
 }
@@ -3088,6 +3176,7 @@ async function recoverModelCompanions(zip,items,role){
 async function importProjectArchive(file) {
   if (!file) return;
   if (approvedMaster) return notify("MASTER LOCK을 해제한 뒤 프로젝트 ZIP을 불러오세요.");
+  if (archiveExportInProgress) return notify("기존 프로젝트 ZIP 저장 중에는 가져오기를 시작할 수 없습니다.");
   if (file.size > MAX_ZIP_BYTES) return notify("ZIP 파일은 320MB 이하여야 합니다.");
   const op = ++activeProjectOperation;
   $("save-status").textContent = "프로젝트 파일 검증 중…";
@@ -3099,9 +3188,9 @@ async function importProjectArchive(file) {
     $("save-status").textContent=integrityResult.verified
       ? "ZIP 모든 파일 SHA-256 검사 통과"
       : "구형 ZIP · 무결성 정보가 없어 호환 모드로 읽습니다.";
-    const metaEntry = checkedArchiveEntry(zip, "project.json", 1024 * 1024, true);
+    const metaEntry = checkedArchiveEntry(zip, "project.json", PROJECT_METADATA_LIMIT, true);
     const metadata = await metaEntry.async("string");
-    if (metadata.length > 1024 * 1024) throw new Error("프로젝트 설정 정보가 너무 큽니다.");
+    if (new Blob([metadata]).size > PROJECT_METADATA_LIMIT) throw new Error("프로젝트 설정 JSON은 8MB 이하여야 합니다.");
     const data = JSON.parse(metadata);
     validateProjectConfig(data);
     const loadedLibrary=new Map();
@@ -4152,6 +4241,17 @@ $("focus-site-quick").addEventListener("click",focusImportedSite);
 $("focus").addEventListener("click", fitCamera);
 $("project-quick-save").addEventListener("click",()=>$("export-project").click());
 $("production-audit-run").addEventListener("click",runProductionAudit);
+$("stability-audit-run").addEventListener("click",()=>{
+  try{runStabilityAudit();}catch(error){
+    $("stability-audit-status").textContent="진단 실패: "+error.message;
+    notify("성능 점검 실패: "+error.message);
+  }
+});
+$("stability-audit-export").addEventListener("click",()=>{
+  if(!lastStabilityAudit)return;
+  download(safeFileName()+"-stability-v3.7.json",
+    new Blob([JSON.stringify(lastStabilityAudit,null,2)],{type:"application/json"}));
+});
 $("production-audit-export").addEventListener("click",()=>{
   const report=runProductionAudit();
   download(safeFileName()+"-v3-production-audit.json",
@@ -4374,8 +4474,28 @@ window.addEventListener("resize", resize);
 const resizeObserver = new ResizeObserver(resize);
 resizeObserver.observe(viewport);
 
+renderer.domElement.addEventListener("webglcontextlost",event=>{
+  event.preventDefault(); // Let WebGL attempt resource recovery; source files stay untouched.
+  gpuContextLost=true;
+  $("gpu-recovery-status").hidden=false;
+  $("gpu-recovery-status").textContent="⚠ GPU 연결 중단 · 프로젝트 ZIP을 백업하고 장치 상태를 확인하세요.";
+  notify("그래픽 장치 연결이 끊겼습니다. 프로젝트 원본은 유지되며, 복구 전 렌더링을 중단합니다.");
+});
+renderer.domElement.addEventListener("webglcontextrestored",()=>{
+  gpuContextLost=false;
+  $("gpu-recovery-status").hidden=true;
+  try{updateLight();applyEnvironment();checkVisualQuality();}
+  catch(error){
+    console.warn("WebGL context restoration check failed",error);
+    $("gpu-recovery-status").hidden=false;
+    $("gpu-recovery-status").textContent="⚠ 그래픽 복원 후 렌더링 점검 필요: "+error.message;
+  }
+  notify("GPU 연결 복구 감지 · 렌더 결과를 다시 점검하고 프로젝트 ZIP을 백업하세요.");
+});
 function animate() {
   requestAnimationFrame(animate);
+  // Background tabs and temporarily lost GPU contexts must not issue WebGL draws.
+  if(document.hidden||gpuContextLost)return;
   orbit.update();
   renderer.render(scene, camera);
   drawMeasurementOverlay();

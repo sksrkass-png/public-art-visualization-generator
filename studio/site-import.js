@@ -27,9 +27,22 @@ export function inspectImportedSite(root) {
     triangles+=Math.floor((index?index.count:pos.count)/3);
     const list=Array.isArray(object.material)?object.material:[object.material];
     list.filter(Boolean).forEach(m=>materials.add(m.uuid));
-    // Preserve source geometry; reject invalid coordinates in large meshes.
-    for(let i=0;i<pos.count;i++)
-      if(!Number.isFinite(pos.getX(i)) || !Number.isFinite(pos.getY(i)) || !Number.isFinite(pos.getZ(i)))invalidVertices++;
+    // Preserve source geometry. Scan common packed XYZ attributes without
+    // allocating copies or invoking three getters millions of times.
+    const packed=pos.isBufferAttribute===true && !pos.normalized &&
+      pos.itemSize===3 && pos.array &&
+      pos.array.length===pos.count*3;
+    if(packed){
+      const raw=pos.array;
+      for(let i=0;i<raw.length;i+=3)
+        if(!Number.isFinite(raw[i])||!Number.isFinite(raw[i+1])||
+           !Number.isFinite(raw[i+2]))invalidVertices++;
+    }else{
+      // Interleaved and normalized attributes preserve the getter semantics.
+      for(let i=0;i<pos.count;i++)
+        if(!Number.isFinite(pos.getX(i)) || !Number.isFinite(pos.getY(i)) ||
+           !Number.isFinite(pos.getZ(i)))invalidVertices++;
+    }
   });
   materialCount=materials.size;
   const extent=size.toArray().every(Number.isFinite)&&Math.max(...size.toArray())>1e-8;

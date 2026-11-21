@@ -402,3 +402,32 @@ Up to **12 distinct user-supplied GLB source models**, each **20 MiB max**, comb
 
 ### QA / known limitations
 Static checks and mocked pure tests cover lighting recipe bounds, all spatial camera poses, fixture finish reversibility, scene extra serialization and restoration, backwards compatibility and code wiring. Real-world Chrome/Edge browser rendering, texture fidelity, shadows, actual 3D model and ZIP round-trip QA still require a smoke test with studio files. No real-time cloud collaboration, material texture baking, physically traced rendering, live video playback or AI image generation has been added.
+
+
+## AXOO STUDIO v3.7 — Stability & Performance (2026-11)
+
+**Release goal:** harden browser-local imports, large scenes, ZIP backup and WebGL recovery *before* introducing any cloud login, third-party server or paid subscription. This release changes neither original site/artist artwork geometry nor MASTER approval contents.
+
+### Fixes for dense scene and A/B/C alternatives
+- Removed an outdated **120 extras validation cap in the A/B/C visual variant helper**. Scene placement had already supported more than 120 extras since v3.2.1, but attempting to save a dense visual option failed silently at variant validation. The existing full scene-extra validator still checks each item's kind, ID, transform and related properties.
+- To avoid a separate mismatch, raised the old **project.json ZIP import limit from 1 MiB to 8 MiB** (both saved JSON write guard and compressed ZIP load guard). Existing v1 portable ZIP archive schema, up to 320 MiB final ZIP size, source manifest checks, SHA-256 integrity verification and older archives remain compatible.
+- If a scene exceeds the 8 MiB settings JSON limit, the editor now stops the **new archive export** with a clear message. This is a practical local-file size cap, **not a 120-object placement cap**.
+
+### Safer, clearer project backups
+- Suppresses concurrent full ZIP exports (including both quick save and lower export button) so repeated clicks cannot begin multiple large compression jobs. Full archive **import is blocked while an export is in progress**.
+- The editor shows **ZIP compression progress in 5% steps**. Source files and project contents are still assembled and verified locally, not uploaded.
+- The new opt-in **프로젝트 성능·백업 점검** button reports the count of live independent assets/meshes/triangles, last rendered WebGL frame draw calls, registered GPU resources (counts only), original file byte budget, and JSON metadata size. It produces a standalone JSON report without rewriting any scene content or MASTER revision.
+- A raw file total above 320 MiB is **only a warning**: compression can reduce the actual ZIP file. The existing **actual resulting ZIP size** is the authoritative save limit. Source sizes are read from File metadata without rereading the binary data.
+- These statistics are **not direct GPU VRAM/heap probes**, and the opt-in check is not an FPS benchmark or certified structural assessment.
+
+### Resource stress and error handling
+- On a WebGL context loss, pause the normal animation render loop, display a visible warning banner, keep the original model/source files in memory and allow manual project backup. On WebGL restoration, rerun lighting and visual-quality checks and ask the user to verify the result. Browser/driver recovery may still require a reload.
+- Skip continuous WebGL render work while the page is in a hidden/background tab. On return, the existing animation loop resumes. This does **not** change offline saved render output settings.
+- New model decodes now check if their import operation was superseded **before** running further scene inspection, preventing unnecessary expensive checks for a stale import. Decoded-but-uncommitted models do not replace the current site or sculpture.
+- Accelerated the non-mutating imported-site coordinate-finiteness scan for ordinary packed XYZ BufferAttributes. The existing Three.js attribute getter fallback remains for interleaved/normalized coordinates. Source geometry and materials are not modified.
+- Fixed the v3.4 DXF site-import unit hint to include **inches** when the source DXF header declares inch units (in addition to m/mm/cm/ft).
+
+### Regression tests and limitations
+- Added the standalone Node test suite at `tests/studio-v3.7-stability.test.cjs` for density/ZIP budget, GPU-state diagnosis, >120-item A/B/C validation, basic source/MASTER wiring and packed-XYZ site scanning. Run from repo root: `node --test tests/studio-v3.7-stability.test.cjs`.
+- Source logic and pure helper checks are done; **do not claim** real Windows/macOS Chrome/Edge model loading, big-memory rendering, project ZIP round-trip and MASTER 8-view visual inspection are completed until tested with actual Rhino, OBJ, glTF and 3D sculpture/site assets.
+- The browser still relies on Three.js/CDN libraries for initial loading. There is **no paid server, cloud storage, real-time editing, automatic online backup or background saving**, and the existing **320 MiB ZIP** and **120 MiB per primary model** limits remain.
