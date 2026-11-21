@@ -657,6 +657,11 @@ function addMeasuredPoint(point){
   syncAssetPlacementUI();
 }
 function checkInterferences(){
+  if(has2DCADSite()){
+    lastCollisionReport=null;
+    $("precision-collision-status").textContent="DXF는 2D 참조선입니다. 건물 충돌 검사는 실제 3D 현장 모델에서 실행하세요.";
+    return;
+  }
   const annotated=siteSourceFile?enumerateSiteMeshes(siteRoot).filter(entry=>
     layerState.siteNodes[entry.path]?.category==="buildings" && entry.object.visible)
     .map(entry=>entry.object):[];
@@ -688,7 +693,7 @@ function installationObjects(){
     .map(x=>({name:x.name,bounds:stageObjectBounds(x)})).filter(x=>x.bounds);
 }
 function installationBuildings(){
-  if(!siteSourceFile)return [];
+  if(!siteSourceFile||has2DCADSite())return [];
   return enumerateSiteMeshes(siteRoot).filter(entry=>
     layerState.siteNodes[entry.path]?.category==="buildings"&&entry.object.visible)
     .map(entry=>({name:entry.object.name||entry.path,bounds:stageObjectBounds(entry.object)}))
@@ -1049,11 +1054,12 @@ function currentSitePreflight() {
       appliedUnitScale:factor
     },
     warnings:[
+      ...(has2DCADSite()?["DXF 2D 참조 도면: 건축물 높이·지반·충돌 검사와 실제 설치 적합성을 확인할 수 없습니다."]:[]),
       ...sourceSiteInspection.warnings,
       ...(!Number.isFinite(actual.y)||actual.y<.05?["모델 높이가 5cm 미만입니다. 단위·축·바닥을 확인하세요."]:[]),
       ...(sourceSiteInspection.triangles>1000000?["백만 삼각형 이상: 그림자·일괄 렌더 전에 외부에서 폴리곤 경량화 권장."]:[])
     ],
-    verification:"메시와 좌표 검사 결과이며 실측 도면·건축 정보나 안전 승인을 대체하지 않습니다."
+    verification:has2DCADSite()?"2D 도면 선분 참조 · 실측/구조/지반/건축 현장 3D 검증 불가":"메시와 좌표 검사 결과이며 실측 도면·건축 정보나 안전 승인을 대체하지 않습니다."
   };
 }
 function updateSitePreflight() {
