@@ -5,7 +5,7 @@ export const PROJECT_MODES = Object.freeze({
   "public-art": Object.freeze({
     label:"PUBLIC ART", title:"공공미술 설치 제안", icon:"🗿",
     description:"작품 원형·현장·설치 위치·실측 치수와 MASTER LOCK을 우선하는 공공미술 심의·제안 모드",
-    assetKinds:["black-nameplate","plinth","park-bench","round-planter","point-light","bollard","person-man","person-woman","tree-round","shrub","lawn-tile","walkway-tile"],
+    assetKinds:["black-nameplate","park-bench","round-planter","point-light","bollard","person-man","person-woman","tree-round","shrub","lawn-tile","walkway-tile"],
     checks:["작품의 실제 W×D×H 및 제작 재질 확인","현장 입면·조경·보행로의 원본 형상 유지","기단·설치 위치·방향·크기 검토","MASTER 승인 후 8컷 일치 확인"],
     templateLabel:"공공미술 안내·휴식 예시 배치",
     starter:[
