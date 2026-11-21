@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 3.5 · MULTI-PROJECT</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 3.6 · SPATIAL VISUALIZATION</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -531,6 +531,23 @@
           </div>
           <p id="extra-height-note" class="hint" aria-live="polite">에셋을 선택하면 표시된 높이와 실제 3D 크기를 확인할 수 있습니다.</p>
         </div>
+        <div class="spatial-visual-tools" id="spatial-finish-panel" hidden>
+          <div class="section-title"><h3>🎨 v3.6 · 공간 에셋 마감</h3><span class="tag">FIXTURE FINISH</span></div>
+          <p class="hint">스튜디오가 만든 가벽·진열대·카운터·미디어·사이니지 등 개념 에셋에만 적용됩니다. 원본 작가 작품·현장·외부 GLB는 변경하지 않습니다.</p>
+          <label for="spatial-finish">선택된 공간 에셋의 렌더 마감</label>
+          <select id="spatial-finish">
+            <option value="original">원본 기본 마감</option>
+            <option value="gallery-white">갤러리 화이트</option>
+            <option value="graphite">차콜 그래파이트</option>
+            <option value="brushed-metal">브러시드 실버</option>
+            <option value="warm-timber">웜 우드 톤</option>
+            <option value="brand-accent">브랜드 포인트 컬러</option>
+          </select>
+          <label for="spatial-finish-color">브랜드 포인트 색상</label>
+          <input type="color" id="spatial-finish-color" value="#ff3b30">
+          <button id="spatial-finish-apply" type="button" class="outline full">선택 에셋에 마감 적용</button>
+          <p id="spatial-finish-status" class="hint" aria-live="polite">마감은 추가된 공간 개념 에셋에만 적용합니다.</p>
+        </div>
         <div id="extra-light-controls" hidden>
           <label for="extra-light-power">선택한 조명 밝기 <output id="extra-light-power-value">4.0</output></label>
           <input type="range" id="extra-light-power" min="0" max="20" step=".5" value="4">
@@ -542,6 +559,14 @@
       </section>
       <section class="section">
         <div class="section-title"><h2>💡 라이팅 / 조명</h2><span class="tag">v2.8</span></div>
+        <div class="spatial-visual-tools">
+          <div class="section-title"><h3>✨ v3.6 · 프로젝트 시각화 프리셋</h3><span class="tag">SPATIAL LOOKS</span></div>
+          <p class="hint">현재 프로젝트 유형에 맞는 조명·톤·그림자·환경 반사를 일괄 적용합니다. 작품·현장 원본의 형상과 재질은 변경하지 않습니다.</p>
+          <label for="spatial-look">프로젝트별 라이팅 룩</label>
+          <select id="spatial-look"></select>
+          <button type="button" class="outline full" id="spatial-look-apply">선택한 라이팅 룩 적용</button>
+          <p class="hint" id="spatial-look-status" aria-live="polite">공공미술·팝업·전시·공간 브랜딩별 룩을 선택하세요.</p>
+        </div>
         <h3>🌗 ARCHVIZ · 원클릭 주·야간 룩</h3>
         <div class="render-look-buttons" role="group" aria-label="심의용 렌더 조명 프리셋">
           <button type="button" data-render-look="architectural">☀️ 따뜻한 건축 주광</button>
@@ -644,6 +669,21 @@
         <label for="camera-focal">카메라 초점거리 <output id="camera-focal-value">38 mm</output></label>
         <input type="range" id="camera-focal" min="16" max="120" step="1" value="38">
         <p class="hint">렌즈 값은 카메라 화각만 변경하며 작품의 크기와 위치는 유지합니다.</p>
+        <div class="spatial-visual-tools">
+          <div class="section-title"><h3>📐 v3.6 · 공간 프레젠테이션 카메라</h3><span class="tag">SHOT PRESETS</span></div>
+          <p class="hint">메인 조형물 외에 현재 배치한 가벽·진열·사이니지를 함께 고려해 카메라를 맞춥니다. 모델 좌표·크기는 바꾸지 않습니다.</p>
+          <label for="spatial-shot">공간 카메라 구도</label>
+          <select id="spatial-shot">
+            <option value="hero">01 · 메인 히어로</option>
+            <option value="whole">02 · 공간 전체</option>
+            <option value="visitor">03 · 방문객 아이레벨</option>
+            <option value="side">04 · 대각선 동선</option>
+            <option value="top">05 · 공간 상부 조감</option>
+            <option value="detail">06 · 선택 객체 클로즈업</option>
+          </select>
+          <button type="button" class="outline full" id="spatial-shot-apply">선택한 카메라 구도 적용</button>
+          <p class="hint" id="spatial-shot-status" aria-live="polite">예시 프로젝트에 실제 배치된 객체를 기준으로 카메라를 설정합니다.</p>
+        </div>
         <div class="section-title"><h3>📸 카메라 시점 저장</h3><span class="tag">v2.9</span></div>
         <p class="hint">카메라 위치·방향·화각만 저장합니다. 모델 위치나 MASTER 승인값은 바뀌지 않습니다. 프로젝트 ZIP/JSON에 보존됩니다.</p>
         <div class="camera-bookmarks" aria-label="3개 카메라 즐겨찾기">
