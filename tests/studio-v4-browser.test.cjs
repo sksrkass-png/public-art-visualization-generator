@@ -21,6 +21,7 @@ const assert=require("node:assert/strict");
     await page.locator('[data-camera-save="2"]').click();
     await page.locator("#camera-tour-prev").click();
     assert.equal(await page.locator('[data-camera-load="1"]').getAttribute("class"),"is-current-camera");
+    await page.locator("#workspace-backup-panel").locator("xpath=..").evaluate(el=>el.open=true);
     await page.locator("#project-name").fill("v4 프로젝트 테스트");
     await page.locator("#vault-save-new").click();
     await page.waitForFunction(()=>document.querySelector("#vault-status")?.textContent.includes("저장 완료"),null,{timeout:60000});
