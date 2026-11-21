@@ -515,3 +515,17 @@ html[data-studio-workspace="quick"] .sidepanel.right .inspector-fold:not([open])
 /* v3.9 selected batch rows are UI-only selection highlights; never rendered into output PNG. */
 #precision-group-list label.is-batch-selected{background:#e5eeea!important;border-color:#8ca99d!important;color:#17392e!important;font-weight:750}
 #precision-group-list label.is-batch-selected input[type=checkbox]{accent-color:#294d40}
+
+/* v3.9.5 — focused layout; all first-load inspector folders are closed. */
+.workspace-shortcuts{border:1px solid #d7dcdf;border-radius:12px;padding:10px;background:#f4f5f5;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.workspace-shortcuts button{min-width:0}
+#workspace-project-panel .project-quick-save{margin:10px 0 14px;padding:12px;border:1px solid #dce1e4;border-radius:12px;background:#f9faf9}
+.studio-deprecated-panel,.studio-deprecated-panel[hidden]{display:none!important}
+#project-mode-heading[hidden]{display:none!important}
+.format-bridge-panel{padding:0!important;overflow:hidden}
+.format-bridge-panel>summary{padding:13px 14px;cursor:pointer;font-weight:700;list-style:revert}
+.format-bridge-body{padding:0 13px 13px}
+.environment-subpanel{margin-top:16px!important;padding-top:14px!important;border:0!important;border-top:1px solid #d8dce0!important;background:transparent!important}
+.environment-subpanel h2{font-size:13px!important}
+.save-status{max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.save-status[title]{cursor:help}
