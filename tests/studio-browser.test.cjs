@@ -42,6 +42,13 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
         " errors "+JSON.stringify(errors)+" diagnostics "+JSON.stringify(diagnostics)+" / "+err.message);
     }
     await page.waitForFunction(() => document.querySelector("#art-filename")?.textContent.includes("Sample Artwork"), null, { timeout: 30000 });
+    assert.equal(await page.locator("#site-status").textContent(), "빈 공간",
+      "new v3.9.5 projects should start with sculpture and empty stage");
+    assert.equal(await page.locator("#shadows").isChecked(),true,"default shadows enabled");
+    assert.equal(await page.locator("#sun-helper").isChecked(),false,"editor sun marker defaults off");
+    assert.equal(await page.locator("#grid").isChecked(),false,"editor grid defaults off");
+    await page.locator("#workspace-advanced").click();
+    await page.locator("#site-preset").selectOption("plaza");
     assert.equal(await page.locator("#site-status").textContent(), "예시 공간");
     assert.equal(await page.locator("#export-master-pack").isDisabled(),true,
       "unapproved scene must not export MASTER batch images");
