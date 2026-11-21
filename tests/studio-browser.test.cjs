@@ -891,7 +891,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       document.querySelector("#library-asset-select")?.options.length===1 &&
       document.querySelector("#library-asset-select")?.value==="lib1",
       null,{timeout:20000});
-    assert.match(await page.locator("#library-status").textContent(),/등록 1 \/ 6/);
+    assert.match(await page.locator("#library-status").textContent(),/등록 1 \/ 12/);
     await page.locator("#library-place").click();
     await page.mouse.click(rect.x+rect.width*.65,rect.y+rect.height*.82);
     await page.waitForFunction(n=>document.querySelectorAll("#extra-list button").length===n,
@@ -932,7 +932,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
       document.querySelector("#library-asset-select")?.value==="lib1" &&
       document.querySelector("#site-status")?.textContent==="예시 공간",
       baselineCount+5,{timeout:40000});
-    assert.match(await page.locator("#library-status").textContent(),/등록 1 \/ 6/);
+    assert.match(await page.locator("#library-status").textContent(),/등록 1 \/ 12/);
     await page.locator("#extra-list button").last().click();
     assert.match(await page.locator("#object-name").textContent(),/licensed-urban-seat/);
 
