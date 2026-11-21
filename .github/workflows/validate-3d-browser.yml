@@ -5,6 +5,7 @@ on:
     paths:
       - 'studio/**'
       - 'tests/studio-browser.test.cjs'
+      - 'tests/studio-v4-browser.test.cjs'
       - '.github/workflows/validate-3d-browser.yml'
   workflow_dispatch:
 
@@ -37,5 +38,7 @@ jobs:
             sleep 1
           done
           echo "HTTP server did not start"; cat /tmp/axoo-studio-http.log; exit 1
+      - name: Focused v4 workspace and project vault smoke
+        run: node tests/studio-v4-browser.test.cjs
       - name: Exercise browser editor
         run: node tests/studio-browser.test.cjs

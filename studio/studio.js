@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {listLocalProjects,saveLocalProject,getLocalProject,deleteLocalProject} from "./project-vault.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -236,6 +237,8 @@ let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
 let artworkMaterialState={preset:"original",color:"#d0d6db"};
 let currentProjectMode=PROJECT_MODE_DEFAULT;
 let archiveExportInProgress=false;
+let activeLocalVaultId=null;
+let selectedInspectorCategory=null;
 let gpuContextLost=false;
 let spatialVisualization={look:null,shot:null};
 const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048, inch: .0254 });
@@ -365,9 +368,22 @@ function renderSiteLayerRows(entries) {
 }
 // v3.9: UI preferences are kept only on this browser; never written into
 // source artwork, MASTER snapshots or full project JSON/ZIP.
+function selectInspectorCategory(category){
+  selectedInspectorCategory=selectedInspectorCategory===category?null:category;
+  for(const fold of document.querySelectorAll(".sidepanel.right > details.inspector-fold")){
+    const show=!selectedInspectorCategory||fold.dataset.inspectorGroup===selectedInspectorCategory;
+    fold.hidden=!show;
+    if(!show)fold.open=false;
+  }
+  document.querySelectorAll("[data-inspector-category]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.inspectorCategory===selectedInspectorCategory)));
+  $("inspector-category-status").textContent=selectedInspectorCategory
+    ?"선택한 작업 그룹의 도구만 표시합니다. 같은 그룹을 다시 누르면 전체 패널이 보입니다."
+    :"분류를 누르면 관련 패널만 표시됩니다. 다시 누르면 전체를 볼 수 있습니다.";
+}
 function applyWorkspaceMode(mode,{save=true,expand=true}={}){
   if(!validWorkspaceMode(mode))return;
   workspaceMode=mode;
+  if(selectedInspectorCategory)selectInspectorCategory(selectedInspectorCategory);
   document.documentElement.classList.toggle("studio-advanced-mode",mode==="advanced");
   document.documentElement.dataset.studioWorkspace=mode;
   for(const button of [["workspace-quick","quick"],["workspace-advanced","advanced"]]){
@@ -390,7 +406,10 @@ function workspaceJump(target){
   const section=$(map[target]||"workspace-project-panel");
   if(!section)return;
   const fold=section.closest("details.inspector-fold");
-  if(fold)fold.open=true;
+  if(fold){
+    if(selectedInspectorCategory && fold.hidden)selectInspectorCategory(selectedInspectorCategory);
+    fold.hidden=false;fold.open=true;
+  }
   section.scrollIntoView({behavior:"smooth",block:"start"});
 }
 function decorateAssetCards(){
@@ -3306,7 +3325,7 @@ const PROJECT_ARCHIVE_SCHEMA = "axoo-public-art-portable-v1";
 const MAX_ZIP_BYTES = PROJECT_ZIP_LIMIT;
 const MAX_MODEL_BYTES = 120 * 1024 * 1024;
 const MAX_MAP_BYTES = 20 * 1024 * 1024;
-async function exportProjectArchive() {
+async function exportProjectArchive({toVault=false}={}) {
   if(archiveExportInProgress)return notify("프로젝트 ZIP을 생성 중입니다. 중복 저장을 차단했습니다.");
   archiveExportInProgress=true;
   $("export-project").disabled=true;
@@ -3349,12 +3368,21 @@ async function exportProjectArchive() {
     );
     if(blob.size>MAX_ZIP_BYTES)
       throw Error("ZIP 320MB 복원 한도를 초과했습니다. 현장·작품·에셋 파일을 경량화하세요.");
-    download(safeFileName() + "-project.zip", blob);
-    notify("프로젝트 ZIP 저장 완료 · 원본과 SHA-256 손상 검증 정보 포함");
+    if(toVault){
+      const saved=await saveLocalProject({id:activeLocalVaultId,name:$("project-name").value,blob});
+      activeLocalVaultId=saved.id;
+      await refreshLocalVault(saved.id);
+      $("vault-status").textContent="브라우저 저장 완료 · "+saved.name+" · "+(saved.size/1048576).toFixed(1)+" MB";
+      notify("브라우저에 프로젝트 원본 ZIP 저장 완료 · 별도 ZIP 백업도 권장합니다.");
+    }else{
+      download(safeFileName() + "-project.zip", blob);
+      notify("프로젝트 ZIP 저장 완료 · 원본과 SHA-256 손상 검증 정보 포함");
+    }
   } catch (err) {
     console.error(err);
     const reason=err.message || "메모리 용량 확인 필요";
     $("save-status").textContent="프로젝트 저장 실패: "+reason;
+    if(toVault)$("vault-status").textContent="저장 실패: "+reason;
     notify("프로젝트 저장 실패: "+reason);
   } finally {
     archiveExportInProgress=false;
@@ -3363,6 +3391,22 @@ async function exportProjectArchive() {
     if(!$("save-status").textContent.startsWith("프로젝트 저장 실패"))
       $("save-status").textContent = "브라우저에서 로컬 처리";
   }
+}
+function updateVaultActions(){
+  const has=!!$("vault-list").value;
+  $("vault-load").disabled=!has||approvedMaster;
+  $("vault-delete").disabled=!has;
+}
+async function refreshLocalVault(selected){
+  try{
+    const projects=await listLocalProjects();
+    const picker=$("vault-list");
+    picker.replaceChildren(new Option(projects.length?"저장된 프로젝트 선택":"저장된 프로젝트 없음",""),
+      ...projects.map(p=>new Option(p.name+" · "+new Date(p.updatedAt).toLocaleString("ko-KR")+" · "+(p.size/1048576).toFixed(1)+"MB",p.id)));
+    if(selected&&projects.some(p=>p.id===selected))picker.value=selected;
+    updateVaultActions();
+    if(!projects.length)$("vault-status").textContent="저장된 프로젝트가 없습니다. 현재 장면을 저장해 보세요.";
+  }catch(error){$("vault-status").textContent="브라우저 저장소 사용 불가: "+error.message;}
 }
 function checkedArchiveEntry(zip, name, limit, required) {
   const entry = zip.file(name);
@@ -3515,6 +3559,7 @@ async function importProjectArchive(file) {
     notify(integrityResult.verified
       ? "프로젝트 파일 SHA-256 검증 통과 · 원본 모델과 MASTER 이력 복원 완료"
       : "구형 프로젝트 복원 완료 · 무결성 검사 정보는 없습니다.");
+    return true;
   } catch (err) {
     if (planTexture) planTexture.dispose();
     if(preparedHDR)preparedHDR.dispose();
@@ -3522,6 +3567,7 @@ async function importProjectArchive(file) {
     const reason=err.message || "파일 확인 필요";
     $("save-status").textContent="프로젝트 업로드 실패: "+reason;
     notify("프로젝트 업로드 실패: "+reason);
+    return false;
   } finally {
     if(!$("save-status").textContent.startsWith("프로젝트 업로드 실패"))
       $("save-status").textContent = "브라우저에서 로컬 처리";
@@ -3546,12 +3592,38 @@ function setCameraOnly(pose){
   $("camera-focal-value").textContent=Math.round(camera.getFocalLength())+" mm";
   updateNavigationSpeed();
 }
+let cameraMotionToken=0;
+function animatedCameraBookmark(pose){
+  const token=++cameraMotionToken;
+  const from=currentCameraPose();
+  const start=performance.now(),duration=680;
+  const tick=now=>{
+    if(token!==cameraMotionToken)return;
+    const t=Math.min(1,(now-start)/duration),ease=t*t*(3-2*t);
+    const mix=(a,b)=>a+(b-a)*ease;
+    setCameraOnly({position:from.position.map((v,i)=>mix(v,pose.position[i])),
+      target:from.target.map((v,i)=>mix(v,pose.target[i])),fov:mix(from.fov,pose.fov)});
+    if(t<1)requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+function browseCameraBookmarks(direction){
+  const filled=["1","2","3"].filter(slot=>cameraBookmarks[slot]);
+  if(!filled.length)return notify("먼저 카메라 시점을 저장해 주세요.");
+  const current=document.querySelector(".camera-bookmarks [data-camera-load].is-current-camera")?.dataset.cameraLoad;
+  const index=filled.indexOf(current);
+  const next=index<0?0:(index+direction+filled.length)%filled.length;
+  loadCameraBookmark(filled[next]);
+}
 function refreshCameraBookmarks(){
   $("camera-bookmarks-status").textContent="시점 "+savedCameraCount(cameraBookmarks)+"/3 저장됨"+
     (approvedMaster?" · 승인 중에도 카메라만 조정 가능":"");
   document.querySelectorAll("[data-camera-load]").forEach(button=>{
     button.disabled=!cameraBookmarks[button.dataset.cameraLoad];
   });
+  const have=savedCameraCount(cameraBookmarks)>0;
+  $("camera-tour-prev").disabled=!have;
+  $("camera-tour-next").disabled=!have;
 }
 function saveCameraBookmark(slot){
   try{
@@ -3565,7 +3637,9 @@ function loadCameraBookmark(slot){
   const pose=cameraBookmarks[slot];
   if(!pose)return notify("카메라 "+slot+"번에 저장된 시점이 없습니다.");
   masterPreviewReturn=null;
-  setCameraOnly(pose);
+  if($("camera-smooth").checked)animatedCameraBookmark(pose);
+  else{cameraMotionToken++;setCameraOnly(pose);}
+  document.querySelectorAll("[data-camera-load]").forEach(button=>button.classList.toggle("is-current-camera",button.dataset.cameraLoad===slot));
   refreshMasterPreviewUI();
   notify("카메라 "+slot+"번 시점 복원 · 작품·현장·MASTER 변경 없음");
 }
@@ -4485,6 +4559,10 @@ $("master-lock").addEventListener("click", () => {
 $("restore-master-camera").addEventListener("click", () => {
   masterPreviewReturn=null;restoreMasterCamera(masterSnapshots.length - 1);refreshMasterPreviewUI();
 });
+document.querySelectorAll("[data-inspector-category]").forEach(button=>button.addEventListener("click",()=>selectInspectorCategory(button.dataset.inspectorCategory)));
+$("camera-tour-prev").addEventListener("click",()=>browseCameraBookmarks(-1));
+$("camera-tour-next").addEventListener("click",()=>browseCameraBookmarks(1));
+orbit.addEventListener("start",()=>{cameraMotionToken++;});
 document.querySelectorAll("[data-camera-save]").forEach(b=>
   b.addEventListener("click",()=>saveCameraBookmark(b.dataset.cameraSave)));
 document.querySelectorAll("[data-camera-load]").forEach(b=>
@@ -4508,6 +4586,28 @@ $("focus-selected-quick").addEventListener("click",focusCurrentSelection);
 $("focus-site-quick").addEventListener("click",focusImportedSite);
 $("focus").addEventListener("click", fitCamera);
 $("project-quick-save").addEventListener("click",()=>$("export-project").click());
+$("vault-save").addEventListener("click",()=>exportProjectArchive({toVault:true}));
+$("vault-save-new").addEventListener("click",()=>{activeLocalVaultId=null;exportProjectArchive({toVault:true});});
+$("vault-list").addEventListener("change",updateVaultActions);
+$("vault-load").addEventListener("click",async()=>{
+  const id=$("vault-list").value;
+  if(!id||approvedMaster)return notify("프로젝트를 선택하고 MASTER LOCK을 해제해 주세요.");
+  if(!window.confirm("현재 편집 중인 장면을 선택한 프로젝트로 교체할까요? 저장되지 않은 작업은 사라집니다."))return;
+  try{
+    $("vault-status").textContent="브라우저 프로젝트 불러오는 중…";
+    const file=await getLocalProject(id);
+    const ok=await importProjectArchive(file);
+    if(!ok)throw Error("ZIP 복원에 실패했습니다. 상단 오류 사유를 확인하세요.");
+    activeLocalVaultId=id;
+    $("vault-status").textContent="프로젝트 복원 완료 · 원본 모델 및 MASTER 정보 확인";
+  }catch(error){$("vault-status").textContent="불러오기 실패: "+error.message;notify("브라우저 프로젝트 불러오기 실패: "+error.message);}
+});
+$("vault-delete").addEventListener("click",async()=>{
+  const id=$("vault-list").value;
+  if(!id||!window.confirm("선택한 브라우저 프로젝트를 삭제할까요? ZIP 백업이 없다면 복구할 수 없습니다."))return;
+  try{await deleteLocalProject(id);if(activeLocalVaultId===id)activeLocalVaultId=null;await refreshLocalVault();$("vault-status").textContent="선택한 브라우저 프로젝트 삭제됨";}
+  catch(error){$("vault-status").textContent="삭제 실패: "+error.message;}
+});
 $("production-audit-run").addEventListener("click",runProductionAudit);
 $("stability-audit-run").addEventListener("click",()=>{
   try{runStabilityAudit();}catch(error){
@@ -4790,5 +4890,6 @@ applyProjectMode(PROJECT_MODE_DEFAULT,{restoring:true,announce:false});
 syncContextHeightUI();
 checkVisualQuality();
 resize();
+refreshLocalVault();
 animate();
 notify("3D Studio 준비 완료 · 작품을 클릭하거나 G/R/S로 조작하세요.");
