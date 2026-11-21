@@ -14,11 +14,30 @@ export const ART_MATERIALS = Object.freeze({
   glass: {label:"투명 유리", metalness:0,roughness:.035,transmission:.94,thickness:.24,ior:1.5},
   frosted: {label:"반투명 유리", metalness:0,roughness:.39,transmission:.72,thickness:.4,ior:1.5}
 });
-export const ENVIRONMENT_MODES = Object.freeze(["neutral","bright","overcast","hdr"]);
+export const ENVIRONMENT_MODES = Object.freeze(["neutral","bright","overcast","smooth-studio","outdoor-soft","hdr"]);
+export const MATERIAL_TUNING_DEFAULT=Object.freeze({roughness:null,metalness:null,reflection:1,anisotropy:null});
+export function materialTuningForPreset(preset){
+  const base=ART_MATERIALS[preset]||ART_MATERIALS.original;
+  return {
+    roughness:base.roughness??.5,
+    metalness:base.metalness??0,
+    reflection:1,
+    anisotropy:preset==="stainless"?.45:0
+  };
+}
+export function validMaterialTuning(tuning){
+  return !!tuning && typeof tuning==="object" && !Array.isArray(tuning) &&
+    Object.keys(tuning).every(k=>["roughness","metalness","reflection","anisotropy"].includes(k)) &&
+    Number.isFinite(tuning.roughness)&&tuning.roughness>=.01&&tuning.roughness<=1 &&
+    Number.isFinite(tuning.metalness)&&tuning.metalness>=0&&tuning.metalness<=1 &&
+    Number.isFinite(tuning.reflection)&&tuning.reflection>=0&&tuning.reflection<=3 &&
+    Number.isFinite(tuning.anisotropy)&&tuning.anisotropy>=0&&tuning.anisotropy<=1;
+}
 export function validMaterialConfig(data) {
   return !!data && typeof data==="object" &&
     Object.hasOwn(ART_MATERIALS,data.preset) &&
-    typeof data.color==="string" && /^#[\da-f]{6}$/i.test(data.color);
+    typeof data.color==="string" && /^#[\da-f]{6}$/i.test(data.color) &&
+    (data.tuning===undefined||validMaterialTuning(data.tuning));
 }
 export function validRenderConfig(data) {
   return !!data && typeof data==="object" &&
@@ -62,19 +81,22 @@ export function targetSize(viewportWidth,viewportHeight,aspect,multiplier,maxTex
     limited:clamp<.999
   };
 }
-export function makeMaterial(preset,color) {
+export function makeMaterial(preset,color,tuning=null) {
   const source=ART_MATERIALS[preset];
   if(!source || preset==="original")throw Error("Explicit material override required");
+  if(tuning!==null && !validMaterialTuning(tuning))throw Error("유효하지 않은 재질 상세 조정값");
+  const t=tuning||materialTuningForPreset(preset);
   return new THREE.MeshPhysicalMaterial({
     color:new THREE.Color(color),
-    metalness:source.metalness,
-    roughness:source.roughness,
+    metalness:t.metalness,
+    roughness:t.roughness,
     transmission:source.transmission||0,
     thickness:source.thickness||0,
     ior:source.ior||1.5,
     clearcoat:preset==="painted"?.45:0,
     clearcoatRoughness:.23,
-    envMapIntensity:1,
+    envMapIntensity:t.reflection,
+    anisotropy:t.anisotropy,
     side:THREE.DoubleSide
   });
 }
