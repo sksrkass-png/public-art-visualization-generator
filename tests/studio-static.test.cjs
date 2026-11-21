@@ -34,10 +34,12 @@ for (const form of ["site-file", "art-file", "map-file", "map-width", "uniform-s
 assert.match(js, /new TransformControls/, "mouse translation/rotation/scale gizmo required");
 assert.match(js, /new OrbitControls/, "camera orbit/pan/zoom required");
 assert.match(js, /new GLTFLoader/, "GLB/GLTF scene import required");
-assert.match(js, /new OBJLoader/, "OBJ artwork import required");
+assert.match(js, /loadOBJWithMaterials\(/, "OBJ/MTL artwork import required");
+assert.match(js,/from "\.\/obj-materials\.js"/,"source-preserving local OBJ/MTL importer is used");
+assert.match(html,/\.obj(?:,|")/,"OBJ model input extension remains allowed");
 assert.match(js, /new STLLoader/, "STL artwork import required");
 for (const [ext, loader] of [
-  ["obj", "OBJLoader"], ["fbx", "FBXLoader"], ["stl", "STLLoader"],
+  ["fbx", "FBXLoader"], ["stl", "STLLoader"],
   ["ply", "PLYLoader"], ["dae", "ColladaLoader"], ["3ds", "TDSLoader"]
 ]) {
   assert.match(js, new RegExp("new " + loader), "site " + ext + " loader required");
