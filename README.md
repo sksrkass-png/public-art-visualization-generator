@@ -150,3 +150,20 @@ This release upgrades the **existing static, browser-local studio**. It does **n
 Use real artist-provided sample sets (OBJ+MTL+images, glTF+BIN+images in a folder, bundled ZIP, FBX, and 120 MiB models), then save and reload a portable ZIP to confirm materials and matching real-world dimensions. Validation covers path traversal, duplicate filenames, oversized files, missing textures and basic glTF references. Browser/GPU smoke tests with actual large models are still required.
 
 **Planned later**: offline SKP/Rhino/Blender/CAD format conversion services in v3.4; project-type modes in v3.5; account-based cloud workspaces in v4.0; true online concurrent team editing in v4.1.
+
+
+## AXOO 3D Studio v3.4 — Format Bridge (2026-11)
+
+### Newly available
+- **Rhino 3DM**: first-party Three.js `Rhino3dmLoader` integration for the *site* and *artwork* primary-model import slots. Native Rhino geometry decoding uses the pinned `rhino3dm@8.32.1` browser WASM library loaded on demand from jsDelivr; original user files are **not uploaded** to the library CDN. Curves/NURBS and external texture/material behavior depends on Rhino decoder capabilities. Verify size, coordinate axis and appearance. Use a GLB fallback when Rhino decoding fails.
+- **ASCII DXF**: site-side **2D reference drawing only**, not full AutoCAD 3D/BIM geometry. A conservative local parser renders LINE, LWPOLYLINE, ARC and CIRCLE as schematic layer-separated, thin display meshes on the reference plane. Maximum **24 MiB** ASCII DXF. Other entities (e.g., INSERT/BLOCK, legacy POLYLINE, HATCH, SPLINE, 3DFACE) can be omitted and are reported as unsupported. Unsupported-only plans fail rather than being shown as complete. DWG and binary DXF are not supported. The CAD lines are **not** trusted for 3D terrain, ground snapping or physical site certification; a fallback reference plane remains visible.
+- **CAD units**: when the DXF `$INSUNITS` header declares metres, millimetres, centimetres, feet or inches, the importer sets the corresponding non-destructive site conversion control. Unknown values remain metres by default and require manual verification. The new inch option is also available in the normal site import settings.
+- **Format Bridge advisory**: a local-file *metadata-only* checker for SKP, BLEND, RVT, IFC, DWG, DXF, 3DM, STEP/STP, IGES/IGS, USD/USDZ and 3MF (plus current supported mesh formats). Selecting a file generates appropriate export/checking steps and a copyable checklist. It **does not convert** proprietary or unsupported formats, change source assets, or send them to a server.
+
+### Still unsupported natively
+SKP, BLEND, DWG, RVT, IFC, STEP/IGES, USD/USDZ and 3MF continue to require conversion by the source application's export function or a separate trusted tool, usually to GLB. This release does **not** introduce a hosted conversion backend or the v4.x cloud collaboration platform.
+
+### Backwards compatibility and QA
+- Existing supported model formats, 120 MiB primary model cap, 80 MiB companion budget, 320 MiB project ZIP cap, v3.2/v3.3 portable archive schema, SHA-256 integrity checks and MASTER LOCK remain unchanged.
+- Rhino 3DM and ASCII DXF source bytes are preserved inside the existing site/artwork project ZIP keys. The browser reads them again on restore; Rhino decoding needs the same library availability. No source-geometry rescaling or remeshing is silently applied by the studio beyond the decoder's visualization conversion.
+- Suggested manual validation: Rhino NURBS, meshes and SubD cases; ASCII DXF with mm/m units, layers, unsupported blocks, and malicious paths; archive round-trip; actual 120 MiB file performance on Chrome/Edge. Static and mocked checks alone do not establish complete visual fidelity or architectural accuracy.

@@ -10,6 +10,9 @@ import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { PLYLoader } from "three/addons/loaders/PLYLoader.js";
 import { ColladaLoader } from "three/addons/loaders/ColladaLoader.js";
 import { TDSLoader } from "three/addons/loaders/TDSLoader.js";
+import { Rhino3dmLoader } from "three/addons/loaders/3DMLoader.js";
+import { parseDXF2D, buildDXFReference, DXF_MAX_BYTES } from "./cad-dxf.js";
+import { formatAdvice, adviceText } from "./format-advisor.js";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
@@ -96,6 +99,7 @@ grid.material.opacity = .44;
 scene.add(grid);
 
 const siteRoot = new THREE.Group();
+const emptyCadCollisionRoot = new THREE.Group(); // 2D DXF references are not physical terrain.
 siteRoot.name = "Locked Site";
 scene.add(siteRoot);
 const artRoot = new THREE.Group();
@@ -192,7 +196,7 @@ const neutralEnvironment=scene.environment;
 let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
 let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
 let artworkMaterialState={preset:"original",color:"#d0d6db"};
-const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048 });
+const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048, inch: .0254 });
 const MAX_UNDO = 40;
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
 const buttons = [...document.querySelectorAll("[data-mode]")];
@@ -367,8 +371,8 @@ function applyContextHeight(){
     if(Math.abs(factor-1)<.00001)return syncContextHeightUI();
     const before=editSnapshot();
     root.scale.multiplyScalar(factor);
-    if($("auto-ground").checked)snapRootToSurface(root,siteRoot,{
-      allowFallback:!siteSourceFile,offset:toFinite($("ground-offset").value,0,-20,50)
+    if($("auto-ground").checked)snapRootToSurface(root,physicalSiteForPlacement(),{
+      allowFallback:siteNeedsReferenceGround(),offset:toFinite($("ground-offset").value,0,-20,50)
     });
     commit(before);
     updateInspector(true);
@@ -653,6 +657,11 @@ function addMeasuredPoint(point){
   syncAssetPlacementUI();
 }
 function checkInterferences(){
+  if(has2DCADSite()){
+    lastCollisionReport=null;
+    $("precision-collision-status").textContent="DXF는 2D 참조선입니다. 건물 충돌 검사는 실제 3D 현장 모델에서 실행하세요.";
+    return;
+  }
   const annotated=siteSourceFile?enumerateSiteMeshes(siteRoot).filter(entry=>
     layerState.siteNodes[entry.path]?.category==="buildings" && entry.object.visible)
     .map(entry=>entry.object):[];
@@ -684,7 +693,7 @@ function installationObjects(){
     .map(x=>({name:x.name,bounds:stageObjectBounds(x)})).filter(x=>x.bounds);
 }
 function installationBuildings(){
-  if(!siteSourceFile)return [];
+  if(!siteSourceFile||has2DCADSite())return [];
   return enumerateSiteMeshes(siteRoot).filter(entry=>
     layerState.siteNodes[entry.path]?.category==="buildings"&&entry.object.visible)
     .map(entry=>({name:entry.object.name||entry.path,bounds:stageObjectBounds(entry.object)}))
@@ -1014,8 +1023,11 @@ function buildSite(preset) {
   invalidateSiteMeshIndex(siteRoot);
   refreshLayers({redrawSite:true});
 }
+function has2DCADSite(){return siteRoot.children.some(o=>o.userData.cadReferenceOnly);}
+function physicalSiteForPlacement(){return has2DCADSite()?emptyCadCollisionRoot:siteRoot;}
+function siteNeedsReferenceGround(){return !siteSourceFile||has2DCADSite();}
 function syncGroundAvailability() {
-  const imported = !!siteSourceFile;
+  const imported = !!siteSourceFile && !has2DCADSite();
   $("fallback-ground").hidden = imported;
   $("site-ground-note").hidden = !imported;
   floor.visible = !imported;
@@ -1042,11 +1054,12 @@ function currentSitePreflight() {
       appliedUnitScale:factor
     },
     warnings:[
+      ...(has2DCADSite()?["DXF 2D 참조 도면: 건축물 높이·지반·충돌 검사와 실제 설치 적합성을 확인할 수 없습니다."]:[]),
       ...sourceSiteInspection.warnings,
       ...(!Number.isFinite(actual.y)||actual.y<.05?["모델 높이가 5cm 미만입니다. 단위·축·바닥을 확인하세요."]:[]),
       ...(sourceSiteInspection.triangles>1000000?["백만 삼각형 이상: 그림자·일괄 렌더 전에 외부에서 폴리곤 경량화 권장."]:[])
     ],
-    verification:"메시와 좌표 검사 결과이며 실측 도면·건축 정보나 안전 승인을 대체하지 않습니다."
+    verification:has2DCADSite()?"2D 도면 선분 참조 · 실측/구조/지반/건축 현장 3D 검증 불가":"메시와 좌표 검사 결과이며 실측 도면·건축 정보나 안전 승인을 대체하지 않습니다."
   };
 }
 function updateSitePreflight() {
@@ -1173,7 +1186,7 @@ function currentProductionAudit(){
     extras=sceneFootprint(extrasRoot);
   return productionReport({
     project:$("project-name").value,
-    siteModel:!!siteSourceFile,artworkModel:!!artSourceFile,
+    siteModel:!!siteSourceFile&&!has2DCADSite(),artworkModel:!!artSourceFile,
     masterApproved:approvedMaster,
     masterMatches:!!master&&masterConsistency(master,baselineForMaster()).ok,
     site,artwork,extras,
@@ -1349,7 +1362,7 @@ function sampleArtwork() {
   return g;
 }
 function setShadows(root, enabled = true) {
-  root.traverse(o => { if (o.isMesh) { o.castShadow = enabled; o.receiveShadow = true; } });
+  root.traverse(o => { if(o.isMesh && !o.userData.cadReferenceOnly) { o.castShadow=enabled; o.receiveShadow=true; } });
 }
 function normalizeArtwork(object) {
   object.updateMatrixWorld(true);
@@ -2188,7 +2201,7 @@ function createPlacedExtra(kind, position) {
   if (kind.includes("light") && kind!=="point-light") root.position.y += 3;
   extrasRoot.add(root);
   if (!kind.includes("light")) {
-    snapRootToSurface(root, siteRoot, { allowFallback: !siteSourceFile,
+    snapRootToSurface(root, physicalSiteForPlacement(), { allowFallback: siteNeedsReferenceGround(),
       offset: toFinite($("ground-offset").value, 0, -20, 50) });
   }
   selectRoot(root);
@@ -2226,8 +2239,8 @@ function groundSelected({ silent = false } = {}) {
   // not at the sculpture's raised bottom.
   const linked=selectedRoot===artRoot?linkedPlinths():[];
   const snapTarget=linked[0]||selectedRoot;
-  const result = snapRootToSurface(snapTarget, siteRoot, {
-    allowFallback: !siteSourceFile,
+  const result = snapRootToSurface(snapTarget, physicalSiteForPlacement(), {
+    allowFallback: siteNeedsReferenceGround(),
     offset: toFinite($("ground-offset").value, 0, -20, 50)
   });
   if (result) {
@@ -2292,7 +2305,7 @@ function pickPlacement(event) {
   }
   // Real imported sites require a verified, upward-facing 3D mesh triangle;
   // avoid manufacturing a ground surface when only a facade/sky is clicked.
-  return surfaceAtPointer(event, camera, viewport, siteRoot, !siteSourceFile);
+  return surfaceAtPointer(event, camera, viewport, physicalSiteForPlacement(), siteNeedsReferenceGround());
 }
 function handleSelection(event) {
   if(spatialBridge?.handleCanvasClick(event,mouseMoved))return;
@@ -2360,8 +2373,8 @@ function setTransformFromField(el) {
   if ($("auto-ground").checked && !(selectedRoot===artRoot&&linkedPlinths().length) &&
       el.dataset.transform === "position" &&
       ["x","z"].includes(el.dataset.axis) && !extraLight(selectedRoot)) {
-    snapRootToSurface(selectedRoot, siteRoot, {
-      allowFallback: !siteSourceFile,
+    snapRootToSurface(selectedRoot, physicalSiteForPlacement(), {
+      allowFallback: siteNeedsReferenceGround(),
       offset: toFinite($("ground-offset").value, 0, -20, 50)
     });
   }
@@ -2403,12 +2416,25 @@ async function decodeModel(file, isSite, resources = [], paths = [], sourcePath 
   const ext = file.name.split(".").pop().toLowerCase();
   const formats = isSite ? SITE_MODEL_FORMATS : ARTWORK_MODEL_FORMATS;
   if (!formats.includes(ext))
-    throw Error("지원하지 않는 3D 파일 확장자입니다. SKP/3DM/BLEND/IFC/RVT/DWG는 GLB 변환이 필요합니다.");
+    throw Error("지원하지 않는 파일입니다. SKP/BLEND/IFC/RVT/DWG는 GLB 등으로 변환해야 합니다.");
   if (ext === "zip") {
     const bundle = await unzipModel(file);
     return decodeModel(bundle.file, isSite, bundle.resources, bundle.paths, bundle.sourcePath);
   }
   validateSelection(file, resources, paths);
+  if(ext==="dxf"){
+    if(!isSite)throw Error("DXF는 2D 현장 도면 참조만 지원합니다. 작품 3D 모델은 GLB/3DM 등으로 변환하세요.");
+    if(file.size>DXF_MAX_BYTES)throw Error("ASCII DXF 도면은 24MB 이하만 지원합니다. 도면을 경량화하세요.");
+    return buildDXFReference(parseDXF2D(await file.text()),THREE);
+  }
+  if(ext==="3dm"){
+    const loader=new Rhino3dmLoader(localOnlyResourceManager());
+    loader.setLibraryPath("https://cdn.jsdelivr.net/npm/rhino3dm@8.32.1/");
+    loader.setWorkerLimit(2);
+    try{return await loader.parseAsync(await file.arrayBuffer());}
+    catch(error){throw Error("Rhino 3DM 해석 실패. Rhino에서 GLB로 내보내 다시 시도하세요: "+(error.message||"형식 확인"));}
+    finally{loader.dispose();}
+  }
   if (ext === "gltf")
     return decodeLinkedGLTF(file, resources, paths, sourcePath);
   if (ext === "glb")
@@ -2444,7 +2470,8 @@ function importReport(isSite, file, model, sourcePath = file.name) {
   if(el)el.textContent="형식: "+kind.toUpperCase()+
     " · 메시 "+data.meshCount.toLocaleString()+" · 삼각형 "+data.triangles.toLocaleString()+
     " · 추정 렌더 메모리 "+bytes.toFixed(1)+"MB\n"+
-    hint.note+(data.warnings.length?"\n⚠ "+data.warnings.join("\n⚠ "):"");
+    hint.note+(model.userData?.cadReferenceOnly?"\n⚠ "+model.userData.cadImportWarning:"")+
+    (data.warnings.length?"\n⚠ "+data.warnings.join("\n⚠ "):"");
   return data;
 }
 function showSiteGeometryStats(stats) {
@@ -2499,10 +2526,11 @@ async function importModel(file, isSite, resources = [], paths = [], sourcePath 
       siteSourceFile = file;
       siteSourceResources=[...resources]; siteResourcePaths=[...paths]; siteModelPath=sourcePath;
       $("site-filename").textContent = file.name;
-      $("site-status").textContent = "실제 모델";
+      $("site-status").textContent = model.userData.cadReferenceOnly ? "DXF 2D 참조" : "실제 모델";
       $("site-preset").value = "empty";
       const hints=importHints(/\.zip$/i.test(file.name) ? sourcePath.split(".").pop().toLowerCase() : file.name.split(".").pop().toLowerCase());
-      $("site-unit").value=hints.unit; $("site-up").value=hints.up;
+      $("site-unit").value=["m","mm","cm","ft"].includes(model.userData?.cadUnit) ? model.userData.cadUnit : hints.unit;
+      $("site-up").value=hints.up;
       applySiteUnits(); syncGroundAvailability();
       setShadows(siteRoot);
       resetSiteAnnotations({clearPending:false});
@@ -2518,7 +2546,8 @@ async function importModel(file, isSite, resources = [], paths = [], sourcePath 
       const toArt=siteSphere.center.distanceTo(artworkTarget());
       if(shouldAutoFocusImportedSite(siteSphere.radius,toArt))
         fitCameraToBounds(new THREE.Box3().setFromObject(siteRoot),"대형 현장 자동 맞춤");
-      notify("현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
+      notify(model.userData.cadReferenceOnly ? "DXF 2D 참조 도면을 표시했습니다. 실제 3D 현장과 구분하세요." :
+        "현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
     } else {
       // Imported geometry retains original dimensions; never fit to stale 3m field.
       setArtwork(model, file.name, { file, resources, paths, sourcePath });
@@ -2914,10 +2943,10 @@ async function importProjectArchive(file) {
       siteSourceFile = siteFile;
       siteSourceResources=[...siteBundle.resources]; siteResourcePaths=[...siteBundle.paths];
       siteModelPath=data.site.sourcePath||siteFile.name;
-      $("site-status").textContent = "실제 모델";
+      $("site-status").textContent = siteModel.userData.cadReferenceOnly ? "DXF 2D 참조" : "실제 모델";
       $("site-filename").textContent = siteFile.name;
       $("site-preset").value = "empty";
-      $("site-unit").value = "m"; $("site-up").value = "y";
+      $("site-unit").value = data.site.unit || "m"; $("site-up").value = data.site.up || "y";
       applySiteUnits(); syncGroundAvailability();
       showSiteGeometryStats(inspectSiteGeometry(siteRoot));
       setShadows(siteRoot);
@@ -3564,6 +3593,23 @@ $("site-preset").addEventListener("change", e => {
 $("site-view-apply").addEventListener("click",applySitePreview);
 $("site-view-reset").addEventListener("click",resetSitePreviewUI);
 $("site-navigation-performance").addEventListener("change",setupNavigationPerformance);
+let conversionChecklistText="";
+$("format-advisor-file").addEventListener("change",event=>{
+  const file=event.target.files[0];event.target.value="";
+  if(!file)return;
+  const guide=formatAdvice(file.name);
+  conversionChecklistText=adviceText(file);
+  $("format-advisor-result").textContent=
+    "지원 구분: "+({"direct":"현재 직접 불러오기","preview":"현재 제한적 미리보기","convert":"별도 변환 필요","unknown":"별도 확인 필요"}[guide.support])+"\n"+
+    conversionChecklistText;
+  $("format-advisor-copy").disabled=false;
+});
+$("format-advisor-copy").addEventListener("click",async()=>{
+  if(!conversionChecklistText)return;
+  try{await navigator.clipboard.writeText(conversionChecklistText);
+      notify("변환 체크리스트를 복사했습니다.");}
+  catch{notify("클립보드 복사에 실패했습니다. 안내 내용을 직접 선택해 복사하세요.");}
+});
 async function handleUniversalSelection(files,isSite){
   if(!files?.length)return;
   try{
@@ -3984,8 +4030,8 @@ transform.addEventListener("mouseUp", () => {
       !extraLight(selectedRoot)) {
     const linked=selectedRoot===artRoot?linkedPlinths():[];
     const target=linked[0]||selectedRoot;
-    const result=snapRootToSurface(target,siteRoot,{
-      allowFallback:!siteSourceFile,
+    const result=snapRootToSurface(target,physicalSiteForPlacement(),{
+      allowFallback:siteNeedsReferenceGround(),
       offset:toFinite($("ground-offset").value,0,-20,50)
     });
     if(result&&linked.length){

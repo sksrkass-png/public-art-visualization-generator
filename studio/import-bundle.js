@@ -3,7 +3,7 @@ import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 
-export const MODEL_FORMATS=Object.freeze(["glb","gltf","obj","fbx","stl","ply","dae","3ds","zip"]);
+export const MODEL_FORMATS=Object.freeze(["glb","gltf","obj","fbx","stl","ply","dae","3ds","3dm","dxf","zip"]);
 export const MODEL_MAX=120*1024*1024;
 export const RESOURCE_MAX=80*1024*1024;
 export const RESOURCE_COUNT=45;
@@ -147,6 +147,8 @@ export async function decodeLinkedGLTF(file,resources=[],paths=[],sourcePath=fil
 }
 export function importHints(type){
   if(["glb","gltf"].includes(type))return {unit:"m",up:"y",note:"glTF 규격의 미터·Y-up 기준입니다. 실제 치수를 확인하세요."};
+  if(type==="3dm")return {unit:"m",up:"y",note:"Rhino .3DM 원본의 문서 단위·높이축과 실제 제원을 확인하세요. Rhino 웹 로더가 형상을 변환합니다."};
+  if(type==="dxf")return {unit:"m",up:"y",note:"DXF는 2D CAD 참조선만 보여줍니다. 실제 3D 공간이나 지면이 아닙니다. INSUNITS와 도면 축척을 확인하세요."};
   if(type==="fbx")return {unit:"m",up:"y",note:"FBX 로더가 단위·좌표축을 조정할 수 있으므로 중복 보정을 피하세요."};
   return {unit:"m",up:"y",note:"파일 단위·높이축을 확정할 수 없습니다. 실제 W×D×H를 확인하고 수동 조정하세요."};
 }
