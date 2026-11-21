@@ -4,11 +4,12 @@ import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 
 // Local source GLB library. No remote downloads, license assumptions or geometry
 // normalization. Users are responsible for asset licensing and real dimensions.
-export const MAX_LIBRARY_ASSETS=6;
+export const MAX_LIBRARY_ASSETS=12;
 export const MAX_LIBRARY_ITEM_BYTES=20*1024*1024;
-export const MAX_LIBRARY_BYTES=60*1024*1024;
+export const MAX_LIBRARY_BYTES=120*1024*1024;
 export const MAX_LIBRARY_TRIANGLES=250000;
-export const ASSET_CATEGORIES=Object.freeze(["planting","person","furniture","vehicle","artwork"]);
+export const ASSET_CATEGORIES=Object.freeze(["planting","person","furniture","vehicle","artwork",
+  "architecture","display","media","signage"]);
 export function validLibraryManifest(list){
   if(!Array.isArray(list) || list.length>MAX_LIBRARY_ASSETS)return false;
   const seen=new Set();
