@@ -349,3 +349,30 @@ node tests/studio-static.test.cjs
 ```
 
 CI automates a browser/WebGL smoke test covering G/R/S, source scale, master locking, lighting, camera presets, PNG/GLB exports, project ZIP roundtrip, and site-format samples (OBJ/STL/PLY/DAE/3DS plus pinned Three.js FBX reference). Real architectural models can expose vendor-specific unit, texture, geometry or animation differences: perform a visual review with real files before assuming site accuracy.
+
+
+## v3.5 — Multi-Project Studio (2026-11)
+
+### Four spatial project modes (manual, non-destructive)
+- **PUBLIC ART** — artist artwork, site preservation and MASTER LOCK (default and fallback for all older scene JSON/project ZIPs).
+- **POP-UP & RETAIL** — modular partitions, merchandise shelves, service counter, podium, screens, signage and kiosks.
+- **EXHIBITION DESIGN** — display plinths, temporary partitions, media walls and visitor flow concept arrangements.
+- **SPATIAL BRANDING** — totem signage, outdoor fixtures, greenery, directional spatial experiences.
+
+The Project Mode selector changes **UI guidance, QA checklist and suggested built-in assets only**. It does not move, hide, duplicate, rescale or replace any user model or site. The new mode name persists as optional `projectMode` in the existing `axoo-public-art-3d-studio-v1` scene JSON and portable ZIP. Older v3.4 and previous projects lacking this field restore as `public-art`, with the existing MASTER LOCK and project integrity behavior preserved.
+
+### Seven new manually editable schematic assets
+`modular-wall` (3m x 2.6m), `retail-shelf` (2m x 2m), `display-podium` (~1m), `brand-counter` (~2.4m), `media-screen` (3.15m), `signage-totem` (2.25m high), `experience-kiosk` (~1.43m high). These are **brand-neutral editable scale proxies**, not third-party IP, fabrication engineering or functioning screens. They participate in existing scene selection, transform, duplicate, layer controls, undo/redo, render and project ZIP restoration as separately tracked `extras`. No existing artist geometry is modified.
+
+### Optional starter layouts and clear editor responsibilities
+Each mode provides an **explicit**, opt-in starter-layout button adding 4–7 independent placeholders near the current scene focus. Real imported site data or an already populated scene prompts before addition; no layouts are loaded just by switching modes. The placements are **schematic starting points**, not measured, approved site positions. Existing artwork and site source files remain unchanged, even when a starter layout is accepted. Non-public-art modes expose an optional toggle to hide the **default sample sculpture only** using the existing undoable artwork-layer visibility (not source deletion); no sample-only control is offered while a real sculpture or additional artwork model is present. Existing layer management can restore visibility.
+
+### Expanded project GLB library
+Up to **12 distinct user-supplied GLB source models**, each **20 MiB max**, combined **120 MiB max**; existing per-model triangle validation remains in place. New categories: architecture, display, media and signage, in addition to plants, people, furniture, vehicles and artwork. Source GLBs continue to be preserved locally in the portable project ZIP and may be independently placed multiple times. Be mindful that the **overall project ZIP limit is still 320 MiB**, so combinations of two 120 MiB sources and many GLBs can exceed that cap. There is still **no automatic external asset download** or account-based collaboration.
+
+### Suggested QA before production use
+1. Change between all four modes, verify the loaded site, artwork, transforms and file sizes do not change.
+2. Add each starter layout to an empty sample scene and verify placement, selection, resize, duplicate and undo.
+3. Confirm existing v3.4 portable ZIPs open as Public Art, and new non-default mode ZIPs restore with the exact mode, extra kinds and layer visibility.
+4. Confirm MASTER LOCK prevents layout addition, primary mode changes and sample visibility changes.
+5. Use a real retail/exhibition source GLB to check material fidelity, route width and physical dimensions; schematic templates do not certify structural safety, life safety or building-code compliance.
