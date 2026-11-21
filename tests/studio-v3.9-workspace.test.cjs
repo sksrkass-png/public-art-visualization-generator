@@ -126,7 +126,7 @@ test("UI preference keys are local-only and absent from model serialisation",()=
   const js=read("studio/studio.js");
   assert.match(js,/window\.localStorage\.setItem\(UI_LOCAL_KEY/);
   assert.match(js,/const UI_LOCAL_KEY="axoo-studio-workspace-v3\.9"/);
-  const cfg=js.slice(js.indexOf("function sceneConfig(){"),js.indexOf("function validateProjectConfig("));
+  const cfg=js.slice(js.indexOf("function sceneConfig() {"),js.indexOf("function validateProjectConfig("));
   assert.ok(cfg.length>1000,"sceneConfig and validation should exist");
   assert.ok(!cfg.includes("UI_LOCAL_KEY"),"do not persist favorites into source ZIP");
   assert.ok(!cfg.includes("workspaceMode"),"do not change original project format");
