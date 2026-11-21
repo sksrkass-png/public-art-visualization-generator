@@ -4327,6 +4327,19 @@ $("mode-sample-toggle").addEventListener("click",()=>{
   if(approvedMaster||$("mode-sample-toggle").hidden)return;
   setLayerGroupVisible("artwork",!layerState.groups.artwork.visible);
 });
+$("workspace-quick").addEventListener("click",()=>applyWorkspaceMode("quick"));
+$("workspace-advanced").addEventListener("click",()=>applyWorkspaceMode("advanced"));
+document.querySelectorAll("[data-workspace-jump]").forEach(button=>
+  button.addEventListener("click",()=>workspaceJump(button.dataset.workspaceJump)));
+$("context-favorites-only").addEventListener("click",()=>{
+  favoritesOnly=!favoritesOnly;
+  if(favoritesOnly)$("context-category").value="all";
+  refreshFavoriteBadges();refreshContextPalette();
+});
+document.querySelectorAll("[data-favorite-kind]").forEach(button=>button.addEventListener("click",()=>{
+  favoriteKinds=new Set(toggleAssetFavorite([...favoriteKinds],button.dataset.favoriteKind,catalogKinds));
+  saveWorkspacePreference();refreshFavoriteBadges();refreshContextPalette();
+}));
 $("context-search").addEventListener("input",refreshContextPalette);
 $("context-category").addEventListener("change",refreshContextPalette);
 $("extra-list-search").addEventListener("input",updateExtrasStatus);
@@ -4354,7 +4367,16 @@ $("precision-group-list").addEventListener("change",e=>{
   if(!id || approvedMaster)return;
   if(e.target.checked)groupChecked.add(id);else groupChecked.delete(id);
   $("precision-group").disabled=groupChecked.size<2;
+  refreshBatchStatus();
 });
+$("precision-multi-search").addEventListener("input",refreshPrecisionUI);
+$("precision-select-visible").addEventListener("click",chooseBatchSearchResults);
+$("precision-clear-selection").addEventListener("click",()=>{
+  groupChecked.clear();refreshPrecisionUI();
+  $("workspace-batch-status").textContent="다중 선택을 해제했습니다. 다른 객체를 선택해 주세요.";
+});
+$("workspace-align").addEventListener("click",()=>runBatchTransform("align"));
+$("workspace-distribute").addEventListener("click",()=>runBatchTransform("distribute"));
 $("precision-duplicate").addEventListener("click",duplicateEditable);
 $("precision-group").addEventListener("click",createLogicalGroup);
 $("precision-ungroup").addEventListener("click",ungroupLogical);
@@ -4749,6 +4771,10 @@ fitCamera();
 updateNavigationSpeed();
 refreshCameraBookmarks();
 refreshMasterPreviewUI();
+decorateAssetCards();
+applyWorkspaceMode(
+  new URLSearchParams(window.location.search).get("panels")==="open"
+    ?"advanced":workspaceMode,{save:false});
 applyProjectMode(PROJECT_MODE_DEFAULT,{restoring:true,announce:false});
 syncContextHeightUI();
 checkVisualQuality();
