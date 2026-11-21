@@ -42,6 +42,13 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
         " errors "+JSON.stringify(errors)+" diagnostics "+JSON.stringify(diagnostics)+" / "+err.message);
     }
     await page.waitForFunction(() => document.querySelector("#art-filename")?.textContent.includes("Sample Artwork"), null, { timeout: 30000 });
+    assert.equal(await page.locator("#site-status").textContent(), "빈 공간",
+      "new v3.9.5 projects should start with sculpture and empty stage");
+    assert.equal(await page.locator("#shadows").isChecked(),true,"default shadows enabled");
+    assert.equal(await page.locator("#sun-helper").isChecked(),false,"editor sun marker defaults off");
+    assert.equal(await page.locator("#grid").isChecked(),false,"editor grid defaults off");
+    await page.locator("#workspace-advanced").click();
+    await page.locator("#site-preset").selectOption("plaza");
     assert.equal(await page.locator("#site-status").textContent(), "예시 공간");
     assert.equal(await page.locator("#export-master-pack").isDisabled(),true,
       "unapproved scene must not export MASTER batch images");
@@ -281,6 +288,8 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.equal(await page.locator("#nav-speed-value").textContent(), "4.0×");
     await page.locator("#light-preset").selectOption("golden");
     assert.equal(await page.locator("#sun-elevation").inputValue(), "17");
+    assert.equal(await page.locator("#sun-helper").isChecked(), false);
+    await page.locator("#sun-helper").check();
     assert.equal(await page.locator("#sun-helper").isChecked(), true);
 
     // A vertical-only imported mesh is not a verified ground surface.
@@ -692,6 +701,9 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.deepEqual(approvedAfter.render,approvedBefore.render,"batch export cannot change material/lens");
     assert.equal(approvedAfter.artwork.locked,true,"master remains approved after render");
 
+    // Deprecated panels remain in DOM only for backward-compat regression.
+    await page.locator("#render-review").evaluate(el=>{el.hidden=false;el.classList.remove("studio-deprecated-panel");el.closest("details.inspector-fold").open=true;});
+    await page.locator("#release-readiness").evaluate(el=>{el.hidden=false;el.classList.remove("studio-deprecated-panel");el.closest("details.inspector-fold").open=true;});
     // v0.9 review: use the actual v0.8 eight-PNG ZIP as baseline, then
     // a byte-for-byte image as a harmless mock of user-provided enhancement.
     await page.locator("#review-batch-file").setInputFiles({
@@ -1435,6 +1447,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     sitePage.on("pageerror",e=>errors.push(e.stack||e.message));
     await sitePage.goto("http://127.0.0.1:8787/studio/?panels=open",{waitUntil:"domcontentloaded",timeout:60000});
     await sitePage.locator("#viewport canvas").waitFor({timeout:30000});
+    await sitePage.locator("#site-preset").selectOption("plaza");
     await sitePage.waitForFunction(()=>document.querySelector("#site-mesh-count")?.textContent!=="0개");
     const siteInitial=await sitePage.locator("#site-mesh-count").textContent();
     const officialBefore=sitePage.waitForEvent("download",{timeout:30000});
@@ -1619,6 +1632,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await visualPage.goto("http://127.0.0.1:8787/studio/?panels=open",
       {waitUntil:"domcontentloaded",timeout:60000});
     await visualPage.locator("#viewport canvas").waitFor({timeout:30000});
+    await visualPage.locator("#site-preset").selectOption("plaza");
     await visualPage.locator("#installation-clearance").fill("1.5");
     await visualPage.locator("#installation-check").click();
     assert.match(await visualPage.locator("#installation-check-status").textContent(),/예비 검사/);
@@ -1695,13 +1709,13 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await contextCanvas.waitFor({timeout:30000});
     // New project modes default to recommended assets; the historical test needs all entries.
     await contextPage.locator("#context-category").selectOption("all");
-    await contextPage.waitForFunction(()=>document.querySelector("#context-search-count")?.textContent.includes("40 / 40"));
+    await contextPage.waitForFunction(()=>document.querySelector("#context-search-count")?.textContent.includes("44 / 44"));
     assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').isVisible(),true);
     await contextPage.locator("#context-category").selectOption("street");
     await contextPage.locator("#context-search").fill("승용차");
     assert.equal(await contextPage.locator('[data-add-extra="grass-patch"]').isVisible(),false);
     assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').isVisible(),true);
-    assert.match(await contextPage.locator("#context-search-count").textContent(),/1 \/ 40/);
+    assert.match(await contextPage.locator("#context-search-count").textContent(),/1 \/ 44/);
     await contextPage.locator('[data-view="aerial"]').click();
     const cb=await contextCanvas.boundingBox();
     assert.ok(cb);
@@ -2109,7 +2123,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await productionPage.goto("http://127.0.0.1:8787/studio/?panels=open",
       {waitUntil:"domcontentloaded",timeout:60000});
     await productionPage.locator("#viewport canvas").waitFor({timeout:30000});
-    await productionPage.locator("#production-audit").evaluate(el=>el.open=true);
+    await productionPage.locator("#production-audit").evaluate(el=>{el.hidden=false;el.classList.remove("studio-deprecated-panel");el.open=true;});
     await productionPage.locator("#production-audit-run").click();
     assert.match(await productionPage.locator("#production-audit-summary").textContent(),/MASTER VIEW 미승인/);
     assert.match(await productionPage.locator("#production-audit-summary").textContent(),/실제 현장/);
@@ -2158,9 +2172,9 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await nightPage.locator("#viewport canvas").waitFor({timeout:30000});
     assert.equal(await nightPage.locator('[data-render-look]').count(),4);
     const panelLabels=await nightPage.locator(".inspector-fold > summary").allTextContents();
-    assert.ok(panelLabels.some(t=>t.startsWith("💡 라이팅 / 조명")));
+    assert.ok(panelLabels.some(t=>t.startsWith("☀️ 태양 / 라이팅 / 그림자")));
     assert.ok(panelLabels.some(t=>t.startsWith("🗺️ SCENE LAYERS")));
-    assert.ok(panelLabels.some(t=>t.startsWith("🎞️ MASTER 8-VIEW")));
+    assert.ok(panelLabels.some(t=>t.startsWith("📷 MASTER 시점 이동 / 8-VIEW")));
     const dayShot=nightPage.waitForEvent("download",{timeout:40000});
     await nightPage.locator("#shot-export").click();
     const daylightPng=fs.readFileSync(await (await dayShot).path());

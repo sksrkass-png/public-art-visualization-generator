@@ -13,6 +13,10 @@ export const CONTEXT_CATEGORIES=Object.freeze([
   {id:"media",label:"미디어·체험"}
 ]);
 export const CONTEXT_CATALOG=Object.freeze([
+  {kind:"tree-natural",label:"자연 수형 · 비대칭 가지",category:"planting",keywords:"자연 가지 나뭇가지 natural branching tree asymmetric canopy"},
+  {kind:"tree-grove",label:"자연 수형 · 다간 가지",category:"planting",keywords:"다간형 수형 나무 forked tree multistem natural branches"},
+  {kind:"spot-light",label:"하향 스포트라이트",category:"lighting",keywords:"스포트 라이트 light directional spotlight"},
+  {kind:"person-standing",label:"관람객 실루엣",category:"people",keywords:"person visitor human standing silhouette"},
   {kind:"tree-round",label:"활엽수 A · 둥근형",category:"planting",keywords:"활엽수 나무 green tree deciduous 둥근 수관 A"},
   {kind:"tree-cone",label:"침엽수 A · 기본 원추",category:"planting",keywords:"침엽수 소나무 conifer pine evergreen 원추형 A"},
   {kind:"tree-birch",label:"자작나무 A · 단일 줄기",category:"planting",keywords:"자작나무 하얀나무 birch white tree A"},

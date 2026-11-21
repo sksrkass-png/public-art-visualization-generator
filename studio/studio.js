@@ -365,7 +365,7 @@ function renderSiteLayerRows(entries) {
 }
 // v3.9: UI preferences are kept only on this browser; never written into
 // source artwork, MASTER snapshots or full project JSON/ZIP.
-function applyWorkspaceMode(mode,{save=true}={}){
+function applyWorkspaceMode(mode,{save=true,expand=true}={}){
   if(!validWorkspaceMode(mode))return;
   workspaceMode=mode;
   document.documentElement.classList.toggle("studio-advanced-mode",mode==="advanced");
@@ -376,13 +376,12 @@ function applyWorkspaceMode(mode,{save=true}={}){
   }
   for(const fold of document.querySelectorAll(".sidepanel.right > details.inspector-fold")){
     const section=fold.querySelector("section");
-    const essential=section?.classList.contains("layer-manager") ||
-      ["workspace-transform-panel","render-materials","workspace-camera-panel"].includes(section?.id);
-    fold.open=mode==="advanced"||essential;
+    // Initial state stays collapsed; explicit ADVANCED click expands sections.
+    fold.open=expand && mode==="advanced" && !section?.classList.contains("studio-deprecated-panel");
   }
   $("workspace-mode-status").textContent=mode==="quick"
-    ?"⚡ QUICK · 핵심 패널만 펼쳤습니다. 아래 패널 제목을 누르면 개별 도구도 볼 수 있습니다."
-    :"🛠️ ADVANCED · 전문 모델링·검수·렌더 패널을 모두 펼쳤습니다.";
+    ?"⚡ QUICK · 모든 조작 패널은 접힌 상태로 시작하며 필요한 도구만 열 수 있습니다."
+    :"🛠️ ADVANCED · 전체 기능을 볼 수 있으며 패널을 자유롭게 펼치고 접습니다.";
   if(save)saveWorkspacePreference();
 }
 function workspaceJump(target){
@@ -3354,12 +3353,15 @@ async function exportProjectArchive() {
     notify("프로젝트 ZIP 저장 완료 · 원본과 SHA-256 손상 검증 정보 포함");
   } catch (err) {
     console.error(err);
-    notify("프로젝트 저장 실패: " + (err.message || "메모리 용량 확인 필요"));
+    const reason=err.message || "메모리 용량 확인 필요";
+    $("save-status").textContent="프로젝트 저장 실패: "+reason;
+    notify("프로젝트 저장 실패: "+reason);
   } finally {
     archiveExportInProgress=false;
     $("export-project").disabled=false;
     $("project-quick-save").disabled=false;
-    $("save-status").textContent = "브라우저에서 로컬 처리";
+    if(!$("save-status").textContent.startsWith("프로젝트 저장 실패"))
+      $("save-status").textContent = "브라우저에서 로컬 처리";
   }
 }
 function checkedArchiveEntry(zip, name, limit, required) {
@@ -3517,9 +3519,12 @@ async function importProjectArchive(file) {
     if (planTexture) planTexture.dispose();
     if(preparedHDR)preparedHDR.dispose();
     console.error(err);
-    notify("전체 프로젝트 불러오기 실패: " + (err.message || "파일 확인 필요"));
+    const reason=err.message || "파일 확인 필요";
+    $("save-status").textContent="프로젝트 업로드 실패: "+reason;
+    notify("프로젝트 업로드 실패: "+reason);
   } finally {
-    $("save-status").textContent = "브라우저에서 로컬 처리";
+    if(!$("save-status").textContent.startsWith("프로젝트 업로드 실패"))
+      $("save-status").textContent = "브라우저에서 로컬 처리";
   }
 }
 
@@ -4764,7 +4769,7 @@ function animate() {
   drawMeasurementOverlay();
   spatialBridge?.drawOverlay();
 }
-buildSite("plaza");
+buildSite("empty");
 setArtwork(sampleArtwork(), "Sample Artwork", { height: 3 });
 updateGround();
 syncLock();
@@ -4779,7 +4784,8 @@ refreshMasterPreviewUI();
 decorateAssetCards();
 applyWorkspaceMode(
   new URLSearchParams(window.location.search).get("panels")==="open"
-    ?"advanced":workspaceMode,{save:false});
+    ?"advanced":workspaceMode,{save:false,
+      expand:new URLSearchParams(window.location.search).get("panels")==="open"});
 applyProjectMode(PROJECT_MODE_DEFAULT,{restoring:true,announce:false});
 syncContextHeightUI();
 checkVisualQuality();

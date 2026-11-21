@@ -12,7 +12,7 @@ for(const kind of ["tree-birch","grass-patch","lawn-tile","walkway-tile","black-
 assert.equal(filterContextCatalog("  승용차  ","all")[0].kind,"car-sedan");
 assert.equal(filterContextCatalog("car","street")[0].kind,"car-sedan");
 assert.equal(filterContextCatalog("bench","planting").length,0);
-assert.equal(filterContextCatalog("","people").length,2);
+assert.equal(filterContextCatalog("","people").length,3);
 assert.equal(filterContextCatalog("","all").length,CONTEXT_CATALOG.length);
 assert.equal(dimensionsLabel([1.75,1.6,4.5]),"1.75 × 1.60 × 4.50m (W×H×D)");
 assert.equal(uniformHeightScale(1,2,[1,1,1]),2);
@@ -52,6 +52,11 @@ assert.ok(extras.includes("SURFACE_TILE_SIZE"));
 assert.ok(extras.includes("new THREE.BoxGeometry(3,.08,3)"));
 assert.ok(extras.includes("addBlackNameplate"));
 
+for(const kind of ["tree-natural","tree-grove","spot-light","person-standing"]){
+  assert.ok(CONTEXT_CATALOG.some(item=>item.kind===kind),"new catalog kind "+kind);
+  assert.ok(html.includes('data-add-extra="'+kind+'"'),"new placement button "+kind);
+  assert.ok(extras.includes('"'+kind+'"'),"new constructible kind "+kind);
+}
 const botanicalFamilies=[
   ["tree-round","tree-round-b","tree-round-c"],
   ["tree-cone","tree-cone-b","tree-cone-c"],

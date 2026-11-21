@@ -7,7 +7,7 @@ import {SPATIAL_FINISHES,validSpatialFinish} from "./spatial-visuals.js";
 
 // Procedural planting is intentionally schematic rather than a claim of true
 // botanical/photogrammetry accuracy. All extras are independent editables.
-export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "tree-autumn",
+export const EXTRA_TYPES = Object.freeze(["tree-natural","tree-grove","tree-round", "tree-cone", "shrub", "tree-autumn",
   ...NEW_PLANT_VARIANTS,
   "person-standing", "person-man", "person-woman", "shrub-flower", "park-bench", "round-planter",
   "tree-birch", "grass-patch", "lawn-tile", "walkway-tile", "black-nameplate", "car-sedan", "bollard", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth",
@@ -18,12 +18,13 @@ export const EXTRA_TYPES = Object.freeze(["tree-round", "tree-cone", "shrub", "t
 // object identity, selection and serializable kind. Old versions keep their
 // exact original geometry/color/proportions.
 const PLANT_TEMPLATE_KINDS=new Set([
-  "tree-round","tree-cone","tree-birch","tree-autumn","shrub","shrub-flower",
+  "tree-natural","tree-grove","tree-round","tree-cone","tree-birch","tree-autumn","shrub","shrub-flower",
   ...NEW_PLANT_VARIANTS
 ]);
 const plantTemplates=new Map();
 function populatePlant(root,kind,appearanceVersion){
   if(NEW_PLANT_VARIANTS.includes(kind))addPlantVariant(root,kind);
+  else if(kind==="tree-natural"||kind==="tree-grove")naturalBranchTree(root,kind==="tree-grove");
   else if(kind==="tree-round")(appearanceVersion===1?legacyTreeRound:treeRound)(root);
   else if(kind==="tree-cone")(appearanceVersion===1?legacyTreeCone:treeCone)(root);
   else if(kind==="shrub")(appearanceVersion===1?legacyShrub:shrub)(root);
@@ -90,6 +91,43 @@ function detailFoliage(root, centers, count, seed) {
     leaf.scale.set(1.15, .7, 1.25);
     root.add(leaf);
   }
+}
+// v3.9.5: independent botanical silhouettes; never alter legacy tree geometry.
+function naturalBranchTree(root,multiStem=false){
+  const bark=0x776350;
+  const stem=mesh(new THREE.CylinderGeometry(.12,.22,multiStem?2.75:3.15,10),bark);
+  stem.position.y=(multiStem?2.75:3.15)/2;
+  if(multiStem)stem.rotation.z=-.12;
+  root.add(stem);
+  const forks=multiStem?[
+    [[0,1.45,0],[-1.15,3.55,.3],.13],
+    [[.08,1.5,0],[.96,3.8,-.45],.12],
+    [[0,2.1,0],[.24,4.65,.65],.1],
+    [[-.54,2.7,.15],[-1.45,4.15,.6],.055],
+    [[.45,2.8,-.2],[1.68,4.55,-.46],.055]
+  ]:[
+    [[0,1.7,0],[-1.3,3.85,.25],.13],
+    [[0,2.0,0],[1.35,4.1,-.5],.12],
+    [[0,2.45,0],[-.3,4.75,.65],.09],
+    [[-.6,3.15,.12],[-1.65,4.35,.65],.058],
+    [[.7,3.25,-.24],[1.85,4.62,-.8],.052]
+  ];
+  const centers=[];
+  for(const [start,end,radius] of forks){
+    const from=new THREE.Vector3(...start),to=new THREE.Vector3(...end);
+    const direction=to.clone().sub(from),length=direction.length();
+    const branch=mesh(new THREE.CylinderGeometry(radius*.38,radius,length,8),bark);
+    branch.position.copy(from).add(to).multiplyScalar(.5);
+    branch.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());
+    root.add(branch);
+    centers.push([end[0],end[1],end[2],radius>.08?.72:.47]);
+  }
+  for(let i=0;i<centers.length;i++){
+    const [x,y,z,r]=centers[i];
+    const foliage=mesh(new THREE.IcosahedronGeometry(r,2),LEAF_COLORS[(i+(multiStem?2:0))%LEAF_COLORS.length]);
+    foliage.position.set(x,y,z);foliage.scale.set(1.2,.85,1.05);root.add(foliage);
+  }
+  detailFoliage(root,centers,26,multiStem?17:11);
 }
 function treeRound(root) {
   const trunk = mesh(new THREE.CylinderGeometry(.19, .29, 2.3, 12), 0x78624b);

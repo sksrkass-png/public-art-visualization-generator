@@ -36,7 +36,7 @@ assert.match(html,/value="soft"/);
 assert.ok(html.includes('data-render-look="night"'));
 assert.ok(html.includes("🌗 ARCHVIZ · 원클릭 주·야간 룩"));
 assert.ok(html.includes("🧰 조작 패널"));
-assert.ok(html.includes("🎞️ MASTER 8-VIEW RENDER"));
+assert.ok(html.includes("📷 MASTER 시점 이동 / 8-VIEW 출력"));
 assert.ok(html.includes("🗺️ SCENE LAYERS / 레이어"));
 assert.equal(ARCHVIZ_LOOKS.night.lightPreset,"night");
 assert.ok(ARCHVIZ_LOOKS.night.sun>0 && ARCHVIZ_LOOKS.night.sun<ARCHVIZ_LOOKS.architectural.sun);
