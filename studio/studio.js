@@ -10,6 +10,9 @@ import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { PLYLoader } from "three/addons/loaders/PLYLoader.js";
 import { ColladaLoader } from "three/addons/loaders/ColladaLoader.js";
 import { TDSLoader } from "three/addons/loaders/TDSLoader.js";
+import { Rhino3dmLoader } from "three/addons/loaders/3DMLoader.js";
+import { parseDXF2D, buildDXFReference, DXF_MAX_BYTES } from "./cad-dxf.js";
+import { formatAdvice, adviceText } from "./format-advisor.js";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
@@ -1015,7 +1018,7 @@ function buildSite(preset) {
   refreshLayers({redrawSite:true});
 }
 function syncGroundAvailability() {
-  const imported = !!siteSourceFile;
+  const imported = !!siteSourceFile && !siteRoot.children.some(o=>o.userData.cadReferenceOnly);
   $("fallback-ground").hidden = imported;
   $("site-ground-note").hidden = !imported;
   floor.visible = !imported;
@@ -1173,7 +1176,7 @@ function currentProductionAudit(){
     extras=sceneFootprint(extrasRoot);
   return productionReport({
     project:$("project-name").value,
-    siteModel:!!siteSourceFile,artworkModel:!!artSourceFile,
+    siteModel:!!siteSourceFile&&!siteRoot.children.some(o=>o.userData.cadReferenceOnly),artworkModel:!!artSourceFile,
     masterApproved:approvedMaster,
     masterMatches:!!master&&masterConsistency(master,baselineForMaster()).ok,
     site,artwork,extras,
@@ -1349,7 +1352,7 @@ function sampleArtwork() {
   return g;
 }
 function setShadows(root, enabled = true) {
-  root.traverse(o => { if (o.isMesh) { o.castShadow = enabled; o.receiveShadow = true; } });
+  root.traverse(o => { if(o.isMesh && !o.userData.cadReferenceOnly) { o.castShadow=enabled; o.receiveShadow=true; } });
 }
 function normalizeArtwork(object) {
   object.updateMatrixWorld(true);
@@ -2403,12 +2406,25 @@ async function decodeModel(file, isSite, resources = [], paths = [], sourcePath 
   const ext = file.name.split(".").pop().toLowerCase();
   const formats = isSite ? SITE_MODEL_FORMATS : ARTWORK_MODEL_FORMATS;
   if (!formats.includes(ext))
-    throw Error("지원하지 않는 3D 파일 확장자입니다. SKP/3DM/BLEND/IFC/RVT/DWG는 GLB 변환이 필요합니다.");
+    throw Error("지원하지 않는 파일입니다. SKP/BLEND/IFC/RVT/DWG는 GLB 등으로 변환해야 합니다.");
   if (ext === "zip") {
     const bundle = await unzipModel(file);
     return decodeModel(bundle.file, isSite, bundle.resources, bundle.paths, bundle.sourcePath);
   }
   validateSelection(file, resources, paths);
+  if(ext==="dxf"){
+    if(!isSite)throw Error("DXF는 2D 현장 도면 참조만 지원합니다. 작품 3D 모델은 GLB/3DM 등으로 변환하세요.");
+    if(file.size>DXF_MAX_BYTES)throw Error("ASCII DXF 도면은 24MB 이하만 지원합니다. 도면을 경량화하세요.");
+    return buildDXFReference(parseDXF2D(await file.text()),THREE);
+  }
+  if(ext==="3dm"){
+    const loader=new Rhino3dmLoader(localOnlyResourceManager());
+    loader.setLibraryPath("https://cdn.jsdelivr.net/npm/rhino3dm@8.32.1/");
+    loader.setWorkerLimit(2);
+    try{return await loader.parseAsync(await file.arrayBuffer());}
+    catch(error){throw Error("Rhino 3DM 해석 실패. Rhino에서 GLB로 내보내 다시 시도하세요: "+(error.message||"형식 확인"));}
+    finally{loader.dispose();}
+  }
   if (ext === "gltf")
     return decodeLinkedGLTF(file, resources, paths, sourcePath);
   if (ext === "glb")
@@ -2444,7 +2460,8 @@ function importReport(isSite, file, model, sourcePath = file.name) {
   if(el)el.textContent="형식: "+kind.toUpperCase()+
     " · 메시 "+data.meshCount.toLocaleString()+" · 삼각형 "+data.triangles.toLocaleString()+
     " · 추정 렌더 메모리 "+bytes.toFixed(1)+"MB\n"+
-    hint.note+(data.warnings.length?"\n⚠ "+data.warnings.join("\n⚠ "):"");
+    hint.note+(model.userData?.cadReferenceOnly?"\n⚠ "+model.userData.cadImportWarning:"")+
+    (data.warnings.length?"\n⚠ "+data.warnings.join("\n⚠ "):"");
   return data;
 }
 function showSiteGeometryStats(stats) {
@@ -2499,10 +2516,11 @@ async function importModel(file, isSite, resources = [], paths = [], sourcePath 
       siteSourceFile = file;
       siteSourceResources=[...resources]; siteResourcePaths=[...paths]; siteModelPath=sourcePath;
       $("site-filename").textContent = file.name;
-      $("site-status").textContent = "실제 모델";
+      $("site-status").textContent = model.userData.cadReferenceOnly ? "DXF 2D 참조" : "실제 모델";
       $("site-preset").value = "empty";
       const hints=importHints(/\.zip$/i.test(file.name) ? sourcePath.split(".").pop().toLowerCase() : file.name.split(".").pop().toLowerCase());
-      $("site-unit").value=hints.unit; $("site-up").value=hints.up;
+      $("site-unit").value=["m","mm","cm","ft"].includes(model.userData?.cadUnit) ? model.userData.cadUnit : hints.unit;
+      $("site-up").value=hints.up;
       applySiteUnits(); syncGroundAvailability();
       setShadows(siteRoot);
       resetSiteAnnotations({clearPending:false});
@@ -2518,7 +2536,8 @@ async function importModel(file, isSite, resources = [], paths = [], sourcePath 
       const toArt=siteSphere.center.distanceTo(artworkTarget());
       if(shouldAutoFocusImportedSite(siteSphere.radius,toArt))
         fitCameraToBounds(new THREE.Box3().setFromObject(siteRoot),"대형 현장 자동 맞춤");
-      notify("현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
+      notify(model.userData.cadReferenceOnly ? "DXF 2D 참조 도면을 표시했습니다. 실제 3D 현장과 구분하세요." :
+        "현장 " + file.name + " 불러오기 완료 · 원본 좌표·크기를 유지했습니다.");
     } else {
       // Imported geometry retains original dimensions; never fit to stale 3m field.
       setArtwork(model, file.name, { file, resources, paths, sourcePath });
@@ -2914,10 +2933,10 @@ async function importProjectArchive(file) {
       siteSourceFile = siteFile;
       siteSourceResources=[...siteBundle.resources]; siteResourcePaths=[...siteBundle.paths];
       siteModelPath=data.site.sourcePath||siteFile.name;
-      $("site-status").textContent = "실제 모델";
+      $("site-status").textContent = siteModel.userData.cadReferenceOnly ? "DXF 2D 참조" : "실제 모델";
       $("site-filename").textContent = siteFile.name;
       $("site-preset").value = "empty";
-      $("site-unit").value = "m"; $("site-up").value = "y";
+      $("site-unit").value = data.site.unit || "m"; $("site-up").value = data.site.up || "y";
       applySiteUnits(); syncGroundAvailability();
       showSiteGeometryStats(inspectSiteGeometry(siteRoot));
       setShadows(siteRoot);
