@@ -494,7 +494,7 @@
         <button id="library-toggle" class="outline full" type="button" aria-controls="asset-library-panel" aria-expanded="false">📂 내 GLB 에셋 라이브러리 열기</button>
         <div class="asset-library-panel" id="asset-library-panel" hidden>
           <div class="section-title"><h2>📦 외부 GLB 에셋 라이브러리</h2><span class="tag">v2.7</span></div>
-          <p class="hint">실제 수목·사람·가구 3D GLB를 직접 업로드하세요. 독립형 GLB 최대 6종, 각 20MB, 합계 60MB, 모델당 삼각형 25만 개 이내입니다. 자동 에셋 다운로드는 제공하지 않습니다.</p>
+          <p class="hint">실제 수목·사람·가구 3D GLB를 직접 업로드하세요. 독립형 GLB 최대 12종, 각 20MB, 합계 120MB, 모델당 삼각형 25만 개 이내입니다. 전체 프로젝트 ZIP은 320MB 한도이므로 모델이 많으면 ZIP 내보내기 시 경량화가 필요할 수 있습니다. 자동 에셋 다운로드는 제공하지 않습니다.</p>
           <label class="file-button secondary" for="library-asset-file"><span>+ GLB 에셋 불러오기</span><small>glTF 2.0 GLB · 텍스처 포함 권장</small></label>
           <input class="sr-only" id="library-asset-file" type="file" accept=".glb,model/gltf-binary">
           <label for="library-asset-category">업로드하는 에셋 유형</label>
@@ -504,12 +504,16 @@
             <option value="furniture">거리 가구 / 공간 소품</option>
             <option value="vehicle">차량 / 교통 에셋</option>
             <option value="artwork">별도 조형 작품 / 다중 작품</option>
+            <option value="architecture">팝업 · 전시 구조물 / 가벽</option>
+            <option value="display">리테일 진열대 / 디스플레이</option>
+            <option value="media">미디어 화면 / 체험 기기</option>
+            <option value="signage">사이니지 / 공간 브랜딩</option>
           </select>
           <label for="library-asset-select">배치할 에셋 선택</label>
           <select id="library-asset-select"><option value="">등록한 GLB 에셋 없음</option></select>
           <p id="library-size-note" class="hint" aria-live="polite">원본 GLB의 크기와 단위를 확인할 수 있습니다.</p>
           <button id="library-place" class="outline full" type="button" disabled>선택한 GLB를 현장 클릭으로 배치</button>
-          <p id="library-status" class="hint" aria-live="polite">등록 에셋 0 / 6 · GLB 원본 파일은 프로젝트 ZIP에 보관됩니다.</p>
+          <p id="library-status" class="hint" aria-live="polite">등록 에셋 0 / 12 · GLB 원본 파일은 프로젝트 ZIP에 보관됩니다.</p>
           <p class="hint">고해상도 에셋은 성능 진단으로 폴리곤 수를 확인하며, 렌더 품질을 임의로 낮추지 않습니다.</p>
           <p class="hint">실제 에셋은 제공된 GLB의 텍스처·형상·크기를 유지합니다. 크기는 객체 선택 후 Scale 도구로 조절하세요. 소스의 사용권은 직접 확인해 주세요.</p>
         </div>
