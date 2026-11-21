@@ -701,6 +701,9 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     assert.deepEqual(approvedAfter.render,approvedBefore.render,"batch export cannot change material/lens");
     assert.equal(approvedAfter.artwork.locked,true,"master remains approved after render");
 
+    // Deprecated panels remain in DOM only for backward-compat regression.
+    await page.locator("#render-review").evaluate(el=>{el.hidden=false;el.classList.remove("studio-deprecated-panel");});
+    await page.locator("#release-readiness").evaluate(el=>{el.hidden=false;el.classList.remove("studio-deprecated-panel");});
     // v0.9 review: use the actual v0.8 eight-PNG ZIP as baseline, then
     // a byte-for-byte image as a harmless mock of user-provided enhancement.
     await page.locator("#review-batch-file").setInputFiles({
@@ -2118,7 +2121,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await productionPage.goto("http://127.0.0.1:8787/studio/?panels=open",
       {waitUntil:"domcontentloaded",timeout:60000});
     await productionPage.locator("#viewport canvas").waitFor({timeout:30000});
-    await productionPage.locator("#production-audit").evaluate(el=>el.open=true);
+    await productionPage.locator("#production-audit").evaluate(el=>{el.hidden=false;el.classList.remove("studio-deprecated-panel");el.open=true;});
     await productionPage.locator("#production-audit-run").click();
     assert.match(await productionPage.locator("#production-audit-summary").textContent(),/MASTER VIEW 미승인/);
     assert.match(await productionPage.locator("#production-audit-summary").textContent(),/실제 현장/);
