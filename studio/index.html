@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 3.7 · STABILITY & PERFORMANCE</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 3.8 · MATERIAL & REFLECTION</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <span id="gpu-recovery-status" class="gpu-recovery-status" role="status" aria-live="polite" hidden>⚠ GPU 연결 복구 필요 · ZIP 백업 권장</span>
@@ -608,6 +608,8 @@
           <option value="neutral" selected>스튜디오 · 균형 잡힌 반사</option>
           <option value="bright">맑은 야외 · 밝은 반사</option>
           <option value="overcast">흐린 야외 · 부드러운 반사</option>
+          <option value="smooth-studio">🪞 스무스 미러 · 사각 스튜디오 반사 제거</option>
+          <option value="outdoor-soft">🌤️ 소프트 아웃도어 · 자연스러운 하늘 반사</option>
           <option value="hdr">HDRI · 직접 업로드</option>
         </select>
         <label class="file-button secondary" for="env-file">+ HDRI 환경맵 불러오기 <small>Radiance .HDR / 20 MB 이하</small></label>
@@ -616,7 +618,7 @@
         <button id="clear-hdr" class="outline full" type="button">현재 HDRI 파일 해제</button>
         <label for="env-strength">환경 반사 강도 <output id="env-strength-value">1.0</output></label>
         <input id="env-strength" type="range" min="0" max="3" step=".1" value="1">
-        <p class="hint">기본 모드는 실제 HDRI 사진이 아닌 환경광 프리셋입니다. .HDR 파일을 업로드해야 사진 기반 환경 반사를 사용합니다.</p>
+        <p class="hint">새 스무스 미러·소프트 아웃도어는 거친 사각 라이트박스 없이 이어지는 절제된 반사 환경입니다. 실제 주변 건물이 반사되는 정확한 현장 HDRI나 레이트레이싱은 아닙니다. 원본 작품 재질은 변경하지 않습니다.</p>
       </section>
       <section class="section" id="render-materials">
         <h2>🪨 작품 재질 / 명시적 변경</h2>
@@ -632,10 +634,23 @@
         </select>
         <label for="art-material-color">재질 색상</label>
         <input type="color" id="art-material-color" value="#d0d6db">
+        <div class="material-finetune" id="art-material-tuning">
+          <div class="section-title"><h3>🪞 v3.8 · 금속 표면 디테일</h3><span class="tag">MATERIAL TUNING</span></div>
+          <p class="hint">미러/브러시드 등의 프리셋을 선택한 다음, 원하는 수치를 조정해 <b>재질 적용</b> 버튼으로 반영하세요. 슬라이더 조작만으로는 작품이 바뀌지 않습니다.</p>
+          <label for="art-roughness">표면 거칠기 <output id="art-roughness-value">0.50</output></label>
+          <input type="range" id="art-roughness" min=".01" max="1" step=".01" value=".5">
+          <label for="art-metalness">금속성 <output id="art-metalness-value">0.00</output></label>
+          <input type="range" id="art-metalness" min="0" max="1" step=".01" value="0">
+          <label for="art-reflection">재질 반사 강도 <output id="art-reflection-value">1.00</output></label>
+          <input type="range" id="art-reflection" min="0" max="3" step=".05" value="1">
+          <label for="art-anisotropy">헤어라인 방향성 <output id="art-anisotropy-value">0.00</output></label>
+          <input type="range" id="art-anisotropy" min="0" max="1" step=".05" value="0">
+          <button id="art-tuning-reset" type="button" class="outline full">현재 프리셋의 표준 수치로 돌아가기</button>
+        </div>
         <button id="apply-material" class="outline full" type="button">선택한 작품 재질 적용</button>
         <button id="reset-material" class="outline full" type="button">원본 작품 재질로 되돌리기</button>
         <p id="material-status" class="hint" aria-live="polite">원본 파일의 재질과 텍스처를 그대로 유지 중입니다.</p>
-        <p class="hint">적용 시 작품에만 별도 렌더 재질을 사용합니다. 현장 모델·원본 작품 파일을 수정하지 않으며, MASTER LOCK 후 변경할 수 없습니다.</p>
+        <p class="hint">작품에만 별도 렌더 재질을 명시적으로 적용합니다. 재질 편집 전후의 모델 형상·위치·개수·기단·현장 모델과 원본 파일은 변경하지 않으며, MASTER LOCK 승인 후 수정할 수 없습니다. 반사 환경 모드는 전체 씬의 조명/환경에 영향을 줍니다.</p>
       </section>
       <section class="section">
         <h2>📷 카메라 / 시점</h2>
