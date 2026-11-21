@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101113">
-  <title>AXOO — Public Art 3D Studio</title>
+  <title>AXOO — Creative 3D Studio</title>
   <link rel="stylesheet" href="./studio.css">
   <script type="importmap">
   {
@@ -18,7 +18,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>PUBLIC ART <strong>3D STUDIO</strong></span><small>VERSION 3.4 · FORMAT BRIDGE</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 3.5 · MULTI-PROJECT</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
     <div class="top-actions">
       <span id="save-status" class="save-status">브라우저에서 로컬 처리</span>
       <a class="text-link" href="../">프롬프트 생성기 ↗</a>
@@ -27,7 +27,7 @@
   </header>
   <main class="workspace">
     <aside class="sidepanel left">
-      <div class="panel-head"><span class="eyebrow">01 / SCENE SETUP</span><h1>🏛️ 공간과 작품</h1><p>현장을 선택하고 작품 모델을 배치하세요.</p></div>
+      <div class="panel-head"><span class="eyebrow">01 / SCENE SETUP</span><h1>🏛️ 공간과 작품</h1><p>공공미술 · 팝업 · 전시 · 공간 브랜딩을 하나의 스튜디오에서 기획하세요.</p></div>
       <div class="project-quick-save">
         <p class="hint">프로젝트 이름으로 모델과 배치를 묶어 관리합니다.</p>
         <div class="inline">
@@ -40,7 +40,22 @@
         <h2>🗂️ 프로젝트</h2>
         <label for="project-name">프로젝트 이름</label>
         <input id="project-name" type="text" value="새 공공미술 시안" maxlength="100">
-        <p class="hint">거리 단위는 m(미터), Y축은 높이입니다.</p>
+        <label for="project-mode">프로젝트 유형</label>
+        <select id="project-mode" class="mode-selector">
+          <option value="public-art">🗿 공공미술 / PUBLIC ART</option>
+          <option value="popup-retail">🛍️ 팝업 · 리테일 / POP-UP &amp; RETAIL</option>
+          <option value="exhibition">🏛️ 전시 / EXHIBITION DESIGN</option>
+          <option value="spatial-branding">📍 공간 브랜딩 / SPATIAL BRANDING</option>
+        </select>
+        <div class="project-mode-card">
+          <div class="project-mode-title" id="project-mode-heading">🗿 공공미술 설치 제안</div>
+          <p class="hint" id="project-mode-guide">프로젝트에 필요한 3D 에셋을 추천합니다.</p>
+          <details class="mode-checks"><summary>프로젝트 유형별 실무 체크리스트</summary><ul class="mode-checklist" id="project-mode-checks"></ul></details>
+          <button type="button" class="outline full" id="mode-starter-add">+ 예시 레이아웃 배치</button>
+          <button type="button" class="outline full" id="mode-sample-toggle" hidden>👁️ 샘플 조형물 숨기기</button>
+          <p class="hint">유형 전환은 장면을 수정하지 않습니다. 예시 배치 버튼은 현재 공간에 <strong>독립 객체를 추가</strong>합니다. 실제 현장·작품 모델, 그래픽·IP, 제작 설계는 자동 생성하지 않습니다.</p>
+        </div>
+        <p class="hint">좌표 및 거리 기준은 m(미터), Y축은 높이입니다. 승인된 MASTER LOCK에서는 프로젝트 유형과 공간 편집이 잠깁니다.</p>
       </section>
       <details class="production-audit section" id="production-audit">
         <summary>✅ v3.0 · 실전 프로젝트 점검</summary>
@@ -216,8 +231,8 @@
           <div class="layer-group" data-layer-row="buildings"><span class="layer-group-title">건물 / 건축</span><label title="건물 표시"><input type="checkbox" data-layer-visible="buildings" checked> 표시</label><span class="site-fixed-lock">🔒</span></div>
           <div class="layer-group" data-layer-row="landscape"><span class="layer-group-title">기존 조경</span><label title="조경 표시"><input type="checkbox" data-layer-visible="landscape" checked> 표시</label><span class="site-fixed-lock">🔒</span></div>
           <div class="layer-group" data-layer-row="unassigned"><span class="layer-group-title">미분류 현장</span><label title="기타 현장 표시"><input type="checkbox" data-layer-visible="unassigned" checked> 표시</label><span class="site-fixed-lock">🔒</span></div>
-          <div class="layer-group" data-layer-row="artwork"><span class="layer-group-title">🎨 설치 작품</span><label><input type="checkbox" data-layer-visible="artwork" checked> 표시</label><label><input type="checkbox" data-layer-lock="artwork"> 잠금</label></div>
-          <div class="layer-group" data-layer-row="planting"><span class="layer-group-title">🌳 식재·인물·가구</span><label><input type="checkbox" data-layer-visible="planting" checked> 표시</label><label><input type="checkbox" data-layer-lock="planting"> 잠금</label></div>
+          <div class="layer-group" data-layer-row="artwork"><span class="layer-group-title">🎨 기본 작품·모델</span><label><input type="checkbox" data-layer-visible="artwork" checked> 표시</label><label><input type="checkbox" data-layer-lock="artwork"> 잠금</label></div>
+          <div class="layer-group" data-layer-row="planting"><span class="layer-group-title">🧱 공간·환경 에셋</span><label><input type="checkbox" data-layer-visible="planting" checked> 표시</label><label><input type="checkbox" data-layer-lock="planting"> 잠금</label></div>
           <div class="layer-group" data-layer-row="lighting"><span class="layer-group-title">💡 추가 조명</span><label><input type="checkbox" data-layer-visible="lighting" checked> 표시</label><label><input type="checkbox" data-layer-lock="lighting"> 잠금</label></div>
         </div>
         <details class="site-scene-objects">
@@ -229,7 +244,7 @@
           <p id="site-selected-name" class="hint" aria-live="polite">현장 객체를 선택하면 위치를 표시합니다 (편집은 불가)</p>
         </details>
         <details class="extra-scene-objects">
-          <summary>추가 식재·조명 개별 관리 <span id="extra-layer-count">0개</span></summary>
+          <summary>배치 오브제·조명 개별 관리 <span id="extra-layer-count">0개</span></summary>
           <input id="extra-layer-search" type="search" placeholder="에셋 이름·번호 검색" aria-label="레이어 내 추가 에셋 검색">
            <p id="extra-layer-summary" class="hint"></p>
            <div id="layer-extra-list" class="layer-extra-list"></div>
@@ -276,7 +291,7 @@
       </section>
       <section class="section">
         <div class="section-title"><h2>🎯 선택 객체 Transform</h2><span id="object-state" class="tag">편집 가능</span></div>
-        <p class="hint">작품·식재·조명을 화면에서 클릭해 선택하고 이동(G)·회전(R)·크기(S)를 조정하세요.</p>
+        <p class="hint">작품·공간 에셋·조명을 화면에서 클릭해 선택하고 이동(G)·회전(R)·크기(S)를 조정하세요.</p>
         <button class="outline full" id="select-artwork" type="button">작품 선택</button>
         <button class="outline full" id="delete-selected" type="button" disabled>선택한 추가 오브제 삭제 (Delete)</button>
         <div class="section-subtitle">정밀 지면 배치</div>
@@ -409,12 +424,13 @@
         <p class="hint">비교 이미지는 브라우저 WebGL PBR 기반이며, 인증된 CAD 간섭검사·Blender 경로 추적·AI 실사화가 아닙니다. MASTER 8컷은 기존 승인 절차대로 출력합니다.</p>
       </section>
       <section class="section">
-        <h2>🌳 현장 에셋 라이브러리 <span class="tag">v3.2</span></h2>
-        <p class="hint">수목·인물·거리 가구 외에 3×3m 바닥 타일과 검정 명판을 독립 객체로 배치합니다. 배치한 에셋은 각각 선택·이동·복제할 수 있으며 실제 현장의 원본 마감·조경을 수정하지 않습니다.</p>
+        <h2>🧱 공간·현장 에셋 라이브러리 <span class="tag">v3.5</span></h2>
+        <p class="hint">현재 프로젝트 유형에 알맞은 환경·공간 에셋을 추천합니다. 모든 배치 객체는 별도 선택·이동·회전·복제·삭제할 수 있으며 현장 원본 메시를 변경하지 않습니다.</p>
         <label for="context-search">에셋 검색</label>
-        <input id="context-search" type="search" placeholder="예: 단풍나무, 벚꽃, 덤불, 수관, 차량" autocomplete="off">
+        <input id="context-search" type="search" placeholder="예: 전시 가벽, 진열대, 미디어 스크린, 사이니지, 수목" autocomplete="off">
         <label for="context-category">에셋 분류</label>
         <select id="context-category">
+          <option value="recommended" selected>✨ 현재 프로젝트 추천</option>
           <option value="all">전체 에셋</option>
           <option value="planting">수목·잔디</option>
           <option value="people">인물</option>
@@ -422,6 +438,9 @@
           <option value="lighting">조명</option>
           <option value="surface">바닥·포장</option>
           <option value="signage">명판·사이니지</option>
+          <option value="architecture">가벽·공간 구조물</option>
+          <option value="display">진열·디스플레이</option>
+          <option value="media">미디어·체험</option>
         </select>
         <p id="context-search-count" class="hint" aria-live="polite">에셋 검색 준비 중</p>
         <p id="asset-placement-status" class="hint" aria-live="polite">에셋 버튼 선택 → 현장 반복 클릭으로 연속 배치 · 같은 버튼 다시 누르면 OFF · Esc로 종료</p>
@@ -444,7 +463,14 @@
           <button type="button" data-add-extra="point-light">💡 포인트 조명</button>
           <button type="button" data-add-extra="shrub-flower">🌺 꽃 덤불 A · 기본형</button>
           <button type="button" data-add-extra="black-nameplate">⬛ 검정 명판</button>
-          <p class="hint" style="grid-column:1/-1">⬛ 기본 명판은 첨부 GLB의 300×200×100mm 크기와 표기 문구를 참고한 경량 모델입니다. 원본 형상·텍스처 그대로 사용하려면 아래 📂 내 GLB 에셋 라이브러리에 원본 파일을 등록하세요.</p>
+          <button type="button" data-add-extra="modular-wall">🧱 모듈 가벽 3m</button>
+          <button type="button" data-add-extra="retail-shelf">🛍️ 상품 진열대 2m</button>
+          <button type="button" data-add-extra="display-podium">⬜ 디스플레이 좌대 1m</button>
+          <button type="button" data-add-extra="brand-counter">🗃️ 브랜드 운영 카운터</button>
+          <button type="button" data-add-extra="media-screen">📺 미디어 스크린 3.15m</button>
+          <button type="button" data-add-extra="signage-totem">📍 사이니지 토템 2.25m</button>
+          <button type="button" data-add-extra="experience-kiosk">🖥️ 체험 키오스크 1.43m</button>
+          <p class="hint" style="grid-column:1/-1">🧩 신규 공간 에셋 7종은 무브랜드 실측 개념형입니다. 실제 제품·가구·구조 안전·미디어 작동이나 인허가를 보증하지 않습니다. ⬛ 기본 명판은 첨부 GLB의 300×200×100mm 크기와 표기 문구를 참고한 경량 모델입니다. 원본 형상·텍스처 그대로 사용하려면 아래 📂 내 GLB 에셋 라이브러리에 원본 파일을 등록하세요.</p>
         </div>
         <details id="plant-variants" class="plant-variants">
           <summary>🌿 나무·덤불 B/C 수형 14종 더보기</summary>
@@ -469,7 +495,7 @@
         <button id="library-toggle" class="outline full" type="button" aria-controls="asset-library-panel" aria-expanded="false">📂 내 GLB 에셋 라이브러리 열기</button>
         <div class="asset-library-panel" id="asset-library-panel" hidden>
           <div class="section-title"><h2>📦 외부 GLB 에셋 라이브러리</h2><span class="tag">v2.7</span></div>
-          <p class="hint">실제 수목·사람·가구 3D GLB를 직접 업로드하세요. 독립형 GLB 최대 6종, 각 20MB, 합계 60MB, 모델당 삼각형 25만 개 이내입니다. 자동 에셋 다운로드는 제공하지 않습니다.</p>
+          <p class="hint">실제 수목·사람·가구 3D GLB를 직접 업로드하세요. 독립형 GLB 최대 12종, 각 20MB, 합계 120MB, 모델당 삼각형 25만 개 이내입니다. 전체 프로젝트 ZIP은 320MB 한도이므로 모델이 많으면 ZIP 내보내기 시 경량화가 필요할 수 있습니다. 자동 에셋 다운로드는 제공하지 않습니다.</p>
           <label class="file-button secondary" for="library-asset-file"><span>+ GLB 에셋 불러오기</span><small>glTF 2.0 GLB · 텍스처 포함 권장</small></label>
           <input class="sr-only" id="library-asset-file" type="file" accept=".glb,model/gltf-binary">
           <label for="library-asset-category">업로드하는 에셋 유형</label>
@@ -479,12 +505,16 @@
             <option value="furniture">거리 가구 / 공간 소품</option>
             <option value="vehicle">차량 / 교통 에셋</option>
             <option value="artwork">별도 조형 작품 / 다중 작품</option>
+            <option value="architecture">팝업 · 전시 구조물 / 가벽</option>
+            <option value="display">리테일 진열대 / 디스플레이</option>
+            <option value="media">미디어 화면 / 체험 기기</option>
+            <option value="signage">사이니지 / 공간 브랜딩</option>
           </select>
           <label for="library-asset-select">배치할 에셋 선택</label>
           <select id="library-asset-select"><option value="">등록한 GLB 에셋 없음</option></select>
           <p id="library-size-note" class="hint" aria-live="polite">원본 GLB의 크기와 단위를 확인할 수 있습니다.</p>
           <button id="library-place" class="outline full" type="button" disabled>선택한 GLB를 현장 클릭으로 배치</button>
-          <p id="library-status" class="hint" aria-live="polite">등록 에셋 0 / 6 · GLB 원본 파일은 프로젝트 ZIP에 보관됩니다.</p>
+          <p id="library-status" class="hint" aria-live="polite">등록 에셋 0 / 12 · GLB 원본 파일은 프로젝트 ZIP에 보관됩니다.</p>
           <p class="hint">고해상도 에셋은 성능 진단으로 폴리곤 수를 확인하며, 렌더 품질을 임의로 낮추지 않습니다.</p>
           <p class="hint">실제 에셋은 제공된 GLB의 텍스처·형상·크기를 유지합니다. 크기는 객체 선택 후 Scale 도구로 조절하세요. 소스의 사용권은 직접 확인해 주세요.</p>
         </div>

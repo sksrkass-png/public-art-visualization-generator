@@ -7,7 +7,10 @@ export const CONTEXT_CATEGORIES=Object.freeze([
   {id:"street",label:"거리 가구·차량"},
   {id:"lighting",label:"조명"},
   {id:"surface",label:"바닥·포장"},
-  {id:"signage",label:"명판·사이니지"}
+  {id:"signage",label:"명판·사이니지"},
+  {id:"architecture",label:"가벽·공간 구조물"},
+  {id:"display",label:"진열·디스플레이"},
+  {id:"media",label:"미디어·체험"}
 ]);
 export const CONTEXT_CATALOG=Object.freeze([
   {kind:"tree-round",label:"활엽수 A · 둥근형",category:"planting",keywords:"활엽수 나무 green tree deciduous 둥근 수관 A"},
@@ -43,7 +46,15 @@ export const CONTEXT_CATALOG=Object.freeze([
   {kind:"round-planter",label:"화분",category:"street",keywords:"pot planter furniture"},
   {kind:"car-sedan",label:"승용차 4.5m",category:"street",keywords:"vehicle car sedan"},
   {kind:"bollard",label:"안전 볼라드",category:"street",keywords:"street bollard safety"},
-  {kind:"point-light",label:"포인트 조명",category:"lighting",keywords:"spot uplight"}
+  {kind:"point-light",label:"포인트 조명",category:"lighting",keywords:"spot uplight"},
+  {kind:"modular-wall",label:"모듈 가벽 3m",category:"architecture",keywords:"partition wall pop up exhibition modular booth white gallery"},
+  {kind:"retail-shelf",label:"리테일 진열대 2m",category:"display",keywords:"retail shelf merchandise display rack store product"},
+  {kind:"display-podium",label:"디스플레이 좌대 1m",category:"display",keywords:"gallery sculpture podium plinth pedestal display"},
+  {kind:"brand-counter",label:"브랜드 운영 카운터",category:"display",keywords:"cashier counter desk retail checkout brand popup"},
+  {kind:"media-screen",label:"미디어 스크린 3.15m",category:"media",keywords:"digital media wall tv screen LED display exhibition"},
+  {kind:"signage-totem",label:"사이니지 토템 2.25m",category:"signage",keywords:"wayfinding branding totem pylon sign"},
+  {kind:"experience-kiosk",label:"체험 키오스크 1.43m",category:"media",keywords:"interactive kiosk visitor touchscreen brand experience"}
+
 ]);
 const cleanText=value=>String(value??"").normalize("NFKC").toLowerCase().trim();
 export function filterContextCatalog(query="",category="all"){
