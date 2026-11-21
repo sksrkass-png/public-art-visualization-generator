@@ -4587,6 +4587,7 @@ $("focus-site-quick").addEventListener("click",focusImportedSite);
 $("focus").addEventListener("click", fitCamera);
 $("project-quick-save").addEventListener("click",()=>$("export-project").click());
 $("vault-save").addEventListener("click",()=>exportProjectArchive({toVault:true}));
+$("vault-save-new").addEventListener("click",()=>{activeLocalVaultId=null;exportProjectArchive({toVault:true});});
 $("vault-list").addEventListener("change",updateVaultActions);
 $("vault-load").addEventListener("click",async()=>{
   const id=$("vault-list").value;
