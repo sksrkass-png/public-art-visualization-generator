@@ -1447,6 +1447,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     sitePage.on("pageerror",e=>errors.push(e.stack||e.message));
     await sitePage.goto("http://127.0.0.1:8787/studio/?panels=open",{waitUntil:"domcontentloaded",timeout:60000});
     await sitePage.locator("#viewport canvas").waitFor({timeout:30000});
+    await sitePage.locator("#site-preset").selectOption("plaza");
     await sitePage.waitForFunction(()=>document.querySelector("#site-mesh-count")?.textContent!=="0개");
     const siteInitial=await sitePage.locator("#site-mesh-count").textContent();
     const officialBefore=sitePage.waitForEvent("download",{timeout:30000});
