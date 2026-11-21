@@ -35,7 +35,7 @@ import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precis
 import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
 import { inspectImportedSite, validSiteAlignment } from "./site-import.js";
-import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape, upgradeGroundLight } from "./extras.js";
+import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape, upgradeGroundLight, applySpatialFinish } from "./extras.js";
 import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
   validPlacementReference,validatePlinthDimensions} from "./dimensioning.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
@@ -52,6 +52,8 @@ import {CONTEXT_CATALOG,filterContextCatalog,uniformHeightScale,dimensionsLabel}
 import {PROJECT_MODE_DEFAULT,validProjectMode,projectModeConfig,
   recommendedAssetKinds,starterLayout,validateModeStarter} from "./project-modes.js";
 import {EXTRA_TYPES} from "./extras.js";
+import {SPATIAL_LOOKS,SPATIAL_SHOTS,looksForMode,spatialShotPose,
+  validSpatialState,validSpatialFinish} from "./spatial-visuals.js";
 import {VISUAL_SLOTS,WALKING_EYE_HEIGHT,preliminaryClearances,validVariants,
   visualReadiness,visualPackageManifest} from "./visual-workflow.js";
 import {createVisualOptionStage} from "./visual-option-render.js";
@@ -200,6 +202,7 @@ let hdrTexture=null,hdrSourceFile=null,activeHDRIOperation=0;
 let originalArtMaterials=new Map(),overrideArtMaterials=new Set();
 let artworkMaterialState={preset:"original",color:"#d0d6db"};
 let currentProjectMode=PROJECT_MODE_DEFAULT;
+let spatialVisualization={look:null,shot:null};
 const SITE_UNIT_TO_M = Object.freeze({ m: 1, cm: .01, mm: .001, ft: .3048, inch: .0254 });
 const MAX_UNDO = 40;
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -369,6 +372,7 @@ function applyProjectMode(mode,{restoring=false,announce=true}={}){
   }));
   $("mode-starter-add").textContent="+"+cfg.icon+" "+cfg.templateLabel+" (예시)";
   $("project-mode-tag").textContent=cfg.label;
+  refreshSpatialLookOptions();
   syncModeSampleUI();
   document.title="AXOO — "+cfg.label+" 3D Studio";
   refreshContextPalette();
@@ -634,6 +638,8 @@ function duplicateEditable(){
   const sourceID=original.userData?.assetId||null;
   const before=editSnapshot();
   const root=makeExtra(kind,nextExtraId++,original.userData.appearanceVersion||2,sourceID,assetLibrary,artRoot);
+  if(original.userData.schematicSpatialAsset)
+    applySpatialFinish(root,original.userData.spatialFinish||"original",original.userData.spatialFinishColor||"#ff3b30");
   root.position.copy(original.position).add(new THREE.Vector3(2,0,0));
   root.rotation.copy(original.rotation);
   root.scale.copy(original.scale);
@@ -1960,7 +1966,7 @@ function syncLock() {
   else if (gizmoRequested && selectedRoot && selectedCanEdit()) transform.attach(selectedRoot);
   ["library-place","library-asset-file","library-asset-category","extra-target-height","extra-fit-height",
     "site-center-origin", "site-unit", "site-up", "delete-selected", "extra-light-power", "extra-light-color", "ground-light-upgrade",
-    "project-mode","mode-starter-add",
+    "project-mode","mode-starter-add","spatial-look-apply","spatial-finish-apply",
     "auto-ground", "ground-selected", "pick-selected-site", "ground-offset",
     "plan-pick-center", "plan-visible", "map-file", "map-width", "plan-x", "plan-z",
     "plan-rotation", "plan-elevation", "plan-opacity"]
@@ -1987,6 +1993,7 @@ function syncLock() {
   refreshLayers({redrawSite:true});
   updateUndoButtons();
   updateMultiArtStatus();
+  syncSpatialFinishUI();
   syncModeSampleUI();
   if(proposalBridge)proposalBridge.refresh();
   if(collaborationBridge)collaborationBridge.refresh();
@@ -2007,6 +2014,7 @@ function updateInspector(force = false) {
   syncContextHeightUI();
   updateArtworkDimensionReadout();
   refreshPlinthControls();
+  syncSpatialFinishUI();
   $("coords").textContent = ["X", "Y", "Z"].map((k, i) => k + " " + state.p[i].toFixed(2)).join(" · ");
   $("object-name").textContent = selectedRoot.name;
   const light = selectedRoot === artRoot ? null : extraLight(selectedRoot);
@@ -2691,6 +2699,7 @@ function sceneConfig() {
     schema: "axoo-public-art-3d-studio-v1",
     projectName: $("project-name").value,
     projectMode:currentProjectMode,
+    spatialVisualization:{...spatialVisualization},
     library:libraryManifest(assetLibrary),
     sourceManifest:{schema:"axoo-source-manifest-v1",localOnly:true,
       site:siteSourceFile?{name:siteSourceFile.name,format:siteSourceFile.name.split(".").pop().toLowerCase(),byteSize:siteSourceFile.size}:null,
@@ -2733,6 +2742,7 @@ function validateProjectConfig(data) {
   if (!data || data.schema !== "axoo-public-art-3d-studio-v1" || !data.site || !data.artwork ||
       !validTransform(data.artwork.transform) || !data.lighting || !data.camera ||
       (data.projectMode!==undefined&&!validProjectMode(data.projectMode)) ||
+      !validSpatialState(data.spatialVisualization) ||
       !isTriple(data.camera.position) || !isTriple(data.camera.target) ||
       typeof data.artwork.source !== "string" || typeof data.site.file !== "string" ||
       !validCompanions(data.site.resources,data.site.file) ||
@@ -2858,6 +2868,9 @@ function importSceneConfig(data) {
   const originalApproval=approvedMaster;
   approvedMaster=false;
   restoreRenderConfig(data.render);
+  spatialVisualization=data.spatialVisualization?structuredClone(data.spatialVisualization):{look:null,shot:null};
+  refreshSpatialLookOptions();
+  $("spatial-shot").value=spatialVisualization.shot||"hero";
   approvedMaster=originalApproval;
   if(data.render?.environmentMode==="hdr" && !hdrTexture){
     $("env-filename").textContent="재업로드 필요: "+data.render.environmentFile;
