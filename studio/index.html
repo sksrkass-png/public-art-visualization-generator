@@ -1009,6 +1009,25 @@
 </div>
 <script>
 (function(){
+  // Imported files / hidden file inputs must never move the desktop page.
+  // The tool panels retain their own independent scroll positions.
+  if(window.matchMedia("(min-width: 801px)").matches){
+    if("scrollRestoration" in history)history.scrollRestoration="manual";
+    const resetDocumentOffset=()=>{
+      if(window.scrollY!==0 || document.documentElement.scrollTop!==0){
+        document.documentElement.scrollTop=0;
+        window.scrollTo(0,0);
+      }
+    };
+    window.addEventListener("scroll",resetDocumentOffset,{passive:true});
+    document.addEventListener("change",event=>{
+      if(event.target?.matches?.('input[type="file"]')){
+        requestAnimationFrame(resetDocumentOffset);
+        requestAnimationFrame(()=>requestAnimationFrame(resetDocumentOffset));
+      }
+    },true);
+    requestAnimationFrame(resetDocumentOffset);
+  }
   if(new URLSearchParams(location.search).get("panels")==="open"){
     document.documentElement.classList.add("studio-advanced-mode");
   }
