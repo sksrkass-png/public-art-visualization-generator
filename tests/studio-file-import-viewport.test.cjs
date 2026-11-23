@@ -40,8 +40,19 @@ const OBJ=Buffer.from([
   assertFit(await measure(),"after site OBJ");
   // Focusing a file input can cause implicit browser scroll even if body is clipped.
   await page.locator("#art-file").focus();
+  assertFit(await measure(),"after hidden file focus");
   await page.locator("#art-file").setInputFiles({name:"uploaded-art.obj",mimeType:"text/plain",buffer:OBJ});
-  await page.waitForFunction(()=>document.querySelector("#art-filename")?.textContent==="uploaded-art.obj",null,{timeout:25000});
+  await page.waitForFunction(()=>document.querySelector("#art-filename")?.textContent==="uploaded-art.obj",null,{timeout:18000}).catch(async error=>{
+    console.log("ART_IMPORT_DEBUG",JSON.stringify(await page.evaluate(()=>({
+      art:document.querySelector("#art-filename")?.textContent,
+      site:document.querySelector("#site-filename")?.textContent,
+      toast:document.querySelector("#toast")?.textContent,
+      importStatus:document.querySelector("#art-import-progress")?.textContent,
+      bodyScroll:document.body.scrollHeight,scrollY:window.scrollY,
+      selected:document.querySelector("#object-state")?.textContent
+    }))));
+    throw error;
+  });
   await page.waitForTimeout(400);
   assertFit(await measure(),"after artwork OBJ");
   for(const height of [720,960,860]){
