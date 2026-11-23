@@ -42,7 +42,7 @@ const OBJ=Buffer.from([
   await page.locator("#art-file").focus();
   assertFit(await measure(),"after hidden file focus");
   await page.locator("#art-file").setInputFiles({name:"uploaded-art.obj",mimeType:"text/plain",buffer:OBJ});
-  await page.waitForFunction(()=>document.querySelector("#art-filename")?.textContent==="uploaded-art.obj",null,{timeout:18000}).catch(async error=>{
+  await page.waitForFunction(()=>document.querySelector("#art-filename")?.textContent.includes("uploaded-art.obj") && document.querySelector("#art-status")?.textContent==="가져온 작품",null,{timeout:18000}).catch(async error=>{
     console.log("ART_IMPORT_DEBUG",JSON.stringify(await page.evaluate(()=>({
       art:document.querySelector("#art-filename")?.textContent,
       site:document.querySelector("#site-filename")?.textContent,
