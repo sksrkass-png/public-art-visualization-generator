@@ -5,11 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101113">
   <title>AXOO — Creative 3D Studio</title>
-  <link rel="stylesheet" href="./studio.css?v=4.0.3-inspector">
+  <link rel="stylesheet" href="./studio.css?v=4.0.4-import-viewport">
   <!-- Critical desktop layout guard: remains effective even if an older stylesheet is cached. -->
   <style id="viewport-scroll-guard">
     @media (min-width: 801px) {
       html, body { height: 100%; margin: 0; overflow: clip !important; overscroll-behavior: none; }
+      body { position: fixed !important; inset: 0 !important; width: 100%;
+        height: 100dvh !important; max-height: 100dvh !important;
+        overflow: clip !important; }
       body > .app { position: fixed !important; inset: 0 !important; width: 100%;
         height: 100dvh !important; min-height: 0 !important; max-height: 100dvh !important;
         overflow: hidden !important; display: flex; flex-direction: column; }
@@ -17,6 +20,8 @@
         height: 0 !important; max-height: 100%; overflow: hidden !important;
         grid-template-rows: minmax(0, 1fr); }
       body > .app .viewer-shell { height: 100%; min-height: 0 !important; overflow: hidden !important; }
+      input[type="file"].sr-only { position: fixed !important; top: 0 !important; left: 0 !important;
+        width: 1px !important; height: 1px !important; clip-path: inset(50%); }
       body > .app .sidepanel { height: 100%; min-height: 0 !important; max-height: 100%;
         overflow-x: hidden !important; overflow-y: auto !important; overscroll-behavior-y: contain; }
     }
@@ -33,7 +38,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 4.0.3 · INSPECTOR UX</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 4.0.4 · IMPORT VIEWPORT FIX</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
     <div class="top-actions">
       <div class="workspace-mode-switch" role="group" aria-label="3D 스튜디오 작업 화면 모드">
         <button id="workspace-quick" type="button" aria-pressed="true">⚡ QUICK</button>
@@ -1006,6 +1011,29 @@
 </div>
 <script>
 (function(){
+  // Imported files / hidden file inputs must never move the desktop page.
+  // The tool panels retain their own independent scroll positions.
+  if(window.matchMedia("(min-width: 801px)").matches){
+    if("scrollRestoration" in history)history.scrollRestoration="manual";
+    const resetDocumentOffset=()=>{
+      if(document.body.scrollTop!==0)document.body.scrollTop=0;
+      if(window.scrollY!==0 || document.documentElement.scrollTop!==0){
+        document.documentElement.scrollTop=0;
+        window.scrollTo(0,0);
+      }
+    };
+    window.addEventListener("scroll",resetDocumentOffset,{passive:true});
+    document.addEventListener("focusin",event=>{
+      if(event.target?.matches?.('input[type="file"]'))requestAnimationFrame(resetDocumentOffset);
+    },true);
+    document.addEventListener("change",event=>{
+      if(event.target?.matches?.('input[type="file"]')){
+        requestAnimationFrame(resetDocumentOffset);
+        requestAnimationFrame(()=>requestAnimationFrame(resetDocumentOffset));
+      }
+    },true);
+    requestAnimationFrame(resetDocumentOffset);
+  }
   if(new URLSearchParams(location.search).get("panels")==="open"){
     document.documentElement.classList.add("studio-advanced-mode");
   }
@@ -1033,6 +1061,6 @@
   }
 })();
 </script>
-<script type="module" src="./studio.js?v=4.0.3-inspector"></script>
+<script type="module" src="./studio.js?v=4.0.4-import-viewport"></script>
 </body>
 </html>

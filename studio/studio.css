@@ -559,3 +559,31 @@ html[data-studio-workspace="quick"] .sidepanel.right .inspector-fold:not([open])
     overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain}
   #viewport{width:100%;height:100%;overflow:hidden}
 }
+
+/* v4.0.4: lock the browser's BODY as well as the app.
+   Imported files may programmatically focus offscreen file inputs. When
+   the document body is left in normal flow, Chrome may grow the root
+   scroll area to include their ancestors even with html overflow:clip.
+   On desktop the body is non-scrollable; only each aside scrolls. */
+@media (min-width:801px){
+  html{position:relative;overflow:clip!important;overscroll-behavior:none}
+  body{position:fixed!important;inset:0!important;width:100%!important;
+    height:100vh!important;height:100dvh!important;min-height:0!important;
+    max-height:100dvh!important;overflow:clip!important;overscroll-behavior:none}
+  body>.app{position:fixed!important;inset:0!important;max-height:100%;
+    height:100%!important;width:100%!important;overflow:hidden!important}
+  body>.app>.workspace{height:0!important;min-height:0!important;
+    flex:1 1 0%!important;overflow:hidden!important;grid-template-rows:minmax(0,1fr)}
+  body>.app>.workspace>.sidepanel{min-height:0!important;max-height:100%;
+    overflow-y:auto!important;overscroll-behavior-y:contain}
+  body>.app>.workspace>.viewer-shell{height:100%!important;min-height:0!important;overflow:hidden!important}
+}
+
+/* Focusable file inputs cannot sit thousands of pixels down inside a
+   scrollable sidebar. The native chooser focuses them and Chrome otherwise
+   scrolls the fixed-body containing block, taking the whole studio upward. */
+@media (min-width:801px){
+  input[type="file"].sr-only{position:fixed!important;top:0!important;left:0!important;
+    width:1px!important;height:1px!important;overflow:hidden!important;
+    clip-path:inset(50%);margin:0!important;padding:0!important;border:0!important}
+}

@@ -7,6 +7,7 @@ on:
       - 'tests/studio-browser.test.cjs'
       - 'tests/studio-v4-browser.test.cjs'
       - 'tests/studio-viewport-scroll.test.cjs'
+      - 'tests/studio-file-import-viewport.test.cjs'
       - '.github/workflows/validate-3d-browser.yml'
   workflow_dispatch:
 
@@ -41,6 +42,8 @@ jobs:
           echo "HTTP server did not start"; cat /tmp/axoo-studio-http.log; exit 1
       - name: Desktop viewport scroll regression
         run: node tests/studio-viewport-scroll.test.cjs
+      - name: Import site and artwork viewport stability
+        run: node tests/studio-file-import-viewport.test.cjs
       - name: Focused v4 workspace and project vault smoke
         run: node tests/studio-v4-browser.test.cjs
       - name: Exercise browser editor
