@@ -37,11 +37,12 @@ const assert=require("node:assert/strict");
     assert.ok(Math.abs(v.width-.30)<.001,"300mm nameplate width");
     assert.ok(Math.abs(v.depth-.20)<.001,"200mm nameplate depth");
     assert.ok(v.height>=.10&&v.height<.106,"100mm back edge plus thin overlay");
-    assert.equal(v.meshCount,2,"independent stone body and mounted plaque surface");
+    assert.equal(v.meshCount,v.silver?3:2,"stone body, separate metal sheet if needed, and readable plaque face");
   }
   assert.equal(result.items[0].construction,"black-stone-only");
   assert.equal(result.items[1].construction,"silver-on-black-stone");
   assert.ok(result.items[1].names.some(n=>n.includes("Brushed silver")));
+  assert.ok(result.items[1].names.some(n=>n.includes("1.2mm")),"metal overlay must have physical edge thickness");
   assert.ok(result.items[1].metalness.some(v=>v>.5),"silver finish has actual metallic PBR");
   assert.deepEqual(errors,[]);
   console.log("PASS: 2 sloped plaques at true dimensions, black stone + silver metal overlays, default grid UI off");
