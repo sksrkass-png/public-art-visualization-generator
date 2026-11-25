@@ -1709,7 +1709,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await contextCanvas.waitFor({timeout:30000});
     // New project modes default to recommended assets; the historical test needs all entries.
     await contextPage.locator("#context-category").selectOption("all");
-    await contextPage.waitForFunction(()=>document.querySelector("#context-search-count")?.textContent.includes("44 / 44"));
+    await contextPage.waitForFunction(()=>document.querySelector("#context-search-count")?.textContent.includes("46 / 46"));
     assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').isVisible(),true);
     await contextPage.locator("#context-category").selectOption("street");
     await contextPage.locator("#context-search").fill("승용차");
