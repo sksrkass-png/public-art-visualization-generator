@@ -70,7 +70,20 @@ function addSolidWedge(root){
 function addFace(root,withSilver){
   const {width:w,depth:d,frontHeight:f,rearHeight:b}=SLOPED_PLAQUE_DIMENSIONS;
   const inset=withSilver?.011:.007;
-  const offset=withSilver?.0025:.0009;
+  const offset=withSilver?.0012:.0009;
+  if(withSilver){
+    // A 1.2mm actual 3D metal sheet, flush with the inclined stone surface.
+    // The decal below is merely a print layer: edges and thickness remain real.
+    const incline=Math.atan2(b-f,d);
+    const sheet=new THREE.Mesh(
+      new THREE.BoxGeometry(w-2*inset,.0012,(d-2*inset)/Math.cos(incline)),
+      new THREE.MeshStandardMaterial({color:0xadb7bd,metalness:.82,roughness:.36})
+    );
+    sheet.rotation.x=incline;
+    sheet.position.y=(f+b)/2+.00055;
+    sheet.name="Brushed stainless inset sheet · actual 1.2mm edge thickness";
+    sheet.castShadow=true;sheet.receiveShadow=true;root.add(sheet);
+  }
   const xl=-w/2+inset,xr=w/2-inset,zf=d/2-inset,zb=-d/2+inset;
   const y=z=>f+(b-f)*(d/2-z)/d+offset;
   const g=quadGeometry([xl,y(zf),zf],[xr,y(zf),zf],[xr,y(zb),zb],[xl,y(zb),zb]);
