@@ -1,0 +1,31 @@
+const assert=require("node:assert/strict");
+const fs=require("node:fs"),path=require("node:path");
+const read=p=>fs.readFileSync(path.join(__dirname,"..",p),"utf8");
+const plaque=read("studio/sloped-nameplates.js");
+const extras=read("studio/extras.js");
+const catalog=read("studio/context-catalog.js");
+const html=read("studio/index.html");
+const studio=read("studio/studio.js");
+const modes=read("studio/project-modes.js");
+const kinds=["sloped-black-nameplate","sloped-silver-nameplate"];
+for(const kind of kinds){
+ assert.ok(extras.includes('"'+kind+'"'),kind+" must be a serializable extra");
+ assert.ok(catalog.includes('kind:"'+kind+'"'),kind+" must be in the asset catalog");
+ assert.ok(html.includes('data-add-extra="'+kind+'"'),kind+" must have a placement button");
+ assert.ok(modes.includes('"'+kind+'"'),kind+" must be recommended for public art");
+}
+assert.match(plaque,/width:\.30,depth:\.20,frontHeight:\.05,rearHeight:\.10/);
+assert.match(plaque,/function addSolidWedge\(/);
+assert.match(plaque,/function addFace\(/);
+assert.match(plaque,/MeshPhysicalMaterial/);
+assert.match(plaque,/CanvasTexture/);
+assert.match(plaque,/nameplateConstruction/);
+assert.match(plaque,/Brushed silver stainless inset plate/);
+assert.match(extras,/addSlopedStoneNameplate\(root,false\)/);
+assert.match(extras,/addSlopedStoneNameplate\(root,true\)/);
+assert.match(html,/<input id="grid" type="checkbox">/);
+assert.match(studio,/const grid = new THREE.GridHelper/);
+assert.match(studio,/grid\.visible = false;\s*scene\.add\(grid\)/);
+assert.match(studio,/grid\.visible = Boolean\(\$\("grid"\)\.checked\)/);
+assert.match(studio,/grid\.visible = e\.target\.checked/);
+console.log("PASS: two independent angled plaque assets and initial Three.js grid hidden");
