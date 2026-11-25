@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { instantiateLibraryAsset } from "./assets.js";
 import { addBlackNameplate } from "./nameplate-asset.js";
-import { addSlopedStoneNameplate } from "./sloped-nameplates.js";
+import { addSlopedStoneNameplate } from "./sloped-nameplates.js?v=4.0.6";
 import {NEW_PLANT_VARIANTS,addPlantVariant} from "./plant-variants.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import {SPATIAL_FINISHES,validSpatialFinish} from "./spatial-visuals.js";
