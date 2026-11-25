@@ -27,11 +27,12 @@ function faceMap(silver){
   ctx.fillStyle=foreground;ctx.textAlign="center";
   ctx.font="bold 64px sans-serif";ctx.fillText("ARTWORK",w/2,158);
   ctx.font="34px sans-serif";ctx.fillText("작품명 · Artwork Title",w/2,227);
-  ctx.textAlign="left";ctx.font="28px sans-serif";
+  // All inscription lines, including the description and footer, share the center axis.
+  ctx.textAlign="center";ctx.font="28px sans-serif";
   ["작품의 의미와 제작 의도를 설명하는 명판입니다.",
    "아티스트명, 작품명, 재료 및 제작 연도 등을",
-   "프로젝트에 맞게 별도로 표기할 수 있습니다."].forEach((line,i)=>ctx.fillText(line,80,360+i*63));
-  ctx.font="bold 25px sans-serif";ctx.fillText("ARTIST  ·  YEAR  ·  MATERIAL",80,675);
+   "프로젝트에 맞게 별도로 표기할 수 있습니다."].forEach((line,i)=>ctx.fillText(line,w/2,360+i*63));
+  ctx.font="bold 25px sans-serif";ctx.fillText("ARTIST  ·  YEAR  ·  MATERIAL",w/2,675);
   const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
   tex.anisotropy=4;
   if(silver)inkSilver=tex;else inkBlack=tex;
