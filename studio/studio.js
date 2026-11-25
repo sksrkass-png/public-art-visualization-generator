@@ -108,6 +108,8 @@ const grid = new THREE.GridHelper(120, 120, 0x9ba4ac, 0xc7cdd1);
 grid.position.y = 0.021;
 grid.material.transparent = true;
 grid.material.opacity = .44;
+// Keep the actual Three.js helper aligned with the unchecked default toggle.
+grid.visible = false;
 scene.add(grid);
 
 const siteRoot = new THREE.Group();
@@ -4894,6 +4896,8 @@ applyWorkspaceMode(
     ?"advanced":workspaceMode,{save:false,
       expand:new URLSearchParams(window.location.search).get("panels")==="open"});
 applyProjectMode(PROJECT_MODE_DEFAULT,{restoring:true,announce:false});
+// Explicitly synchronize the renderer helper before the first animation frame.
+grid.visible = Boolean($("grid").checked);
 syncContextHeightUI();
 checkVisualQuality();
 resize();
