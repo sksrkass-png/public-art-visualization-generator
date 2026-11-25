@@ -50,13 +50,14 @@ function addSolidWedge(root){
   const zF=d/2,zB=-d/2,xL=-w/2,xR=w/2;
   const bottom=[[xL,0,zF],[xR,0,zF],[xR,0,zB],[xL,0,zB]];
   const top=[[xL,f,zF],[xR,f,zF],[xR,b,zB],[xL,b,zB]];
+  // Outward windings give the stone correct sun/shadow normals on every face.
   const pts=[],faces=[
-    [top[0],top[3],top[2],top[1]],
-    [bottom[0],bottom[1],bottom[2],bottom[3]],
-    [bottom[0],top[0],top[1],bottom[1]],
-    [bottom[1],top[1],top[2],bottom[2]],
-    [bottom[2],top[2],top[3],bottom[3]],
-    [bottom[3],top[3],top[0],bottom[0]]
+    [top[0],top[1],top[2],top[3]],
+    [bottom[0],bottom[3],bottom[2],bottom[1]],
+    [bottom[0],bottom[1],top[1],top[0]],
+    [bottom[1],bottom[2],top[2],top[1]],
+    [bottom[2],bottom[3],top[3],top[2]],
+    [bottom[3],bottom[0],top[0],top[3]]
   ];
   for(const [a,bb,c,dd] of faces)pts.push(...a,...bb,...c,...a,...c,...dd);
   const g=new THREE.BufferGeometry();
