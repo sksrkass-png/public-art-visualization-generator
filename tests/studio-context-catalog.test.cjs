@@ -39,7 +39,7 @@ assert.match(js,/uniformHeightScale\(/);
 assert.match(js,/approvedMaster/);
 assert.equal(filterContextCatalog("잔디","surface").length,1);
 assert.equal(filterContextCatalog("보도","surface").length,1);
-assert.equal(filterContextCatalog("명판","signage").length,1);
+assert.equal(filterContextCatalog("명판","signage").length,3);
 assert.match(js,/isRepeatablePlacement\(kind\)/);
 assert.match(js,/placementMode===kind/);
 assert.match(js,/syncAssetPlacementUI\(\)/);

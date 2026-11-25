@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { instantiateLibraryAsset } from "./assets.js";
 import { addBlackNameplate } from "./nameplate-asset.js";
+import { addSlopedStoneNameplate } from "./sloped-nameplates.js";
 import {NEW_PLANT_VARIANTS,addPlantVariant} from "./plant-variants.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import {SPATIAL_FINISHES,validSpatialFinish} from "./spatial-visuals.js";
@@ -10,7 +11,7 @@ import {SPATIAL_FINISHES,validSpatialFinish} from "./spatial-visuals.js";
 export const EXTRA_TYPES = Object.freeze(["tree-natural","tree-grove","tree-round", "tree-cone", "shrub", "tree-autumn",
   ...NEW_PLANT_VARIANTS,
   "person-standing", "person-man", "person-woman", "shrub-flower", "park-bench", "round-planter",
-  "tree-birch", "grass-patch", "lawn-tile", "walkway-tile", "black-nameplate", "car-sedan", "bollard", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth",
+  "tree-birch", "grass-patch", "lawn-tile", "walkway-tile", "black-nameplate", "sloped-black-nameplate", "sloped-silver-nameplate", "car-sedan", "bollard", "custom-glb", "artwork-copy", "point-light", "spot-light", "plinth",
   "modular-wall","retail-shelf","display-podium","brand-counter","media-screen","signage-totem","experience-kiosk"]);
 
 // Reuse GPU geometry/materials for hundreds of repeated botanical props.
@@ -528,7 +529,7 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   root.name=({ ...plantVariantLabels,"tree-round":"활엽수", "tree-cone":"침엽수", "shrub":"덤불",
     "tree-autumn":"가을 활엽수", "person-standing":"보행자","person-man":"남성 175cm","person-woman":"여성 160cm","shrub-flower":"꽃 덤불", "park-bench":"공원 벤치",
     "round-planter":"화분", "tree-birch":"자작나무", "grass-patch":"잔디 패치",
-    "lawn-tile":"3×3m 잔디밭", "walkway-tile":"3×3m 콘크리트 보도", "black-nameplate":"검정 명판",
+    "lawn-tile":"3×3m 잔디밭", "walkway-tile":"3×3m 콘크리트 보도", "black-nameplate":"검정 명판", "sloped-black-nameplate":"경사형 검정 석재 명판", "sloped-silver-nameplate":"경사형 석재+실버 명판",
     "car-sedan":"승용차", "bollard":"안전 볼라드",
     "custom-glb":"사용자 GLB", "artwork-copy":"작품 복제",
     "point-light":"포인트 조명","spot-light":"스폿 조명","plinth":"기단",
@@ -546,6 +547,8 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
   else if(kind==="grass-patch")grassPatch(root);
   else if(kind==="lawn-tile"||kind==="walkway-tile")surfaceTile(root,kind);
   else if(kind==="black-nameplate")addBlackNameplate(root);
+  else if(kind==="sloped-black-nameplate")addSlopedStoneNameplate(root,false);
+  else if(kind==="sloped-silver-nameplate")addSlopedStoneNameplate(root,true);
   else if(kind==="car-sedan")carSedan(root);
   else if(kind==="bollard")safetyBollard(root);
   else if(kind==="plinth"){

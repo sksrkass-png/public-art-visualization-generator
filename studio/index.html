@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101113">
   <title>AXOO — Creative 3D Studio</title>
-  <link rel="stylesheet" href="./studio.css?v=4.0.4-import-viewport">
+  <link rel="stylesheet" href="./studio.css?v=4.0.5-nameplate-grid">
   <!-- Critical desktop layout guard: remains effective even if an older stylesheet is cached. -->
   <style id="viewport-scroll-guard">
     @media (min-width: 801px) {
@@ -38,7 +38,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 4.0.4 · IMPORT VIEWPORT FIX</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 4.0.5 · NAMEPLATES & GRID</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
     <div class="top-actions">
       <div class="workspace-mode-switch" role="group" aria-label="3D 스튜디오 작업 화면 모드">
         <button id="workspace-quick" type="button" aria-pressed="true">⚡ QUICK</button>
@@ -538,6 +538,8 @@
           <button type="button" data-add-extra="point-light">💡 포인트 조명</button>
           <button type="button" data-add-extra="shrub-flower">🌺 꽃 덤불 A · 기본형</button>
           <button type="button" data-add-extra="black-nameplate">⬛ 검정 명판</button>
+          <button type="button" data-add-extra="sloped-black-nameplate">⬛ 경사형 검정 석재 명판</button>
+          <button type="button" data-add-extra="sloped-silver-nameplate">🪙 경사형 석재+은판 명판</button>
           <button type="button" data-add-extra="modular-wall">🧱 모듈 가벽 3m</button>
           <button type="button" data-add-extra="retail-shelf">🛍️ 상품 진열대 2m</button>
           <button type="button" data-add-extra="display-podium">⬜ 디스플레이 좌대 1m</button>
@@ -545,7 +547,7 @@
           <button type="button" data-add-extra="media-screen">📺 미디어 스크린 3.15m</button>
           <button type="button" data-add-extra="signage-totem">📍 사이니지 토템 2.25m</button>
           <button type="button" data-add-extra="experience-kiosk">🖥️ 체험 키오스크 1.43m</button>
-          <p class="hint" style="grid-column:1/-1">🧩 신규 공간 에셋 7종은 무브랜드 실측 개념형입니다. 실제 제품·가구·구조 안전·미디어 작동이나 인허가를 보증하지 않습니다. ⬛ 기본 명판은 첨부 GLB의 300×200×100mm 크기와 표기 문구를 참고한 경량 모델입니다. 원본 형상·텍스처 그대로 사용하려면 아래 📂 내 GLB 에셋 라이브러리에 원본 파일을 등록하세요.</p>
+          <p class="hint" style="grid-column:1/-1">🧩 신규 공간 에셋 7종은 무브랜드 실측 개념형입니다. 실제 제품·가구·구조 안전·미디어 작동이나 인허가를 보증하지 않습니다. ⬛ 기본 명판은 첨부 GLB의 300×200×100mm 크기와 표기 문구를 참고한 경량 모델입니다. 신규 경사형 명판 2종은 300×200mm, 앞높이 50mm·뒤높이 100mm로 제작되며 검정 석재 단독형과 브러시드 실버 금속판 부착형입니다. 표기 내용은 예시이며 실제 금속판 두께·제작도면을 대체하지 않습니다. 원본 형상·텍스처 그대로 사용하려면 아래 📂 내 GLB 에셋 라이브러리에 원본 파일을 등록하세요.</p>
         </div>
         <details id="plant-variants" class="plant-variants">
           <summary>🌿 나무·덤불 B/C 수형 14종 더보기</summary>
@@ -1061,6 +1063,6 @@
   }
 })();
 </script>
-<script type="module" src="./studio.js?v=4.0.4-import-viewport"></script>
+<script type="module" src="./studio.js?v=4.0.5-nameplate-grid"></script>
 </body>
 </html>

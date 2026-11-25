@@ -44,6 +44,8 @@ export const CONTEXT_CATALOG=Object.freeze([
   {kind:"lawn-tile",label:"잔디밭 3×3m",category:"surface",keywords:"lawn 3x3m 잔디 녹지 바닥"},
   {kind:"walkway-tile",label:"콘크리트 보도 3×3m",category:"surface",keywords:"concrete sidewalk 3x3m 포장 도보"},
   {kind:"black-nameplate",label:"검정 명판",category:"signage",keywords:"nameplate plaque 이호준 접어 만든 별의 비행 안내판"},
+  {kind:"sloped-black-nameplate",label:"경사형 검정 석재 명판 · 300×200",category:"signage",keywords:"경사 명판 검정 흑색 오석 흑요석 granite basalt sloped stone plaque 300x200 50 100mm"},
+  {kind:"sloped-silver-nameplate",label:"경사형 석재+실버 명판 · 300×200",category:"signage",keywords:"은색 금속판 실버 스테인리스 브러시드 경사 석재 오석 명판 metallic silver plaque steel 300x200"},
   {kind:"person-man",label:"남성 175cm",category:"people",keywords:"human scale mannequin"},
   {kind:"person-woman",label:"여성 160cm",category:"people",keywords:"human scale mannequin"},
   {kind:"park-bench",label:"공원 벤치",category:"street",keywords:"seat bench furniture"},
