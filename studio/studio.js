@@ -34,8 +34,8 @@ import {validSpatialReview} from "./spatial-review-data.js";
 import {FRAME_MODES,CAMERA_LENSES,normalizeVisualSettings,
   fitDistance,localContextRadius,renderQualityFlags} from "./modeling-quality.js";
 import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precision.js";
-import { parseLibraryGLB, validLibraryManifest, libraryManifest, libraryMemoryStats,
-  MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES } from "./assets.js";
+import { parseLibraryGLB,parseLibraryModel, validLibraryManifest, libraryManifest, libraryMemoryStats,
+  MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES, MAX_LIBRARY_ITEM_BYTES } from "./assets.js";
 import { inspectImportedSite, validSiteAlignment } from "./site-import.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape, upgradeGroundLight, applySpatialFinish } from "./extras.js";
 import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
@@ -823,21 +823,34 @@ function additionalArtworks(){
   return extrasRoot.children.filter(o=>o.userData.extraKind==="custom-glb"&&o.userData.assetCategory==="artwork");
 }
 function updateMultiArtStatus(){
-  const count=additionalArtworks().length;
+  const works=additionalArtworks(),count=works.length;
   $("multi-art-file").disabled=approvedMaster||count>=4;
   $("multi-art-status").textContent="작품 "+(count+1)+"/5개 · 추가 슬롯 "+(4-count)+
-    "개 · 개별 선택/삭제 가능 · 전체 프로젝트 ZIP에 원본 GLB 보존";
+    "개 · GLB/OBJ 원본 개별 선택·이동·회전·크기 편집 · ZIP에 보존";
+  const list=$("multi-art-select"),previous=list.value;
+  list.replaceChildren(new Option(count?"추가 작품 선택":"추가한 작품 없음",""));
+  for(const root of works)list.add(new Option(root.name, String(root.userData.extraId)));
+  if(works.some(o=>String(o.userData.extraId)===previous))list.value=previous;
+  else if(works.some(o=>o===selectedRoot))list.value=String(selectedRoot.userData.extraId);
+  const chosen=works.find(o=>String(o.userData.extraId)===list.value);
+  const editable=!!chosen&&canEditObject(chosen,artRoot,layerState,approvedMaster);
+  $("multi-art-select-edit").disabled=!editable;
+  document.querySelectorAll("[data-multi-art-mode]").forEach(button=>button.disabled=!editable);
+  $("multi-art-edit-status").textContent=chosen
+    ?chosen.name+" · 클릭하거나 편집 모드를 누르면 XYZ 조작 축이 활성화됩니다."
+    :"추가한 작품을 선택하면 3D 화면에서 이동·회전·크기를 변경할 수 있습니다.";
 }
 async function addArtworkGLB(file){
   if(!file||approvedMaster)return;
   if(additionalArtworks().length>=4)
     return notify("기본 작품 포함 최대 5개입니다. 추가 작품 하나를 삭제하면 슬롯이 열립니다.");
   const existingBytes=[...assetLibrary.values()].reduce((sum,a)=>sum+a.file.size,0);
-  if(assetLibrary.size>=MAX_LIBRARY_ASSETS||existingBytes+file.size>MAX_LIBRARY_BYTES)
-    return notify("프로젝트 GLB 파일 한도를 확인하세요 (12종 · 합계 120MB, 전체 프로젝트 ZIP 320MB).");
+  if(!/\.(?:glb|obj)$/i.test(file.name))return notify("추가 작품은 GLB 또는 OBJ 파일을 선택하세요.");
+  if(file.size>MAX_LIBRARY_ITEM_BYTES||assetLibrary.size>=MAX_LIBRARY_ASSETS||existingBytes+file.size>MAX_LIBRARY_BYTES)
+    return notify("추가 작품 원본은 개별 120MB · 합계 300MB 이하입니다. 전체 프로젝트 ZIP은 320MB 이하여야 합니다.");
   const op=++activeLibraryOperation,id="lib"+nextLibraryId++;
   try{
-    const asset=await parseLibraryGLB(file,id,"artwork");
+    const asset=await parseLibraryModel(file,id,"artwork");
     if(op!==activeLibraryOperation||approvedMaster)return;
     const before=editSnapshot();
     assetLibrary.set(id,asset);
@@ -846,10 +859,13 @@ async function addArtworkGLB(file){
     root.position.x+=1.6*(additionalArtworks().length+1);
     extrasRoot.add(root);
     refreshLayers({redrawSite:false});
+    changeMode("translate");
     selectRoot(root,true);
+    $("multi-art-select").value=String(root.userData.extraId);
+    updateMultiArtStatus();
     commit(before);
     updateMultiArtStatus();
-    notify("독립 작품 추가 "+(additionalArtworks().length+1)+"/5 · "+file.name);
+    notify("독립 작품 "+file.name+" 추가 · 클릭 후 이동(G)·회전(R)·크기(S) 편집 가능");
   }catch(e){notify("추가 작품 가져오기 실패: "+e.message);}
 }
 async function importLibraryGLB(file){
@@ -3472,7 +3488,7 @@ async function importProjectArchive(file) {
     for(const entry of data.library||[]){
       const bin=checkedArchiveEntry(zip,"assets/library/"+entry.id+".glb",20*1024*1024,true);
       const file=await recoverArchiveAsset(bin,entry.name,20*1024*1024,"model/gltf-binary");
-      if(file.size!==entry.byteSize)throw Error("사용자 GLB 파일 크기가 일치하지 않습니다: "+entry.name);
+      if(file.size!==entry.byteSize)throw Error("추가 모델 원본 파일 크기가 일치하지 않습니다: "+entry.name);
       loadedLibrary.set(entry.id,await parseLibraryGLB(file,entry.id,entry.category));
     }
     ensureAvailableLibrary(data.library||[],loadedLibrary);
