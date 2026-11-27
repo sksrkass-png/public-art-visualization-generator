@@ -1,14 +1,16 @@
 // AXOO Studio v1.0: content integrity (accidental corruption detection).
 // SHA-256 digests are NOT digital signatures or proof of creator provenance.
 const ALLOWED=["project.json","assets/site","assets/artwork","assets/plan","assets/environment"];
-const MAX_HASH_BYTES={"project.json":1048576,"assets/site":83886080,
-  "assets/artwork":83886080,"assets/plan":20971520,"assets/environment":20971520};
+const MAX_HASH_BYTES={"project.json":8*1024*1024,"assets/site":120*1024*1024,
+  "assets/artwork":120*1024*1024,"assets/plan":20*1024*1024,"assets/environment":20*1024*1024};
 const INTEGRITY_SCHEMA="axoo-studio-integrity-v1";
 function allowed(name){
-  return ALLOWED.includes(name) || /^assets\/library\/lib[1-9]\d{0,4}\.glb$/.test(name);
+  return ALLOWED.includes(name) || /^assets\/library\/lib[1-9]\d{0,4}\.(?:glb|obj)$/.test(name) ||
+    /^assets\/(?:site|artwork)-resources\/(?:0|[1-9]\d?)$/.test(name);
 }
 function maxSize(name){
-  return name.startsWith("assets/library/")?20*1024*1024:MAX_HASH_BYTES[name];
+  return name.startsWith("assets/library/")?120*1024*1024:
+    /-resources\//.test(name)?80*1024*1024:MAX_HASH_BYTES[name];
 }
 async function digest(bytes){
   if(!crypto?.subtle)throw Error("암호화 해시를 지원하는 보안 환경(HTTPS)이 필요합니다.");
@@ -17,8 +19,8 @@ async function digest(bytes){
 }
 function inspectZip(zip){
   const names=Object.keys(zip.files).filter(name=>!zip.files[name].dir);
-  if(names.filter(name=>name.startsWith("assets/library/")).length>6)
-    throw Error("사용자 GLB 파일은 최대 6개입니다.");
+  if(names.filter(name=>name.startsWith("assets/library/")).length>12)
+    throw Error("사용자 GLB/OBJ 원본 파일은 최대 12개입니다.");
   if(names.some(name=>name!=="integrity.json" && !allowed(name)))
     throw Error("알 수 없는 ZIP 내부 파일이 있습니다.");
   return names;
@@ -45,7 +47,7 @@ export async function verifyIntegrityManifest(zip){
   const entries=inspectZip(zip);
   if(!entries.includes("integrity.json"))return {legacy:true,verified:false};
   const entry=zip.file("integrity.json");
-  if(!entry || (entry._data?.uncompressedSize||0)>8192)
+  if(!entry || (entry._data?.uncompressedSize||0)>32768)
     throw Error("ZIP 무결성 정보 크기가 비정상입니다.");
   const metadata=JSON.parse(await entry.async("string"));
   if(metadata?.schema!==INTEGRITY_SCHEMA || metadata?.algorithm!=="SHA-256" ||
