@@ -1715,7 +1715,7 @@ const { siteFixtures, loadFbxFixture } = require("./site-model-fixtures.cjs");
     await contextPage.locator("#context-search").fill("승용차");
     assert.equal(await contextPage.locator('[data-add-extra="grass-patch"]').isVisible(),false);
     assert.equal(await contextPage.locator('[data-add-extra="car-sedan"]').isVisible(),true);
-    assert.match(await contextPage.locator("#context-search-count").textContent(),/1 \/ 44/);
+    assert.match(await contextPage.locator("#context-search-count").textContent(),/1 \/ 46/);
     await contextPage.locator('[data-view="aerial"]').click();
     const cb=await contextCanvas.boundingBox();
     assert.ok(cb);
