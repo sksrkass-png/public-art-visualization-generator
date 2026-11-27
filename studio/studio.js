@@ -854,9 +854,34 @@ async function addArtworkGLB(file){
     if(op!==activeLibraryOperation||approvedMaster)return;
     const before=editSnapshot();
     assetLibrary.set(id,asset);
-    const root=makeExtra("custom-glb",nextExtraId++,2,id,assetLibrary,artRoot);
-    root.position.copy(artRoot.position);
-    root.position.x+=1.6*(additionalArtworks().length+1);
+    // New artwork instance v3 uses its visible mesh as the pivot, rather
+    // than arbitrary authoring coordinates that can be kilometers away.
+    // Existing saved v2 artwork instances are left untouched.
+    const root=makeExtra("custom-glb",nextExtraId++,3,id,assetLibrary,artRoot);
+    const primaryBounds=new THREE.Box3().setFromObject(artRoot);
+    const addedBounds=new THREE.Box3().setFromObject(root);
+    const mainSize=primaryBounds.getSize(new THREE.Vector3());
+    const addedSize=addedBounds.getSize(new THREE.Vector3());
+    if(addedBounds.isEmpty() || addedSize.lengthSq()<1e-12)
+      throw Error("추가 작품에 표시 가능한 메시가 없습니다.");
+    // Files exported in mm or without units can be invisible or encompass
+    // the entire site. Apply an editable INSTANCE scale only for outliers;
+    // never modify source vertices, materials, or geometry.
+    const sourceMeasure=Math.max(addedSize.y,addedSize.x,addedSize.z);
+    const mainMeasure=Math.max(mainSize.y,mainSize.x,mainSize.z,1);
+    let scaleAdjusted=false;
+    if(sourceMeasure<mainMeasure*.12 || sourceMeasure>mainMeasure*8){
+      const factor=Math.max(.0001,Math.min(1000,mainMeasure/sourceMeasure));
+      root.scale.multiplyScalar(factor);
+      scaleAdjusted=true;
+    }
+    const placedSize=new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
+    const otherBounds=additionalArtworks().map(x=>new THREE.Box3().setFromObject(x));
+    const rightEdge=Math.max(primaryBounds.max.x,...otherBounds.map(box=>box.max.x));
+    const gap=Math.max(.35,Math.min(3,mainSize.x*.18||.8));
+    root.position.set(rightEdge+gap+placedSize.x/2,
+      primaryBounds.isEmpty()?0:primaryBounds.min.y,
+      primaryBounds.isEmpty()?0:primaryBounds.getCenter(new THREE.Vector3()).z);
     extrasRoot.add(root);
     refreshLayers({redrawSite:false});
     changeMode("translate");
@@ -864,7 +889,14 @@ async function addArtworkGLB(file){
     $("multi-art-select").value=String(root.userData.extraId);
     updateMultiArtStatus();
     commit(before);
-    notify("독립 작품 "+file.name+" 추가 · 클릭 후 이동(G)·회전(R)·크기(S) 편집 가능");
+    // Frame the original and new sculptures together, not the empty
+    // TransformControls origin. Retain original model dimensions.
+    const combinedBounds=new THREE.Box3().setFromObject(artRoot);
+    for(const other of additionalArtworks())combinedBounds.union(new THREE.Box3().setFromObject(other));
+    fitCameraToBounds(combinedBounds,"기본 작품 + 추가 작품 나란히 보기");
+    notify("추가 작품 표시 완료 · "+file.name+
+      (scaleAdjusted?" · 원본 단위 차이로 배치 인스턴스 배율 자동 조정 (크기 도구에서 수정 가능)":"")+
+      " · 이동(G)·회전(R)·크기(S) 편집 가능");
   }catch(e){notify("추가 작품 가져오기 실패: "+e.message);}
 }
 async function importLibraryGLB(file){
