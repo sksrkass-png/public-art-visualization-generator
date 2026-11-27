@@ -587,3 +587,8 @@ html[data-studio-workspace="quick"] .sidepanel.right .inspector-fold:not([open])
     width:1px!important;height:1px!important;overflow:hidden!important;
     clip-path:inset(50%);margin:0!important;padding:0!important;border:0!important}
 }
+
+/* v4.1: editing buttons fit the compact left project panel without overflow. */
+.art-multi-import .multi-art-edit-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:8px 0}
+.art-multi-import .multi-art-edit-actions button{min-width:0;white-space:nowrap;padding:8px 4px;font-size:11px}
+.art-multi-import #multi-art-select{width:100%;min-width:0}
