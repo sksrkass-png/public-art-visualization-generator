@@ -592,3 +592,11 @@ html[data-studio-workspace="quick"] .sidepanel.right .inspector-fold:not([open])
 .art-multi-import .multi-art-edit-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:8px 0}
 .art-multi-import .multi-art-edit-actions button{min-width:0;white-space:nowrap;padding:8px 4px;font-size:11px}
 .art-multi-import #multi-art-select{width:100%;min-width:0}
+
+/* v4.1.2 per-additional-artwork appearance editor */
+.art-multi-import .extra-art-appearance{margin:12px 0 9px;padding:11px;border:1px solid #d4dbdf;border-radius:10px;background:#f6f8f9}
+.art-multi-import .extra-art-appearance h3{font-size:12px;margin:0 0 10px}
+.art-multi-import .extra-art-appearance select{width:100%;min-width:0}
+.art-multi-import .extra-art-appearance input[type=color]{width:100%;min-height:33px}
+.art-multi-import .extra-art-appearance .inline{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.art-multi-import .extra-art-appearance button{min-width:0;font-size:11px;padding:7px 2px}
