@@ -885,11 +885,11 @@ async function importLibraryGLB(file){
   }catch(error){console.error(error);notify("에셋 등록 실패: "+error.message);}
 }
 function ensureAvailableLibrary(assets,library=assetLibrary){
-  if(!validLibraryManifest(assets))throw Error("GLB 에셋 목록 형식이 올바르지 않습니다.");
+  if(!validLibraryManifest(assets))throw Error("GLB/OBJ 에셋 목록 형식이 올바르지 않습니다.");
   for(const a of assets){
     const entry=library.get(a.id);
     if(!entry || entry.file.name!==a.name || entry.file.size!==a.byteSize ||
-      entry.category!==a.category)throw Error("사용자 GLB 파일을 다시 불러오세요: "+a.name);
+      entry.category!==a.category)throw Error("사용자 3D 원본 파일을 다시 불러오세요: "+a.name);
   }
 }
 function renderExtraLayerRows() {
@@ -2675,8 +2675,8 @@ function clearCanvasSelection(){
   updateExtrasStatus();
 }
 function selectRoot(object, showGizmo=false) {
-  updateMultiArtStatus();
   selectedRoot = object || artRoot;
+  updateMultiArtStatus();
   gizmoRequested=!!showGizmo;
   if (gizmoRequested && selectedCanEdit())transform.attach(selectedRoot);
   else transform.detach();
@@ -3374,7 +3374,10 @@ async function exportProjectArchive({toVault=false}={}) {
       zip.file("assets/artwork-resources/" + i, artSourceResources[i]);
     if (planSourceFile) zip.file("assets/plan", planSourceFile);
     if (hdrSourceFile) zip.file("assets/environment", hdrSourceFile);
-    for(const asset of assetLibrary.values())zip.file("assets/library/"+asset.id+".glb",asset.file);
+    for(const asset of assetLibrary.values()){
+      const extension=/\.obj$/i.test(asset.file.name)?"obj":"glb";
+      zip.file("assets/library/"+asset.id+"."+extension,asset.file);
+    }
     $("save-status").textContent = "SHA-256 원본 검증 정보 생성 중…";
     const integrity=await makeIntegrityManifest(zip);
     zip.file("integrity.json",JSON.stringify(integrity,null,2));
@@ -3486,17 +3489,19 @@ async function importProjectArchive(file) {
     validateProjectConfig(data);
     const loadedLibrary=new Map();
     for(const entry of data.library||[]){
-      const bin=checkedArchiveEntry(zip,"assets/library/"+entry.id+".glb",20*1024*1024,true);
-      const file=await recoverArchiveAsset(bin,entry.name,20*1024*1024,"model/gltf-binary");
+      const extension=/\.obj$/i.test(entry.name)?"obj":"glb";
+      const bin=checkedArchiveEntry(zip,"assets/library/"+entry.id+"."+extension,MAX_LIBRARY_ITEM_BYTES,true);
+      const file=await recoverArchiveAsset(bin,entry.name,MAX_LIBRARY_ITEM_BYTES,extension==="obj"?"text/plain":"model/gltf-binary");
       if(file.size!==entry.byteSize)throw Error("추가 모델 원본 파일 크기가 일치하지 않습니다: "+entry.name);
-      loadedLibrary.set(entry.id,await parseLibraryGLB(file,entry.id,entry.category));
+      loadedLibrary.set(entry.id,await parseLibraryModel(file,entry.id,entry.category));
     }
     ensureAvailableLibrary(data.library||[],loadedLibrary);
-    const actualGlbSources=Object.keys(zip.files).filter(name=>
-      /^assets\/library\/lib[1-9]\d{0,4}\.glb$/.test(name)).sort();
-    const declaredGlbSources=(data.library||[]).map(a=>"assets/library/"+a.id+".glb").sort();
-    if(JSON.stringify(actualGlbSources)!==JSON.stringify(declaredGlbSources))
-      throw Error("프로젝트 설정과 ZIP 내 GLB 에셋 목록이 일치하지 않습니다.");
+    const actualLibrarySources=Object.keys(zip.files).filter(name=>
+      /^assets\/library\/lib[1-9]\d{0,4}\.(?:glb|obj)$/.test(name)).sort();
+    const declaredLibrarySources=(data.library||[]).map(a=>
+      "assets/library/"+a.id+(/\.obj$/i.test(a.name)?".obj":".glb")).sort();
+    if(JSON.stringify(actualLibrarySources)!==JSON.stringify(declaredLibrarySources))
+      throw Error("프로젝트 설정과 ZIP 내 GLB/OBJ 에셋 목록이 일치하지 않습니다.");
     if (data.archiveSchema !== PROJECT_ARCHIVE_SCHEMA) throw new Error("지원하지 않는 프로젝트 패키지 버전입니다.");
     // Decode and validate EVERYTHING before changing the current scene.
     const siteEntry = checkedArchiveEntry(zip, "assets/site", MAX_MODEL_BYTES, !!data.site.file);
@@ -4286,8 +4291,27 @@ for(const [id,isSite] of [["site-dropzone",true],["art-dropzone",false]]){
   });
 }
 $("multi-art-file").addEventListener("change",e=>{
-  addArtworkGLB(e.target.files[0]);e.target.value="";
+  void addArtworkGLB(e.target.files[0]);e.target.value="";
 });
+function selectedAdditionalArtwork(){
+  return additionalArtworks().find(root=>String(root.userData.extraId)===$("multi-art-select").value)||null;
+}
+$("multi-art-select").addEventListener("change",()=>{
+  const root=selectedAdditionalArtwork();
+  if(root)selectRoot(root,true);
+  else updateMultiArtStatus();
+});
+$("multi-art-select-edit").addEventListener("click",()=>{
+  const root=selectedAdditionalArtwork();
+  if(root&&canEditObject(root,artRoot,layerState,approvedMaster))selectRoot(root,true);
+});
+document.querySelectorAll("[data-multi-art-mode]").forEach(button=>button.addEventListener("click",()=>{
+  const root=selectedAdditionalArtwork();
+  if(!root||!canEditObject(root,artRoot,layerState,approvedMaster))return;
+  selectRoot(root,true);
+  changeMode(button.dataset.multiArtMode);
+  $("multi-art-edit-status").textContent=root.name+" · "+({translate:"이동",rotate:"회전",scale:"크기"}[button.dataset.multiArtMode])+" 도구 활성화 · XYZ 축을 드래그하세요.";
+}));
 $("map-file").addEventListener("change", e => loadPlan(e.target.files[0]));
 $("map-width").addEventListener("change", () => { if (!approvedMaster) syncPlanWidth(); });
 ["plan-x","plan-z","plan-rotation","plan-elevation","plan-opacity","plan-visible"].forEach(id=>{
