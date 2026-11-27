@@ -24,7 +24,7 @@ import {REFLECTION_ENVIRONMENTS,createSoftReflectionTexture} from "./reflection-
 import { STANDARD_VIEWS, createStandardCameras, captureSceneIntegrity,
   masterConsistency, validateBatchManifest } from "./batch.js";
 import { initVisualReview } from "./review.js";
-import { makeIntegrityManifest, verifyIntegrityManifest } from "./integrity.js";
+import { makeIntegrityManifest, verifyIntegrityManifest } from "./integrity.js?v=4.1";
 import { initReadiness } from "./readiness.js";
 import { initProposalExport } from "./proposal.js";
 import { initTeamCollaboration, validateCollaborationState } from "./collaboration.js";
@@ -35,7 +35,7 @@ import {FRAME_MODES,CAMERA_LENSES,normalizeVisualSettings,
   fitDistance,localContextRadius,renderQualityFlags} from "./modeling-quality.js";
 import { pairMeasurement,sceneInterferences,translateGroupPeers } from "./precision.js";
 import { parseLibraryGLB,parseLibraryModel, validLibraryManifest, libraryManifest, libraryMemoryStats,
-  MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES, MAX_LIBRARY_ITEM_BYTES } from "./assets.js";
+  MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES, MAX_LIBRARY_ITEM_BYTES } from "./assets.js?v=4.1";
 import { inspectImportedSite, validSiteAlignment } from "./site-import.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape, upgradeGroundLight, applySpatialFinish } from "./extras.js";
 import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
