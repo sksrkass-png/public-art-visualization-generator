@@ -871,7 +871,7 @@ async function addArtworkGLB(file){
     const mainMeasure=Math.max(mainSize.y,mainSize.x,mainSize.z,1);
     let scaleAdjusted=false;
     if(sourceMeasure<mainMeasure*.12 || sourceMeasure>mainMeasure*8){
-      const factor=Math.max(.00001,Math.min(100000,mainMeasure/sourceMeasure));
+      const factor=Math.max(.0001,Math.min(1000,mainMeasure/sourceMeasure));
       root.scale.multiplyScalar(factor);
       scaleAdjusted=true;
     }
