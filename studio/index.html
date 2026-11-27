@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101113">
   <title>AXOO — Creative 3D Studio</title>
-  <link rel="stylesheet" href="./studio.css?v=4.0.6-plaque-text">
+  <link rel="stylesheet" href="./studio.css?v=4.1-multi-art-obj">
   <!-- Critical desktop layout guard: remains effective even if an older stylesheet is cached. -->
   <style id="viewport-scroll-guard">
     @media (min-width: 801px) {
@@ -38,7 +38,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 4.0.6 · CENTERED PLAQUE TEXT</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
+    <div class="brand"><b>AXOO<span class="brand-dot">.</span></b><span class="brand-divider"></span><span>CREATIVE <strong>3D STUDIO</strong></span><small>VERSION 4.1 · MULTI ART OBJ</small><small id="project-mode-tag" class="mode-top-tag">PUBLIC ART</small></div>
     <div class="top-actions">
       <div class="workspace-mode-switch" role="group" aria-label="3D 스튜디오 작업 화면 모드">
         <button id="workspace-quick" type="button" aria-pressed="true">⚡ QUICK</button>
@@ -190,9 +190,18 @@
         </div>
         <button class="outline full" type="button" id="sample-art">샘플 조형물 다시 넣기</button>
         <div class="art-multi-import">
-          <label class="file-button secondary" for="multi-art-file"><span>+ 추가 작품 GLB 불러오기 · 전체 최대 5개</span><small>독립형 GLB · 20MB 이하 / 개</small></label>
-          <input id="multi-art-file" class="sr-only" type="file" accept=".glb,model/gltf-binary">
-          <p class="hint">추가 작품은 독립형 GLB만 지원합니다. 원본 작품·추가 작품은 장면에서 별도로 선택할 수 있습니다.</p>
+          <label class="file-button secondary" for="multi-art-file"><span>+ 추가 작품 GLB / OBJ 불러오기 · 전체 최대 5개</span><small>개별 최대 120MB · 원본 에셋 합계 300MB</small></label>
+          <input id="multi-art-file" class="sr-only" type="file" accept=".glb,.obj,model/gltf-binary,text/plain">
+          <p class="hint">GLB와 OBJ(단독 메시)를 지원합니다. OBJ의 외부 MTL/텍스처는 이 간편 추가 기능에서 자동 포함하지 않습니다. 추가 작품을 클릭해 선택하거나 아래 목록에서 골라 이동·회전·크기를 변경하세요. MASTER 잠금 시 편집되지 않습니다.</p>
+          <label for="multi-art-select">추가 작품 선택</label>
+          <select id="multi-art-select"><option value="">추가한 작품 없음</option></select>
+          <div class="inline multi-art-edit-actions" aria-label="선택한 추가 작품 편집">
+            <button id="multi-art-select-edit" type="button" class="outline" disabled>🎯 선택</button>
+            <button type="button" data-multi-art-mode="translate" class="outline" disabled>이동</button>
+            <button type="button" data-multi-art-mode="rotate" class="outline" disabled>회전</button>
+            <button type="button" data-multi-art-mode="scale" class="outline" disabled>크기</button>
+          </div>
+          <p id="multi-art-edit-status" class="hint" aria-live="polite">추가한 작품을 선택하면 3D 뷰포트에서 조작 축이 표시됩니다.</p>
           <p id="multi-art-status" class="hint" aria-live="polite">기본 작품 1개 + 추가 작품 최대 4개. 추가 작품 선택 후 삭제하면 슬롯을 다시 사용할 수 있습니다.</p>
         </div>
         <p id="art-filename" class="asset-caption">현재: 편집 가능한 샘플 조형물</p>
@@ -572,7 +581,7 @@
         <button id="library-toggle" class="outline full" type="button" aria-controls="asset-library-panel" aria-expanded="false">📂 내 GLB 에셋 라이브러리 열기</button>
         <div class="asset-library-panel" id="asset-library-panel" hidden>
           <div class="section-title"><h2>📦 외부 GLB 에셋 라이브러리</h2><span class="tag">v2.7</span></div>
-          <p class="hint">실제 수목·사람·가구 3D GLB를 직접 업로드하세요. 독립형 GLB 최대 12종, 각 20MB, 합계 120MB, 모델당 삼각형 25만 개 이내입니다. 전체 프로젝트 ZIP은 320MB 한도이므로 모델이 많으면 ZIP 내보내기 시 경량화가 필요할 수 있습니다. 자동 에셋 다운로드는 제공하지 않습니다.</p>
+          <p class="hint">실제 수목·사람·가구 3D GLB를 직접 업로드하세요. 등록 원본 최대 12종, 개별 120MB, 합계 300MB, 일반 에셋당 삼각형 25만 개·별도 작품은 120만 개 이내입니다. 전체 프로젝트 ZIP은 320MB 한도이므로 모델이 많으면 ZIP 내보내기 시 경량화가 필요할 수 있습니다. 자동 에셋 다운로드는 제공하지 않습니다.</p>
           <label class="file-button secondary" for="library-asset-file"><span>+ GLB 에셋 불러오기</span><small>glTF 2.0 GLB · 텍스처 포함 권장</small></label>
           <input class="sr-only" id="library-asset-file" type="file" accept=".glb,model/gltf-binary">
           <label for="library-asset-category">업로드하는 에셋 유형</label>
@@ -1063,6 +1072,6 @@
   }
 })();
 </script>
-<script type="module" src="./studio.js?v=4.0.6-plaque-text"></script>
+<script type="module" src="./studio.js?v=4.1-multi-art-obj"></script>
 </body>
 </html>
