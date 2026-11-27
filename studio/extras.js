@@ -572,8 +572,23 @@ export function makeExtra(kind,id,appearanceVersion=2,assetId=null,library=null,
     const source=library?.get(assetId);
     if(!source)throw Error("사용자 GLB 원본이 없습니다: "+assetId);
     root.userData.assetCategory=source.category;
-    root.add(instantiateLibraryAsset(source));
-    root.name=source.file.name.replace(/\.glb$/i,"")+" #"+id;
+    const instance=instantiateLibraryAsset(source);
+    root.add(instance);
+    // v3 of the additional artwork instance: pivot at its *real geometry*
+    // footprint, not at a potentially remote OBJ/GLB authoring origin.
+    // No vertices, source material, or library source data are modified.
+    // Legacy v2 saved extras remain exactly where they were.
+    if(source.category==="artwork"&&appearanceVersion>=3){
+      const bounds=new THREE.Box3().setFromObject(instance);
+      if(!bounds.isEmpty()){
+        const center=bounds.getCenter(new THREE.Vector3());
+        instance.position.x-=center.x;
+        instance.position.y-=bounds.min.y;
+        instance.position.z-=center.z;
+        root.userData.geometryPivotNormalized=true;
+      }
+    }
+    root.name=source.file.name.replace(/\.(?:glb|obj)$/i,"")+" #"+id;
   }
   else lightFixture(root,kind,appearanceVersion);
   return root;
