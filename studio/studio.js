@@ -864,7 +864,6 @@ async function addArtworkGLB(file){
     $("multi-art-select").value=String(root.userData.extraId);
     updateMultiArtStatus();
     commit(before);
-    updateMultiArtStatus();
     notify("독립 작품 "+file.name+" 추가 · 클릭 후 이동(G)·회전(R)·크기(S) 편집 가능");
   }catch(e){notify("추가 작품 가져오기 실패: "+e.message);}
 }
@@ -3280,6 +3279,7 @@ function importSceneConfig(data) {
   updateLight();
   restoreExtras(extrasRoot, data.extras || [],assetLibrary,artRoot);
   refreshAssetLibraryUI();
+  updateMultiArtStatus();
   layerState=importLayerState(data.layers);
   if(data.site.file && data.site.file!==siteFileName){
     pendingSiteLayers={file:data.site.file,nodes:structuredClone(layerState.siteNodes)};
