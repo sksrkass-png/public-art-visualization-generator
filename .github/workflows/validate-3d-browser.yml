@@ -9,6 +9,7 @@ on:
       - 'tests/studio-viewport-scroll.test.cjs'
       - 'tests/studio-file-import-viewport.test.cjs'
       - 'tests/studio-v4.0.5-plaques-browser.test.cjs'
+      - 'tests/studio-v4.1-multi-art-browser.test.cjs'
       - '.github/workflows/validate-3d-browser.yml'
   workflow_dispatch:
 
@@ -47,6 +48,8 @@ jobs:
         run: node tests/studio-file-import-viewport.test.cjs
       - name: Angled stone nameplates · 3D geometry and metallic finish
         run: node tests/studio-v4.0.5-plaques-browser.test.cjs
+      - name: Multi-art OBJ import and direct 3D edit + ZIP roundtrip
+        run: node tests/studio-v4.1-multi-art-browser.test.cjs
       - name: Focused v4 workspace and project vault smoke
         run: node tests/studio-v4-browser.test.cjs
       - name: Exercise browser editor
