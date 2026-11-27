@@ -62,6 +62,8 @@ const OBJ=Buffer.from([
     let config=await download();
     assert.deepEqual(config.extras.find(x=>x.kind==="custom-glb").materialOverride,
       {preset:"mirror",color:"#aabbcc"});
+    for(const id of ["undo","redo"])
+      await page.locator("#"+id).evaluate(el=>{const fold=el.closest("details.inspector-fold");if(fold)fold.open=true;});
     await page.locator("#undo").click();
     config=await download();
     assert.equal(config.extras.find(x=>x.kind==="custom-glb").materialOverride,undefined);
