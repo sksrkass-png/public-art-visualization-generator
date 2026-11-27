@@ -69,6 +69,7 @@ jobs:
           node tests/studio-navigation-ux.test.cjs
           node tests/studio-context-catalog.test.cjs
           node tests/studio-v4.0.5-plaques-grid.test.cjs
+          node tests/studio-v4.1-multi-art.test.cjs
           node tests/studio-plant-variants.test.cjs
           node tests/studio-asset-volume.test.cjs
           node tests/studio-render-looks.test.cjs
