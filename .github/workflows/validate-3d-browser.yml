@@ -11,6 +11,7 @@ on:
       - 'tests/studio-v4.0.5-plaques-browser.test.cjs'
       - 'tests/studio-v4.1-multi-art-browser.test.cjs'
       - 'tests/studio-v4.1.1-visible-extra-browser.test.cjs'
+      - 'tests/studio-v4.1.2-extra-material-browser.test.cjs'
       - '.github/workflows/validate-3d-browser.yml'
   workflow_dispatch:
 
@@ -53,6 +54,8 @@ jobs:
         run: node tests/studio-v4.1-multi-art-browser.test.cjs
       - name: Remote-coordinate OBJ and GLB artwork visibility and adjacent placement
         run: node tests/studio-v4.1.1-visible-extra-browser.test.cjs
+      - name: Independent extra-art material and undo/redo browser regression
+        run: node tests/studio-v4.1.2-extra-material-browser.test.cjs
       - name: Focused v4 workspace and project vault smoke
         run: node tests/studio-v4-browser.test.cjs
       - name: Exercise browser editor

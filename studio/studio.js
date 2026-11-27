@@ -38,6 +38,7 @@ import { parseLibraryGLB,parseLibraryModel, validLibraryManifest, libraryManifes
   MAX_LIBRARY_ASSETS, MAX_LIBRARY_BYTES, MAX_LIBRARY_ITEM_BYTES } from "./assets.js?v=4.1";
 import { inspectImportedSite, validSiteAlignment } from "./site-import.js";
 import { makeExtra, extraLight, serializeExtras, validateExtras, restoreExtras, setEditorGizmosVisible, applyPlinthFinish, applyPlinthShape, upgradeGroundLight, applySpatialFinish } from "./extras.js";
+import {applyExtraArtworkMaterial,extraArtworkMaterial} from "./extra-art-materials.js";
 import {DIM_MODES,ANCHOR_MODES,fitDimensionScale,targetAnchorTranslation,
   validPlacementReference,validatePlinthDimensions} from "./dimensioning.js";
 import { snapRootToSurface, surfaceAtPointer, toFinite } from "./placement.js";
@@ -835,6 +836,16 @@ function updateMultiArtStatus(){
   const chosen=works.find(o=>String(o.userData.extraId)===list.value);
   const editable=!!chosen&&canEditObject(chosen,artRoot,layerState,approvedMaster);
   $("multi-art-select-edit").disabled=!editable;
+  $("multi-art-apply-material").disabled=!editable;
+  $("multi-art-reset-material").disabled=!editable;
+  $("multi-art-material").disabled=!editable;
+  $("multi-art-color").disabled=!editable;
+  const appearance=extraArtworkMaterial(chosen);
+  $("multi-art-material").value=appearance.preset;
+  $("multi-art-color").value=appearance.color;
+  $("multi-art-material-status").textContent=chosen
+    ?(appearance.preset==="original"?"원본 재질 유지":"적용된 재질 · "+ART_MATERIALS[appearance.preset].label)+" · "+chosen.name
+    :"선택한 추가 작품의 재질만 변경할 수 있습니다.";
   document.querySelectorAll("[data-multi-art-mode]").forEach(button=>button.disabled=!editable);
   $("multi-art-edit-status").textContent=chosen
     ?chosen.name+" · 클릭하거나 편집 모드를 누르면 XYZ 조작 축이 활성화됩니다."
@@ -2442,7 +2453,8 @@ function syncLock() {
     "plan-rotation", "plan-elevation", "plan-opacity"]
     .forEach(id => { $(id).disabled = approvedMaster; });
   document.querySelectorAll("[data-add-extra]").forEach(btn => { btn.disabled = approvedMaster; });
-  ["art-material","art-material-color","apply-material","reset-material",
+  ["multi-art-apply-material","multi-art-reset-material","multi-art-material","multi-art-color",
+    "art-material","art-material-color","apply-material","reset-material",
     "art-roughness","art-metalness","art-reflection","art-anisotropy","art-tuning-reset"]
     .forEach(id=>{$(id).disabled=approvedMaster;});
   ["env-mode","env-strength","env-file","clear-hdr"].forEach(id=>{$(id).disabled=approvedMaster;});
@@ -4333,6 +4345,25 @@ $("multi-art-select").addEventListener("change",()=>{
   if(root)selectRoot(root,true);
   else updateMultiArtStatus();
 });
+function applySelectedExtraMaterial(config){
+  const root=selectedAdditionalArtwork();
+  if(!root||!canEditObject(root,artRoot,layerState,approvedMaster))
+    return notify("추가 작품을 선택하고 MASTER LOCK 및 레이어 잠금을 확인하세요.");
+  try{
+    if(!validMaterialConfig(config))throw Error("재질 프리셋 또는 색상 값이 올바르지 않습니다.");
+    const before=editSnapshot();
+    applyExtraArtworkMaterial(root,config);
+    commit(before);
+    updateMultiArtStatus();
+    notify(root.name+" · "+(config.preset==="original"?"원본 재질 복원":ART_MATERIALS[config.preset].label+" 적용")+" 완료");
+  }catch(error){notify("추가 작품 재질 변경 실패: "+error.message);}
+}
+$("multi-art-apply-material").addEventListener("click",()=>applySelectedExtraMaterial({
+  preset:$("multi-art-material").value,color:$("multi-art-color").value
+}));
+$("multi-art-reset-material").addEventListener("click",()=>applySelectedExtraMaterial({
+  preset:"original",color:"#d0d6db"
+}));
 $("multi-art-select-edit").addEventListener("click",()=>{
   const root=selectedAdditionalArtwork();
   if(root&&canEditObject(root,artRoot,layerState,approvedMaster))selectRoot(root,true);

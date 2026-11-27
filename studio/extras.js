@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { instantiateLibraryAsset } from "./assets.js";
+import {applyExtraArtworkMaterial} from "./extra-art-materials.js";
+import {validMaterialConfig} from "./rendering.js";
 import { addBlackNameplate } from "./nameplate-asset.js";
 import { addSlopedStoneNameplate } from "./sloped-nameplates.js?v=4.0.6";
 import {NEW_PLANT_VARIANTS,addPlantVariant} from "./plant-variants.js";
@@ -635,7 +637,8 @@ export function serializeExtras(container) {
       id:root.userData.extraId,
       kind:root.userData.extraKind,
       appearanceVersion:root.userData.appearanceVersion || 1,
-      ...(root.userData.extraKind==="custom-glb"?{assetId:root.userData.assetId}:{}),
+      ...(root.userData.extraKind==="custom-glb"?{assetId:root.userData.assetId,
+        ...(root.userData.materialOverride?{materialOverride:structuredClone(root.userData.materialOverride)}:{})}:{}),
       hidden:root.userData.layerHidden === true,
       selectionLocked:root.userData.layerLocked === true,
       ...(root.userData.groupId?{groupId:root.userData.groupId}:{}),
@@ -657,6 +660,7 @@ export function validateExtras(extras) {
     if(!x||!EXTRA_TYPES.includes(x.kind)||!Number.isInteger(x.id)||x.id<1||ids.has(x.id))return false;
     if(x.appearanceVersion !== undefined && ![1,2,3,4].includes(x.appearanceVersion))return false;
     if(x.kind==="custom-glb" && !/^lib[1-9]\d{0,4}$/.test(x.assetId||""))return false;
+    if(x.materialOverride!==undefined&&(x.kind!=="custom-glb"||!validMaterialConfig(x.materialOverride)))return false;
     if(x.kind==="plinth" && x.shape!==undefined && !["box","round"].includes(x.shape))return false;
     if(x.kind==="plinth" && x.finish!==undefined && !Object.hasOwn(PLINTH_MATERIALS,x.finish))return false;
     if(x.followArtwork!==undefined && (x.kind!=="plinth" || typeof x.followArtwork!=="boolean"))return false;
@@ -687,6 +691,7 @@ export function restoreExtras(container,entries,library=null,artRoot=null) {
     root.position.fromArray(x.transform.p);
     root.rotation.set(...x.transform.r);
     root.scale.fromArray(x.transform.s);
+    if(x.materialOverride)applyExtraArtworkMaterial(root,x.materialOverride);
     if(x.spatialFinish)applySpatialFinish(root,x.spatialFinish,x.spatialFinishColor||"#ff3b30");
     if(x.kind==="plinth"){
       applyPlinthShape(root,x.shape||"box");
