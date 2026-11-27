@@ -36,18 +36,23 @@ const OBJ=Buffer.from([
    await field("rotation","y",42);
    await page.locator('[data-multi-art-mode="scale"]').click();
    await field("scale","x",1.8);
-   const json=page.waitForEvent("download",{timeout:60000});
-   await page.locator("#export-json").click();
-   const config=JSON.parse(fs.readFileSync(await (await json).path(),"utf8"));
+   await page.locator("#export-json").evaluate(el=>{const fold=el.closest("details.inspector-fold");if(fold)fold.open=true;});
+   const [downloadedJson]=await Promise.all([
+     page.waitForEvent("download",{timeout:60000}),
+     page.locator("#export-json").click()
+   ]);
+   const config=JSON.parse(fs.readFileSync(await downloadedJson.path(),"utf8"));
    const model=config.extras.find(x=>x.kind==="custom-glb"&&x.assetId);
    assert.ok(model,"independent OBJ must be persisted as editable extra");
    assert.equal(config.library.find(x=>x.id===model.assetId).name,"AXOO-extra.obj");
    assert.ok(Math.abs(model.transform.p[0]-3.25)<.001);
    assert.ok(Math.abs(model.transform.r[1]-42*Math.PI/180)<.001);
    assert.ok(Math.abs(model.transform.s[0]-1.8)<.001);
-   const dl=page.waitForEvent("download",{timeout:90000});
-   await page.locator("#project-quick-save").click();
-   const downloaded=await dl,zipPath=await downloaded.path();
+   const [downloaded]=await Promise.all([
+     page.waitForEvent("download",{timeout:90000}),
+     page.locator("#project-quick-save").click()
+   ]);
+   const zipPath=await downloaded.path();
    const names=execFileSync("unzip",["-Z1",zipPath],{encoding:"utf8"});
    assert.match(names,/assets\/library\/lib\d+\.obj/);
    const restored=execFileSync("unzip",["-p",zipPath,"assets/library/"+model.assetId+".obj"]);
